@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { api, native, nativeAvailable } from "./api";
 import { getClientContext, isRemoteClient } from "./client-context.mjs";
-import logo from "./logo.png";
+import logo from "./logo.svg";
 import "./account.css";
 
 const AccountContext = createContext(null);
@@ -68,7 +68,7 @@ export function AccountProvider({ children }) {
     return () => { live = false; };
   }, [Boolean(account), deviceKey, deviceSupport]);
   const deviceAction = async (operation, kind) => {
-    if (!deviceSupport?.device_status) throw new Error("当前应用启动器需要更新，请重新安装完整的 Cage 应用后再设置快捷登录。");
+    if (!deviceSupport?.device_status) throw new Error("当前应用启动器需要更新，请重新安装完整的 ccBox 应用后再设置快捷登录。");
     try {
       await native("accountDevice", { operation, kind });
     } finally {
@@ -157,13 +157,13 @@ export function MacOSAccountGate({ children }) {
     catch (e) { setError(e.message); }
     finally { setBusy(false); }
   }
-  return <main className="account-gate"><div className="account-brand"><img src={logo} alt="" />Cage</div><section className="account-entry">
-    <h1>设置 Cage 与 macOS 共用账密</h1>
-    <p className="account-entry-intro">{account.trusted_local ? "先设置 Cage 用户名和密码，再继续客机安装。已有账户、文件和登录状态会保留。" : "输入当前 Cage 密码，确认用于 macOS 客机。已有客机保留用户名和用户目录。"}</p>
+  return <main className="account-gate"><div className="account-brand"><img src={logo} alt="" />ccBox</div><section className="account-entry">
+    <h1>设置 ccBox 与 macOS 共用账密</h1>
+    <p className="account-entry-intro">{account.trusted_local ? "先设置 ccBox 用户名和密码，再继续客机安装。已有账户、文件和登录状态会保留。" : "输入当前 ccBox 密码，确认用于 macOS 客机。已有客机保留用户名和用户目录。"}</p>
     <form onSubmit={submit}><fieldset disabled={busy}>
       <label className="account-field">用户名<input required value={name} onChange={event => setName(event.target.value)} maxLength={31} pattern="[a-z][a-z0-9_]{0,30}" readOnly={Boolean(account.macos_guest_user)} autoComplete="username" /></label>
       <p className="field-help">小写字母开头，1–31 个小写字母、数字或下划线。密码使用 8–256 个英文键盘可输入的字符。</p>
-      <PasswordField label={account.trusted_local ? "设置密码" : "当前 Cage 密码"} value={password} onChange={setPassword} autoComplete={account.trusted_local ? "new-password" : "current-password"} />
+      <PasswordField label={account.trusted_local ? "设置密码" : "当前 ccBox 密码"} value={password} onChange={setPassword} autoComplete={account.trusted_local ? "new-password" : "current-password"} />
       <PasswordField label="确认密码" value={confirmation} onChange={setConfirmation} autoComplete={account.trusted_local ? "new-password" : "current-password"} />
       {error && <p role="alert" className="account-error">{error}</p>}
       <button className="primary account-submit" disabled={busy}>{busy ? "正在保存…" : "保存账密并继续"}</button>
@@ -286,11 +286,11 @@ export function AccountGate({ children }) {
     <main className="account-gate">
       <div className="account-brand">
         <img src={logo} alt="" />
-        Cage
+        ccBox
       </div>
       <section
         className="account-entry"
-        aria-label={creating ? isRemoteClient() ? "创建云端账户" : "创建本地账户" : "解锁 Cage"}
+        aria-label={creating ? isRemoteClient() ? "创建云端账户" : "创建本地账户" : "解锁 ccBox"}
       >
         {creating ? (
           <img className="account-welcome-logo" src={logo} alt="" />
@@ -299,10 +299,10 @@ export function AccountGate({ children }) {
         )}
         <h1>
           {creating
-            ? "注册 Cage 账户"
+            ? "注册 ccBox 账户"
             : account
               ? `欢迎回来，${account.username}`
-              : "正在连接 Cage"}
+              : "正在连接 ccBox"}
         </h1>
         <p className="account-entry-intro">
           {creating
@@ -368,7 +368,7 @@ export function AccountGate({ children }) {
                 <p className="field-help" role="status">暂时无法检查系统钥匙串，请先用密码解锁。快捷登录授权记录已保留。</p>
               )}
               {deviceSupport?.supported && !deviceSupport.device_status && (
-                <p className="field-help" role="status">当前应用启动器需要更新，暂时无法检查快捷登录状态。请先用密码进入，并重新安装完整的 Cage 应用。</p>
+                <p className="field-help" role="status">当前应用启动器需要更新，暂时无法检查快捷登录状态。请先用密码进入，并重新安装完整的 ccBox 应用。</p>
               )}
               {(localDesktop() || (creating && deviceSupport?.supported && deviceSupport.device_status)) && (
                 <label className="account-device-option check-line">
@@ -391,7 +391,7 @@ export function AccountGate({ children }) {
                 className="primary account-submit"
                 disabled={busy || !password || (creating && (!username.trim() || (!localDesktop() && nativeAvailable() && deviceSupport === null)))}
               >
-                {busy ? "正在解锁…" : creating ? isRemoteClient() ? "创建云端账户" : "创建本地账户" : "解锁 Cage"}
+                {busy ? "正在解锁…" : creating ? isRemoteClient() ? "创建云端账户" : "创建本地账户" : "解锁 ccBox"}
               </button>
             </fieldset>
           </form>
@@ -411,7 +411,7 @@ export function AccountGate({ children }) {
         {!account?.trusted_local && <p className="account-recovery-note">
           {creating
             ? "密码至少 8 个字符，用于保护应用登录凭据。请妥善保存，当前不支持在线找回。"
-            : isRemoteClient() ? "请输入云端 Cage 账户密码；当前不支持在线找回。" : "请输入本地账户密码；当前不支持在线找回。"}
+            : isRemoteClient() ? "请输入云端 ccBox 账户密码；当前不支持在线找回。" : "请输入本地账户密码；当前不支持在线找回。"}
         </p>}
       </section>
       {nativeAvailable() && (
@@ -419,7 +419,7 @@ export function AccountGate({ children }) {
           className="text-button account-exit-app"
           onClick={() => native("quitNow").catch((e) => setError(e.message))}
         >
-          {account?.background_running ? "退出应用，后台继续运行" : "退出 Cage"}
+          {account?.background_running ? "退出应用，后台继续运行" : "退出 ccBox"}
         </button>
       )}
     </main>
@@ -458,7 +458,7 @@ export function AccountMenu({ onSettings, onConfirm, onStatus, busy }) {
       action === "logout" &&
       !(await onConfirm({
         title: isRemoteClient() ? "退出云端账户？" : "退出本地账户？",
-        body: "这会停止 Cage 环境与后台任务，并锁定登录凭据。请先保存文件。",
+        body: "这会停止 ccBox 环境与后台任务，并锁定登录凭据。请先保存文件。",
         confirm: "停止环境并退出账户",
       }))
     )
@@ -495,7 +495,7 @@ export function AccountMenu({ onSettings, onConfirm, onStatus, busy }) {
             items[(items.indexOf(event.target) + step + items.length) % items.length].focus();
           }}
         >
-          <div className="account-menu-label">你的 Cage</div>
+          <div className="account-menu-label">你的 ccBox</div>
           <button
             role="menuitem"
             onClick={() => {
@@ -512,7 +512,7 @@ export function AccountMenu({ onSettings, onConfirm, onStatus, busy }) {
           <div className="account-menu-divider" />
           <button role="menuitem" onClick={() => perform("lock")}>
             <LockKeyhole size={16} />
-            锁定 Cage<small>任务继续运行</small>
+            锁定 ccBox<small>任务继续运行</small>
           </button>
           <button
             role="menuitem"
@@ -582,7 +582,7 @@ export function AccountSettings({ busy: environmentBusy, onDirty }) {
         await trustedLogin("protect", password);
         await refresh();
         setPassword(""); setConfirmation("");
-        setMessage("已设置密码，下次打开 Cage 时使用密码登录。");
+        setMessage("已设置密码，下次打开 ccBox 时使用密码登录。");
         return;
       }
       const value = await act(
@@ -599,7 +599,7 @@ export function AccountSettings({ busy: environmentBusy, onDirty }) {
         setOldPassword("");
         setPassword("");
         setConfirmation("");
-        setMessage(value.macos_password_pending ? "Cage 密码已修改。客机密码待同步，下次启动时自动重试；同步完成前客机可能仍需原密码。" : "密码已修改，应用登录状态保持不变");
+        setMessage(value.macos_password_pending ? "ccBox 密码已修改。客机密码待同步，下次启动时自动重试；同步完成前客机可能仍需原密码。" : "密码已修改，应用登录状态保持不变");
       } else {
         setName(value.username);
         setAvatar(value.avatar || "");
@@ -695,7 +695,7 @@ export function AccountSettings({ busy: environmentBusy, onDirty }) {
         <fieldset disabled={busy || environmentBusy}>
           <h4>账户密码</h4>
           <p className="field-help">
-            修改密码不会清除 Claude 的登录状态。{account.macos_credentials_ready ? "Cage 与 macOS 客机共用密码；客机关闭时会在下次启动后同步。" : isRemoteClient() ? "密码用于解锁当前云端 Cage，没有在线找回。" : "密码用于本机解锁，没有在线找回。"}
+            修改密码不会清除 Claude 的登录状态。{account.macos_credentials_ready ? "ccBox 与 macOS 客机共用密码；客机关闭时会在下次启动后同步。" : isRemoteClient() ? "密码用于解锁当前云端 ccBox，没有在线找回。" : "密码用于本机解锁，没有在线找回。"}
           </p>
           {!account.trusted_local && <PasswordField
             label="当前密码"
@@ -728,7 +728,7 @@ export function AccountSettings({ busy: environmentBusy, onDirty }) {
       {!account.trusted_local && <AccountDeviceSettings />}
       <p className="account-settings-note">
         <LockKeyhole size={15} />
-        {isRemoteClient() ? "账户、应用资料与登录凭据保存在当前云端主机。" : "一个本地账户，一个持久工作环境。资料与凭据不上传到 Cage 服务器。"}
+        {isRemoteClient() ? "账户、应用资料与登录凭据保存在当前云端主机。" : "一个本地账户，一个持久工作环境。资料与凭据不上传到 ccBox 服务器。"}
       </p>
     </div>
   );
@@ -769,7 +769,7 @@ function AccountDeviceSettings() {
   if (!deviceSupport?.supported) return null;
   if (!deviceSupport.device_status) return <section className="account-device-settings" aria-label="登录与解锁">
     <h4>登录与解锁</h4>
-    <p className="field-help" role="status">当前应用启动器需要更新，无法检查快捷登录状态。请重新安装完整的 Cage 应用后再设置；现有授权已保留。</p>
+    <p className="field-help" role="status">当前应用启动器需要更新，无法检查快捷登录状态。请重新安装完整的 ccBox 应用后再设置；现有授权已保留。</p>
   </section>;
   const states = deviceSupport.device_status || {};
   const description = (kind, fallback) => states[kind] === "missing"

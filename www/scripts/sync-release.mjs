@@ -8,7 +8,7 @@ import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { parseArgs } from 'node:util';
 
-const repository = 'Lee-xeo/Claude-Cage';
+const repository = 'JackNiu2026/ccbox';
 const repoURL = `https://github.com/${repository}`;
 const apiURL = `https://api.github.com/repos/${repository}/releases`;
 const sourceArchive = name => /^mihomo-v[\d.]+-source\.tar\.gz$/.test(name) ||
@@ -23,13 +23,14 @@ export async function request(url, timeout = 180_000, { fetchImpl = fetch } = {}
   const metadata = target.origin === 'https://api.github.com' &&
     (target.pathname === `/repos/${repository}/releases` || target.pathname.startsWith(`/repos/${repository}/releases/`));
   const options = {
-    headers: { 'User-Agent': 'Cage-Release-Verification', Accept: metadata ? 'application/vnd.github+json' : 'application/octet-stream' },
+    headers: { 'User-Agent': 'ccBox-Release-Verification', Accept: metadata ? 'application/vnd.github+json' : 'application/octet-stream' },
     signal: AbortSignal.timeout(timeout),
   };
   let response = await fetchImpl(url, options);
   if (metadata && response.status === 403 && response.headers.get('x-ratelimit-remaining') === '0') {
-    const tag = target.pathname.match(/^\/repos\/Lee-xeo\/Claude-Cage\/releases\/tags\/(v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/)?.[1];
-    if (tag) {
+    const prefix = `/repos/${repository}/releases/tags/`;
+    const tag = target.pathname.startsWith(prefix) && target.pathname.slice(prefix.length);
+    if (tag && /^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(tag)) {
       await response.body?.cancel();
       console.warn('Anonymous GitHub API is rate limited; reading the requested version from its public checksum manifest.');
       return new Response(JSON.stringify(await publicManifestRelease(tag, fetchImpl)));
@@ -53,14 +54,14 @@ export async function publicManifestRelease(tag, fetchImpl = fetch) {
   }
   const version = tag.slice(1);
   const allowed = name => [
-    `Cage-${version}-macos-arm64.dmg`, `Cage-${version}-windows-amd64-setup.exe`,
-    `Cage-${version}-windows-amd64-setup-unsigned.exe`, `Cage-${version}-linux-amd64.deb`,
-    `Cage-${version}-android-arm64.apk`,
+    `ccBox-${version}-macos-arm64.dmg`, `ccBox-${version}-windows-amd64-setup.exe`,
+    `ccBox-${version}-windows-amd64-setup-unsigned.exe`, `ccBox-${version}-linux-amd64.deb`,
+    `ccBox-${version}-android-arm64.apk`,
   ].includes(name) || sourceArchive(name);
   if ([...names.keys()].some(name => !allowed(name))) throw new Error('Unexpected public release asset');
   const assets = [{ name: 'SHA256SUMS', state: 'uploaded', size: Buffer.byteLength(text), browser_download_url: `${base}SHA256SUMS` }];
   for (const [name, digest] of names) {
-    const response = await fetchImpl(`${base}${name}`, { method: 'HEAD', headers: { 'User-Agent': 'Cage-Release-Verification' }, signal: AbortSignal.timeout(180_000) });
+    const response = await fetchImpl(`${base}${name}`, { method: 'HEAD', headers: { 'User-Agent': 'ccBox-Release-Verification' }, signal: AbortSignal.timeout(180_000) });
     const size = Number(response.headers.get('content-length'));
     const maximum = (sourceArchive(name) ? 2048 : 512) * 1024 * 1024;
     if (!response.ok || !Number.isSafeInteger(size) || size <= 0 || size > maximum) throw new Error(`Missing or incomplete public asset: ${name}`);
@@ -73,10 +74,10 @@ export async function publicManifestRelease(tag, fetchImpl = fetch) {
 
 export function releaseAssets(release) {
   if (release.draft || !/^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(release.tag_name)) {
-    throw new Error('Expected a published Cage version tag');
+    throw new Error('Expected a published ccBox version tag');
   }
   const version = release.tag_name.slice(1);
-  const names = [`Cage-${version}-macos-arm64.dmg`, 'SHA256SUMS'];
+  const names = [`ccBox-${version}-macos-arm64.dmg`, 'SHA256SUMS'];
   const assets = names.map(name => release.assets.find(asset => asset.name === name));
   const source = release.assets.find(asset => /^mihomo-v[\d.]+-source\.tar\.gz$/.test(asset.name));
   assets.push(source);
@@ -89,9 +90,9 @@ export function releaseAssets(release) {
     }
   }
   if (assets[1].size > 64 * 1024) throw new Error('Checksum file is too large');
-  const windows = optionalAsset(release, `Cage-${version}-windows-amd64-setup.exe`);
-  const linux = optionalAsset(release, `Cage-${version}-linux-amd64.deb`);
-  const android = optionalAsset(release, `Cage-${version}-android-arm64.apk`);
+  const windows = optionalAsset(release, `ccBox-${version}-windows-amd64-setup.exe`);
+  const linux = optionalAsset(release, `ccBox-${version}-linux-amd64.deb`);
+  const android = optionalAsset(release, `ccBox-${version}-android-arm64.apk`);
   const guestSource = optionalAsset(release, `cage-macos-guest-${version}-source.tar.gz`);
   return { version, archive: assets[0], checksums: assets[1], source, windows, linux, android, guestSource };
 }
@@ -129,7 +130,7 @@ export function releaseMetadata(release, text) {
     }
   }
   if (!metadata.windowsDownloadURL && release.prerelease) {
-    const unsigned = optionalAsset(release, `Cage-${version}-windows-amd64-setup-unsigned.exe`);
+    const unsigned = optionalAsset(release, `ccBox-${version}-windows-amd64-setup-unsigned.exe`);
     const qemu = release.assets.find(asset => /^qemu-[0-9a-f]{40}-source\.tar\.gz$/.test(asset.name));
     if (unsigned && qemu && optionalAsset(release, qemu.name)) {
       try {
@@ -178,7 +179,7 @@ async function download(asset, digest, directory) {
 
 async function main() {
   const { values } = parseArgs({ options: {
-    tag: { type: 'string' }, output: { type: 'string', default: 'www/src/data/release.json' },
+    tag: { type: 'string' }, output: { type: 'string', default: '_output/upstream-release.json' },
     'archive-directory': { type: 'string' },
   } });
   let release;

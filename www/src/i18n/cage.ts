@@ -33,30 +33,26 @@ function readCopy(language: typeof languages[number]) {
   const [reason, uses, quick, installation, steps, boundaries, contribution, license] = sections;
   const reasonParagraphs = paragraphs(reason.body);
   const installParagraphs = paragraphs(installation.body);
-  const captions = [...reason.body.matchAll(/^\*\*(.+?)\*\*\s*$/gm)].map(match => plain(match[1]));
   const stepHeadings = [...steps.body.matchAll(/^### \d+\. (.+)$/gm)];
   if (stepHeadings.length !== 3 || bullets(reason.body).length !== 4 || bullets(boundaries.body).length !== 4) {
     throw new Error(`${file}: README feature, setup or boundary structure has changed`);
   }
   const setup = stepHeadings.map((heading, i): [string,string] => [heading[1], plain(steps.body.slice(heading.index! + heading[0].length, stepHeadings[i+1]?.index ?? steps.body.length))]);
-  const docs = [...contribution.body.matchAll(/^\|\s*([^|]+)\s*\|\s*\[([^\]]+)\]\(([^)]+)\)\s*\|/gm)].map(match => ({
-    title: plain(match[1]), label: match[2], href: match[3].startsWith('https://') ? match[3] : `https://github.com/Lee-xeo/Claude-Cage/blob/main/${match[3]}`,
-  }));
-  const slogan = source.slice(0, headings[0].index).match(/^\*\*(.+?)\*\*$/m)?.[1] || 'Claude Cage';
-  const isChinese = language.code === 'zh' || language.code === 'zh-TW';
+  const docs = [...contribution.body.matchAll(/^\|\s*([^|]+)\s*\|\s*\[([^\]]+)\]\((?:\.\/)?docs\/guide\/([a-z-]+)\.md\)\s*\|/gm)]
+    .map(match => ({ title: plain(match[1]), label: match[2], slug: match[3] }));
+  const features = bullets(uses.body).map(feature => {
+    const link = feature.match(/\s*\[([^\]]+)\]\((?:\.\/)?docs\/guide\/([a-z-]+)\.md\)\s*$/);
+    const [title, text] = pair(link ? feature.slice(0, link.index) : feature);
+    return { title, text, guide: link && { label: link[1], slug: link[2] } };
+  });
   const limit = plain(bullets(boundaries.body).at(-1)!);
   return {
-    ...language, title: `Claude Cage — ${plain(slogan)}`, description: reasonParagraphs[1],
-    home: 'Claude Cage', start: quick.title, boundary: boundaries.title,
-    hero: isChinese ? '把 Claude 大小姐' : 'Claude Cage',
-    heroAccent: language.code === 'zh' ? '关起来。' : language.code === 'zh-TW' ? '關起來。' : '',
-    tagline: isChinese ? plain(slogan).split(/[，,]/).slice(1).join('，') : plain(slogan),
-    intro: reasonParagraphs[1], requirements: 'macOS · Windows · Linux · Android · iOS', artAlt: 'Claude Cage',
+    ...language,
+    home: 'ccBox', start: quick.title, boundary: boundaries.title,
+    uiPreviewLabel: language.code === 'zh' ? '界面预览' : language.code === 'zh-TW' ? '介面預覽' : 'UI preview',
     why: reason.title, whyText: reasonParagraphs[0], whyNote: limit,
     keyFeatures: bullets(reason.body).map(plain),
-    featureTitle: uses.title, features: bullets(uses.body).map(pair),
-    workbench: captions[1] || 'Claude Cage',
-    evidenceTitle: captions[0] || language.checksLabel, evidenceNote: limit,
+    featureTitle: uses.title, features,
     quickTitle: quick.title, quickText: paragraphs(quick.body)[0],
     prompt: quick.body.match(/```[^\n]*\n([\s\S]*?)```/)?.[1]?.trim() || '',
     quickNote: paragraphs(quick.body).slice(1).join('\n'),
@@ -64,8 +60,7 @@ function readCopy(language: typeof languages[number]) {
     boundaryTitle: boundaries.title, boundaries: bullets(boundaries.body).map(pair),
     downloadTitle: installation.title, downloadText: installParagraphs[1],
     downloadNote: installParagraphs[0], updateNote: installParagraphs.at(-1) || '',
-    communityTitle: contribution.title, communityText: paragraphs(contribution.body.replace(/<p\b[^>]*>[\s\S]*?<\/p>/g, '')).at(-1) || '',
-    group: isChinese ? 'QQ 二群 · 1127457578' : 'QQ #2 · 1127457578', docsTitle: contribution.title, docs,
+    docsTitle: contribution.title, docs,
     licenseTitle: license.title, licenseText: paragraphs(license.body).slice(0,-1).join('\n\n'),
     independent: paragraphs(license.body).at(-1) || '',
   };

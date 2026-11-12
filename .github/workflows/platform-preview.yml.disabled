@@ -18,7 +18,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   publish:
-    if: github.repository == 'Lee-xeo/Claude-Cage' && github.ref == 'refs/heads/main' && inputs.unsigned_windows
+    if: github.repository == 'JackNiu2026/ccbox' && github.ref == 'refs/heads/main' && inputs.unsigned_windows
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
@@ -52,12 +52,3 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CAGE_PREVIEW_RUN: ${{ inputs.run_id }}
         run: node scripts/publish-platform-preview.mjs
-  website:
-    needs: publish
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    uses: ./.github/workflows/www.yml
-    with:
-      release_tag: ${{ needs.publish.outputs.tag }}

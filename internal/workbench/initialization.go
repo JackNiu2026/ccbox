@@ -86,7 +86,7 @@ func (s *Server) initialization(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.hasTrustedView(r) || !s.localVMStorage() {
-		http.Error(w, "请在本机 Cage 窗口完成初始化", http.StatusForbidden)
+		http.Error(w, "请在本机 ccBox 窗口完成初始化", http.StatusForbidden)
 		return
 	}
 	var input struct {

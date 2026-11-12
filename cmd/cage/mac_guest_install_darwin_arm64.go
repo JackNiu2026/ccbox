@@ -37,10 +37,10 @@ func installMacWorkbench(ctx context.Context, profile, state string, l *vm.Lima)
 	defer clear(pw)
 	ordinaryUser := os.Getenv("CAGE_MACOS_ACCOUNT")
 	if !guestos.ValidMacOSAccountName(ordinaryUser) {
-		return errors.New("请从 Cage 注册共用账密后继续安装 macOS 客机")
+		return errors.New("请从 ccBox 注册共用账密后继续安装 macOS 客机")
 	}
 	if !macGuestLoginAvailable() {
-		return errors.New("此 Cage 构建缺少虚拟 Mac 登录组件")
+		return errors.New("此 ccBox 构建缺少虚拟 Mac 登录组件")
 	}
 	exe, err := os.Executable()
 	if err != nil {
@@ -178,6 +178,6 @@ func installMacWorkbench(ctx context.Context, profile, state string, l *vm.Lima)
 	if err := guestos.BindNewMacOSProfile(profile, ordinaryUser, key, i.ID); err != nil {
 		return err
 	}
-	fmt.Fprintln(os.Stdout, "macOS 客机应用已安装，自动登录已准备。Cage 将继续完成首次授权。")
+	fmt.Fprintln(os.Stdout, "macOS 客机应用已安装，自动登录已准备。ccBox 将继续完成首次授权。")
 	return nil
 }

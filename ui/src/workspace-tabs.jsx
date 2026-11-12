@@ -297,7 +297,7 @@ export function WorkspaceTabs({
           const title = tabName(tab, saved);
           const opening = Boolean(openingSession) && openingSession === tab.cli_session_id;
           const runningElsewhere = tab.sessionRunningElsewhere;
-          const runningNotice = "其他窗口运行中，退出原会话后可在 Cage 接续";
+          const runningNotice = "其他窗口运行中，退出原会话后可在 ccBox 接续";
           const openError = tab.historySession && sessionOpenError?.id === tab.cli_session_id ? sessionOpenError.message : "";
           const errorID = `session-open-error-${tab.cli_session_id}`;
           return (

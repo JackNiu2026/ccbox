@@ -249,7 +249,7 @@ func run(ctx context.Context, args []string, out, errs io.Writer) error {
 		return err
 	}
 	defer browser.Close()
-	page := []byte(`<!doctype html><meta charset="utf-8"><meta name="referrer" content="no-referrer"><meta http-equiv="refresh" content="0;url=` + html.EscapeString(entry) + `"><title>Cage</title>`)
+	page := []byte(`<!doctype html><meta charset="utf-8"><meta name="referrer" content="no-referrer"><meta http-equiv="refresh" content="0;url=` + html.EscapeString(entry) + `"><title>ccBox</title>`)
 	err = writeNewPrivate(launchFile, page)
 	clear(page)
 	if err != nil {

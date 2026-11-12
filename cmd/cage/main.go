@@ -14,7 +14,6 @@ import (
 	"time"
 
 	agentvm "github.com/sylvinus/agent-vm"
-	"github.com/sylvinus/agent-vm/internal/appupdate"
 	"github.com/sylvinus/agent-vm/internal/cage"
 	"github.com/sylvinus/agent-vm/internal/cli"
 	"github.com/sylvinus/agent-vm/internal/containerenv"
@@ -24,6 +23,7 @@ import (
 	"github.com/sylvinus/agent-vm/internal/hostproxy"
 	"github.com/sylvinus/agent-vm/internal/limaembed"
 	"github.com/sylvinus/agent-vm/internal/managedproxy"
+	"github.com/sylvinus/agent-vm/internal/version"
 	"github.com/sylvinus/agent-vm/internal/workbench"
 	"io"
 	"os/signal"
@@ -32,35 +32,35 @@ import (
 	"syscall"
 )
 
-const help = `Claude Cage — local isolated Claude development
+const help = `ccBox — local isolated Claude development
 
-cage desktop       Open the unified Cage workbench (desktop launcher)
+cage desktop       Open the unified ccBox workbench (desktop launcher)
 cage agent         Discover and use the versioned, JSON-only external Agent interface
 cage serve         Run its private localhost control service
 cage server-entry --json  Issue a private SSH remote connection entry
 cage container-configure --json  Configure a Linux container from JSON stdin
-cage init          Create a private profile; add and select nodes in Cage settings
+cage init          Create a private profile; add and select nodes in ccBox settings
 cage check         Verify proxy transport (no VM required)
 cage guest-os --json  Check host prerequisites for a same-system guest
                      On Windows, add --vm-id GUID to inspect one Hyper-V VM
-cage proxy-start   Start Cage's bundled proxy core with the applied node
-cage proxy-stop    Stop Cage's core and close external networking
+cage proxy-start   Start ccBox's bundled proxy core with the applied node
+cage proxy-stop    Stop ccBox's core and close external networking
 cage setup         Build the isolated base VM through the specified proxy
-cage up            Start the shared Cage environment, editor and browser
-cage login         Start cage services, then Claude's login flow inside the VM
+cage up            Start the shared ccBox environment, editor and browser
+cage login         Start ccBox services, then Claude's login flow inside the VM
 cage access        Inspect legacy viewer credentials (diagnostics only)
 cage shell         Open a shell in the shared environment
 cage run COMMAND   Execute a command in the shared environment
 cage claude        Run Claude Code in the shared environment
-cage stop          Stop the shared Cage environment
-cage list          List this cage profile's VMs
+cage stop          Stop the shared ccBox environment
+cage list          List this ccBox profile's VMs
 cage doctor        Diagnose the VM
 cage diagnostics --json PATH.zip   Export a redacted diagnostic bundle
 cage version       Print this build's version. --min VERSION fails if older
 cage licenses      Print third-party license notices
 
 Configuration: ~/.claude-cage/config.json (override CLAUDE_CAGE_CONFIG).
-Each configuration directory is an independent cage profile.
+Each configuration directory is an independent ccBox profile.
 Only explicitly opened project folders are shared. No host Claude credentials are imported.
 `
 
@@ -310,7 +310,14 @@ func run() int {
 		return relay(path, args[1])
 	}
 	if args[0] == "app-update" {
-		return appupdate.Run(path, args[1:], os.Stdout)
+		if len(args) != 2 || (args[1] != "check" && args[1] != "download") {
+			return fail(errors.New("更新操作无效"))
+		}
+		_ = json.NewEncoder(os.Stdout).Encode(map[string]string{
+			"phase": "manual", "currentVersion": version.Version,
+			"message": "ccBox 使用安装包手动更新，请向安装包提供方获取新版。",
+		})
+		return 0
 	}
 	connectionID := ""
 	if (args[0] == "clipboard-files" || args[0] == "upload-files" || args[0] == "browser-file" || args[0] == "desktop-file" || args[0] == "share-project") && len(args) >= 3 && args[2] == "--connection" {
@@ -432,7 +439,7 @@ func run() int {
 			if err := openWorkbench(entry.URL); err != nil {
 				return fail(err)
 			}
-			fmt.Println("Cage workbench opened.")
+			fmt.Println("ccBox workbench opened.")
 		}
 		return 0
 	}
@@ -614,7 +621,7 @@ func run() int {
 		if err := workbench.StartGuestServices(context.Background(), path, cfg, os.Stdout, os.Stderr); err != nil {
 			return fail(err)
 		}
-		fmt.Println("Cage local services are ready. Open Cage or run cage desktop to complete the required network checks. External networking stays closed until the workbench approves this VM; no local access password is required.")
+		fmt.Println("ccBox local services are ready. Open ccBox or run cage desktop to complete the required network checks. External networking stays closed until the workbench approves this VM; no local access password is required.")
 		if args[0] == "login" {
 			return cli.Main([]string{"run", "--tty", "bash", "-lc", "source /etc/profile.d/claude-cage.sh; exec claude auth login"}, cli.Stdio())
 		}

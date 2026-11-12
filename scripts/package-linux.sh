@@ -25,7 +25,13 @@ install -m 755 packaging/linux/preinst "$stage/DEBIAN/prerm"
 # dpkg-shlibdeps derives glibc/GTK dependencies from the build distribution.
 # Use Ubuntu 22.04 for releases; a newer build must not claim an older ABI.
 mkdir -p "$stage/debian"
-printf 'Source: claude-cage\nSection: devel\nPriority: optional\nMaintainer: Cage contributors <noreply@github.com>\n\nPackage: claude-cage\nArchitecture: amd64\nDescription: Cage desktop\n' > "$stage/debian/control"
+# Set a distributor's contact for the package without changing its install identity.
+maintainer="${CCBOX_DEB_MAINTAINER:-ccBox <build@localhost>}"
+if [[ "$maintainer" == *$'\r'* || "$maintainer" == *$'\n'* ]]; then
+  echo 'CCBOX_DEB_MAINTAINER must be a single line.' >&2
+  exit 1
+fi
+printf 'Source: claude-cage\nSection: devel\nPriority: optional\nMaintainer: %s\n\nPackage: claude-cage\nArchitecture: amd64\nDescription: ccBox desktop\n' "$maintainer" > "$stage/debian/control"
 dependencies=$(cd "$stage" && dpkg-shlibdeps -O usr/lib/claude-cage/cage-desktop | sed -n 's/^shlibs:Depends=//p')
 [[ -n "$dependencies" ]] || { echo 'Cannot determine native dependencies.' >&2; exit 1; }
 rm -rf "$stage/debian"
@@ -35,16 +41,15 @@ Version: $deb_version
 Section: devel
 Priority: optional
 Architecture: amd64
-Maintainer: Cage contributors <noreply@github.com>
+Maintainer: $maintainer
 Depends: $dependencies, libwebkit2gtk-4.1-0 (>= 2.40), libglib2.0-bin, ca-certificates, systemd
 Suggests: qemu-system-x86, qemu-utils, ovmf, openssh-client, iproute2, git (>= 2.38)
 Recommends: dbus-user-session, fonts-noto-cjk, libnotify-bin, zenity | kdialog
-Homepage: https://github.com/Lee-xeo/Claude-Cage
-Description: Isolated coding workspace with a persistent Linux VM
- Cage combines projects, terminals, a browser and an editor in a native
- desktop window. Select a local virtual machine or connect to a Cage server over SSH.
+Description: ccBox isolated coding workspace with a persistent Linux VM
+ ccBox combines projects, terminals, a browser and an editor in a native
+ desktop window. Select a local virtual machine or connect to a ccBox server over SSH.
 EOF
-deb="$output/Cage-$version-linux-amd64.deb"
+deb="$output/ccBox-$version-linux-amd64.deb"
 dpkg-deb --root-owner-group --build "$stage" "$deb"
 cp _output/linux-deps/mihomo-v1.19.33-source.tar.gz "$output/"
 (cd "$output" && sha256sum "$(basename "$deb")" mihomo-v1.19.33-source.tar.gz > SHA256SUMS)

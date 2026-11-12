@@ -1,5 +1,5 @@
 // Real authenticated workbench, bundled Mihomo and local HTTP CONNECT servers.
-// Uses a new private profile. Never touches the user's Cage, VM or subscriptions.
+// Uses a new private profile. Never touches the user's ccBox, VM or subscriptions.
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import http from 'node:http';

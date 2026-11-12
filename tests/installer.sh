@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Checks of www/public/install.sh, the curl installer, and of agent-vm.sh,
+# Checks of scripts/upstream-install.sh, the curl installer, and of agent-vm.sh,
 # which it runs. Stub curl and git serve releases laid out as release.sh
 # makes them (a tarball per platform: agent-vm and agent-vm.sh), one laid out
 # as 0.2's, and a clone whose make builds a stub binary: nothing is
@@ -13,7 +13,7 @@
 set -uo pipefail
 
 SELF_DIR="$(CDPATH= cd -- "$(dirname "${BASH_SOURCE[0]:-$0}")/.." >/dev/null && pwd)"
-INSTALLER="$SELF_DIR/www/public/install.sh"
+INSTALLER="$SELF_DIR/scripts/upstream-install.sh"
 
 FAIL=0
 PASSED=0
@@ -137,7 +137,7 @@ winst() {
 }
 WDIR="$WH/.local/share/agent-vm"
 
-echo "www/public/install.sh (curl | sh)"
+echo "scripts/upstream-install.sh (curl | sh)"
 
 # 0.2, installed by this installer: its link leads to agent-vm.sh.
 make_old_release 0.2.1

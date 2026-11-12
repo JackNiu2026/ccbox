@@ -36,12 +36,12 @@ function Run-Installer {
         throw "Installer returned $($process.ExitCode), expected $ExpectedExitCode"
     }
 }
-$desktopShortcut = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'Cage.lnk'
-$startMenuDirectory = Join-Path ([Environment]::GetFolderPath('Programs')) 'Cage'
+$desktopShortcut = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'ccBox.lnk'
+$startMenuDirectory = Join-Path ([Environment]::GetFolderPath('Programs')) 'ccBox'
 function Assert-Shortcuts {
     param([bool]$Desktop, [bool]$StartMenu)
     if ((Test-Path -LiteralPath $desktopShortcut) -ne $Desktop) { throw 'Desktop shortcut differs from the installer selection.' }
-    foreach ($name in @('Cage.lnk', 'Uninstall Cage.lnk')) {
+    foreach ($name in @('ccBox.lnk', 'Uninstall ccBox.lnk')) {
         if ((Test-Path -LiteralPath (Join-Path $startMenuDirectory $name)) -ne $StartMenu) { throw "Start menu shortcut differs from the installer selection: $name" }
     }
     if ($Desktop) {

@@ -1,56 +1,40 @@
 ---
-title: 让 Agent 配置 Cage
+title: 让 Agent 配置 ccBox
 description: 给外部 Agent 的完整入口：下载校验、安装、配置代理与客机、任务跟踪、故障定位和恢复。
 group: 开始使用
 order: 5
 keywords: Agent CLI JSON 自动化 配置 接口 安装 诊断 修复 capabilities doctor llms
 ---
 
-你可以把下面这段话交给自己的 Agent，让它根据你的目标准备 Cage。你只需提供自己的代理来源、选择工作环境，并在操作系统要求时完成授权。Cage 账户密码、Claude 登录、许可证确认和项目共享范围由你决定。
+你可以把下面这段话交给自己的 Agent，让它根据你的目标准备 ccBox。你只需提供自己的代理来源、选择工作环境，并在操作系统要求时完成授权。ccBox 账户密码、Claude 登录、许可证确认和项目共享范围由你决定。
 
-> 请阅读 https://claude-cage.com/agent.md ，协助我安装、配置并验证 Cage。先检查本机安装和接口能力，再按实际状态操作；完成后告诉我环境是否就绪、网络是否通过检查，以及还需要我完成什么。保留所有现有账户、项目和虚拟机数据。
+> 请根据本指南协助我安装、配置并验证 ccBox。先确认本机已有的安装和接口能力，并保留现有账户、项目和虚拟机数据。
 
 本页是当前源码与开发构建的接口说明。公开 Release 可能尚未包含 `cage agent`。安装后必须先运行能力探测；遇到未知命令时，使用该版本的界面和发行说明，或安装用户授权的较新构建。不要仅凭版本字符串推断接口已存在。
 
 ## Agent 从哪里开始
 
-下文的 `cage` 代表 Cage 安装包内的后台 CLI。先找到实际文件；不要把桌面启动程序或 Linux 上同名的 Wayland 程序当作 CLI。
+下文的 `cage` 代表 ccBox 安装包内的后台 CLI。先找到实际文件；不要把桌面启动程序或 Linux 上同名的 Wayland 程序当作 CLI。
 
 | 平台 | 默认 CLI 位置 | 调用示例 |
 | --- | --- | --- |
-| macOS | `/Applications/Cage.app/Contents/Resources/cage` | `"/Applications/Cage.app/Contents/Resources/cage" agent capabilities` |
-| Windows | `%LOCALAPPDATA%\Programs\Cage\resources\cage.exe`，自定义安装目录以实际位置为准 | `& "$env:LOCALAPPDATA\Programs\Cage\resources\cage.exe" agent capabilities` |
+| macOS | `/Applications/ccBox.app/Contents/Resources/cage` | `"/Applications/ccBox.app/Contents/Resources/cage" agent capabilities` |
+| Windows | `%LOCALAPPDATA%\Programs\ccBox\resources\cage.exe`，自定义安装目录以实际位置为准 | `& "$env:LOCALAPPDATA\Programs\ccBox\resources\cage.exe" agent capabilities` |
 | Linux | `/usr/bin/claude-cage` | `claude-cage agent capabilities` |
 
-`agent capabilities` 输出本构建的协议版本、操作清单、输入字段和退出码，不启动后台或创建配置。首次配置与每次升级后都先读取一次。机器阅读入口为 `/agent.md`、`/llms.txt`、`/llms-full.txt`，使用 Cage 的外部 Agent 从本页开始。
+`agent capabilities` 输出本构建的协议版本、操作清单、输入字段和退出码，不启动后台或创建配置。首次配置与每次升级后都先读取一次。机器阅读入口为 `/agent.md`、`/llms.txt`、`/llms-full.txt`，使用 ccBox 的外部 Agent 从本页开始。
 
 所有 `agent` 命令自动输出 JSON，`--json` 可省略。示例把 `cage` 作为占位命令；执行时替换为上表路径。`--config /absolute/path/config.json` 明确选择配置；省略时使用 `CLAUDE_CAGE_CONFIG`，再省略则使用用户主目录下的 `.claude-cage/config.json`。每次输出中的 `config_path` 是实际目标。桌面配置的远端选择不会改变这个目标；管理服务器时，也可通过下文的 desktop / selected 范围管理桌面连接，或在授权的 SSH 通道内运行服务器接口。
 
 ## 下载、校验与安装
 
-下载助手位于官网的 `/agent-bootstrap.mjs`，需要 Node.js 20 或更新版本，无额外依赖。可以先下载并检查脚本，再执行。它只发现 Release、下载和校验安装包；输出后续安装步骤与参数数组。Agent 按平台执行安装，系统权限提示由用户处理。
-
-macOS/Linux 也可先获取 `/cage-install.sh` 再运行，参数与下载助手相同，需要 Node 和 curl。`/install.sh` 保留给上游 agent-vm 兼容流程，安装 Cage 时使用本节列出的专用入口。
-
-```sh
-curl --proto '=https' --proto-redir '=https' -fL \
-  https://claude-cage.com/agent-bootstrap.mjs -o agent-bootstrap.mjs
-node agent-bootstrap.mjs plan --platform darwin-arm64
-node agent-bootstrap.mjs download --platform darwin-arm64 \
-  --version v0.1.6-alpha-preview --destination /absolute/path/downloads
-```
-
-Windows 可用 PowerShell 下载脚本后执行 `node .\agent-bootstrap.mjs plan --platform win32-amd64`；Linux 的平台参数为 `linux-amd64`。省略平台时自动识别当前 Node 进程的平台和架构。指定 `--version` 会固定发行标签；省略时查询 GitHub 的 latest Release，它可能不包含预发行版，也可能缺少某个平台的附件。
-
-助手从同一标签读取安装包与 `SHA256SUMS`，拒绝不完整附件、重复校验项、HTTP 降级和校验不符。下载使用独立临时文件，成功后才生成目标文件；目标已存在时保留它并报错。失败后可以重新下载到新的目标目录。Windows 只有未签名预览包时，返回 `unsigned_package_requires_consent`；用户明确选择该预览后才添加 `--allow-unsigned`。
-
-下载使用主机网络，需能访问 GitHub API 与 Release 附件。Node 24 支持通过 `node --use-env-proxy agent-bootstrap.mjs ...` 使用用户明确配置的 `HTTPS_PROXY` / `HTTP_PROXY`；也可使用用户现有的主机 TUN。不要回显代理凭据。较旧 Node 的 fetch 不自动采用这些环境代理；连接失败时先排查主机下载网络，避免反复重建 Cage 配置。
+从安装包提供方取得适合当前平台的 ccBox 安装包和 SHA256SUMS，核对 SHA-256 后按下表安装。需要系统权限时由用户确认。自有安装包尚未发布时，使用本地源码构建。
 
 | 平台 | 安装与验证 |
 | --- | --- |
 | macOS | 只读挂载 DMG，检查应用签名与 Gatekeeper 结果，按[安装指南](installation.md)放入应用程序目录。更新前保存任务并停止旧环境；保留可恢复的旧应用，安装失败时回滚应用文件。不要移除隔离属性或关闭系统校验来继续安装。 |
 | Windows | 检查下载包的签名状态；在用户授权的安装上下文运行安装器。`/S` 支持静默安装；已有自定义安装目录以安装记录为准。系统安全提示、Hyper-V 启用与重启可能需要用户操作。 |
-| Linux | 在用户授权的权限上下文执行 `sudo apt-get install -- /absolute/path/Cage-版本-linux-amd64.deb`，由包管理器检查依赖。公共命令名是 `claude-cage`。 |
+| Linux | 在用户授权的权限上下文执行 `sudo apt-get install -- /absolute/path/ccBox-版本-linux-amd64.deb`，由包管理器检查依赖。公共命令名是 `claude-cage`。 |
 
 安装、更新与卸载只处理应用文件。保留 `.claude-cage`、用户指定的数据目录、共享项目与持久虚拟机磁盘。已有账户重新出现创建界面时，首先核对 `config_path` 与原数据位置；不要创建替代账户或初始化旧数据目录。下载成功与应用已安装是两个状态；安装后验证真实 CLI 文件和 `agent capabilities`，再开始配置。
 
@@ -69,7 +53,7 @@ cage agent host.inspect
 
 `init` 仅创建缺失的默认配置；已有有效配置会保留，损坏配置会报错。`service.start` 只启动缺失的本机后台，复用同一构建的现有后台，拒绝替换不匹配的构建。它不启动虚拟机。`doctor` 只读取当前状态，不启动服务、不更改网络或应用修复。
 
-账户存在且已解锁时继续下一步。否则让用户在 Cage 中创建或解锁；用户选择通过 Agent 提供密码时，可用下面的私有输入格式调用 `account.create` 或 `account.unlock`。命令行参数不接受密码。账户创建只适用于真正空白的 profile。
+账户存在且已解锁时继续下一步。否则让用户在 ccBox 中创建或解锁；用户选择通过 Agent 提供密码时，可用下面的私有输入格式调用 `account.create` 或 `account.unlock`。命令行参数不接受密码。账户创建只适用于真正空白的 profile。
 
 ```json
 {"username":"用户选择的名称","password":"用户提供的密码","confirm_password":"同一个密码"}
@@ -95,7 +79,7 @@ cage agent call proxy.import --input /private/path/subscription.json --wait 2m
 cage agent call proxy.status
 ```
 
-`host_download:true` 明确允许主机联网下载这份订阅，仅用于订阅获取；客机不会因此获得直连回退。已有 Cage 代理时，可省略它让订阅经过现有代理。不要自动从本机浏览器、代理软件或其他 Agent 的凭据文件提取订阅。
+`host_download:true` 明确允许主机联网下载这份订阅，仅用于订阅获取；客机不会因此获得直连回退。已有 ccBox 代理时，可省略它让订阅经过现有代理。不要自动从本机浏览器、代理软件或其他 Agent 的凭据文件提取订阅。
 
 从返回的来源和节点列表选择用户要求的出口；不要把订阅中的第一个节点当成用户已经同意的出口。
 
@@ -149,7 +133,7 @@ cage agent call network.check --wait 5m
 
 以 `status.ready`、`vm_running` 以及 `safety` 中当前配置对应的网络检查与授权共同判断可用性；`proxy.status.network_open` 可辅助检查外网是否已放行。网络暂停时保持用户的暂停意图，只有用户要求恢复联网才运行 `network.check`。完成首次引导使用 `initialization.set` 的 `{"action":"complete"}`，后台会再次核对环境与网络状态。
 
-打开项目使用 `project.open`：`{"workspace":"用户授权的绝对路径","add":true,"activate":true}`。它会让客机访问这个目录，改动会影响主机文件。返回 `approval` 表示等待系统授权；Agent 可以调用相同的 `/api/macos/project-approval` 查看、操作该窗口。Claude 的服务登录仍在 Cage 内的官方工具中完成；本接口不会导入主机 Claude 凭据。
+打开项目使用 `project.open`：`{"workspace":"用户授权的绝对路径","add":true,"activate":true}`。它会让客机访问这个目录，改动会影响主机文件。返回 `approval` 表示等待系统授权；Agent 可以调用相同的 `/api/macos/project-approval` 查看、操作该窗口。Claude 的服务登录仍在 ccBox 内的官方工具中完成；本接口不会导入主机 Claude 凭据。
 
 移除已添加项目使用 `project.remove`，传入 `{"workspace":"项目列表中的路径"}`。关闭该目录的终端、运行中会话和编辑器后可解除共享，原文件与会话历史保留。默认工作区保留，移除当前项目后切回默认工作区。
 
@@ -190,7 +174,7 @@ cage agent job 012345abcdef --wait 30m
 | `service_unavailable` | 核对实际 CLI 与路径，执行 `service.start`；失败时导出离线诊断。 |
 | `controller_mismatch` | 使用与运行后台同一应用内的 CLI；更新需要保存并停止已有任务，Agent 不会自动接管。 |
 | `config_path_mismatch` | 同一目录的后台使用了另一个配置文件名；改用原后台的绝对配置路径，保留所有现有文件。 |
-| `account_locked` | 用户在 Cage 解锁，或通过私有输入调用 `account.unlock`。 |
+| `account_locked` | 用户在 ccBox 解锁，或通过私有输入调用 `account.unlock`。 |
 | `request_rejected`、`invalid_input` | 读取本构建能力与错误说明，修正字段或节点/来源 ID；不要重复原请求。 |
 | `state_conflict`、`service_busy` | 读取当前任务和系统状态；有在途任务时等待原任务完成。 |
 | `unsupported_operation` | 检查当前平台和客机的能力，使用对应版本指南。 |
@@ -215,7 +199,7 @@ cage agent diagnostics --output /absolute/path/new-cage-diagnostics.zip
 
 ## 用户与 Agent 的操作空间
 
-命名操作是常用配置的快捷方式。通用 `request` 访问与界面相同的 HTTP API，`socket` 连接同一 WebSocket，原生操作交给实际桌面窗口的现有桥接执行。两种入口使用同一账户权限、密码重认证、项目授权、网络门槛和平台能力。用户授权 Agent 完成配置后，Cage 不因为调用者是 Agent 增加一轮产品确认。系统自身要求的 Touch ID、管理员认证等仍然有效。
+命名操作是常用配置的快捷方式。通用 `request` 访问与界面相同的 HTTP API，`socket` 连接同一 WebSocket，原生操作交给实际桌面窗口的现有桥接执行。两种入口使用同一账户权限、密码重认证、项目授权、网络门槛和平台能力。用户授权 Agent 完成配置后，ccBox 不因为调用者是 Agent 增加一轮产品确认。系统自身要求的 Touch ID、管理员认证等仍然有效。
 
 ### 先选择目标
 
@@ -226,7 +210,7 @@ cage agent diagnostics --output /absolute/path/new-cage-diagnostics.zip
 | `selected` | 完整应用桌面当前选择的环境，必须带 `--connection`，值取 client.context.connection_id。切换后旧代次被拒绝。 |
 | `client`，轻量客户端默认 | 轻量客户端的连接服务；业务请求必须带当前 `--connection`，连接管理请求可不带。 |
 
-完整应用的 `--config` 仍指原主配置；desktop 范围会定位对应的 desktop-entry 服务。轻量客户端使用自己安装包中的 CLI，默认配置为 `~/.claude-cage/client/config.json`。需要桌面窗口时，Agent 可以用正常系统启动方式打开 Cage，再继续接口操作；没有要求用户必须亲手打开窗口。
+完整应用的 `--config` 仍指原主配置；desktop 范围会定位对应的 desktop-entry 服务。轻量客户端使用自己安装包中的 CLI，默认配置为 `~/.claude-cage/client/config.json`。需要桌面窗口时，Agent 可以用正常系统启动方式打开 ccBox，再继续接口操作；没有要求用户必须亲手打开窗口。
 
 ```sh
 cage agent call client.context --scope desktop

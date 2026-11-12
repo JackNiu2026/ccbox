@@ -301,7 +301,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
             <CircleHelp size={17} aria-hidden="true" />
           </button>
         </div>
-        <p>选择最终出口，按需添加中转，供 Cage 内所有程序共用。</p>
+        <p>选择最终出口，按需添加中转，供 ccBox 内所有程序共用。</p>
       </div>
       {helpOpen && (
         <section
@@ -311,8 +311,8 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
         >
           <h4 id="proxy-help-title">代理使用说明</h4>
           <p className="proxy-help-intro">
-            Cage 自带代理核心，无需另外安装
-            Clash。请先准备你已有的代理订阅或节点信息，Cage 不提供代理节点。
+            ccBox 自带代理核心，无需另外安装
+            Clash。请先准备你已有的代理订阅或节点信息，ccBox 不提供代理节点。
           </p>
           <ol className="proxy-help-steps">
             <li>
@@ -343,7 +343,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
             <li>
               <strong>确认可以联网</strong>
               <p>
-                {initializing ? "点击“开始安装”，等待客机安装和网络检查完成。以初始化界面的检查结果为准；" : "回到工作台启动环境，等待网络检查通过。以工作台的联网状态为准；"}「测速」只检测节点延迟。Cage
+                {initializing ? "点击“开始安装”，等待客机安装和网络检查完成。以初始化界面的检查结果为准；" : "回到工作台启动环境，等待网络检查通过。以工作台的联网状态为准；"}「测速」只检测节点延迟。ccBox
                 内的浏览器、终端和开发工具会共用所选节点，无需分别配置代理。
               </p>
             </li>
@@ -377,7 +377,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           <span>
             {proxy.active
               ? proxy.running
-                ? "Cage 自带核心运行中"
+                ? "ccBox 自带核心运行中"
                 : "核心未就绪"
               : "请选择节点后应用，未配置时无法联网"}{" "}
             · 独立端口 {proxy.port}
@@ -395,7 +395,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
       )}
       {!proxy.core_available && (
         <div role="alert" className="error-message">
-          安装包缺少随附代理核心，请重新构建或安装完整 Cage 应用。
+          安装包缺少随附代理核心，请重新构建或安装完整 ccBox 应用。
         </div>
       )}
       <p className="field-help">
@@ -539,7 +539,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
               )}
               <div className="proxy-route-preview" aria-label="待应用链路">
                 <Route size={16} aria-hidden="true" />
-                <span>Cage</span>
+                <span>ccBox</span>
                 {route.map((id, index) => (
                   <React.Fragment key={index}>
                     <ArrowRight size={13} aria-hidden="true" />
@@ -820,7 +820,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                       await onConfirm({
                         title: `删除来源“${s.name}”？`,
                         body: s.nodes.some((n) => n.id === proxy.selected)
-                          ? "当前节点来自此来源。删除后 Cage 会保持离线，直到你选择其他节点。"
+                          ? "当前节点来自此来源。删除后 ccBox 会保持离线，直到你选择其他节点。"
                           : "将移除此来源及其节点，本地项目文件不受影响。",
                         confirm: "删除来源",
                       })
@@ -1054,7 +1054,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
             </span>
           </div>
           <p className="field-help">
-            显示当前核心的连接与流量，包含 Cage
+            显示当前核心的连接与流量，包含 ccBox
             自身检测请求；重启核心后累计值重置。
           </p>
           <div className="proxy-node-list">
@@ -1078,7 +1078,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
       {tab === "diagnostics" && (
         <>
           <p className="field-help">
-            随附核心 {proxy.version || "未运行"}。以下为 Cage
+            随附核心 {proxy.version || "未运行"}。以下为 ccBox
             状态摘要；含凭据风险的核心原始日志不向页面公开。
           </p>
           <div className="proxy-diagnostics" role="log">
@@ -1128,7 +1128,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
             </button>
           </div>
           <p className="field-help">
-            Cage 不设置系统代理或主机 TUN。本机其他代理的 TUN
+            ccBox 不设置系统代理或主机 TUN。本机其他代理的 TUN
             仍可能影响核心出站，需要结合实际路由验证。
           </p>
         </>

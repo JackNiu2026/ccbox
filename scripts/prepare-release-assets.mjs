@@ -26,9 +26,9 @@ async function releaseNames() {
   }
   return {
     version,
-    mac: `Cage-${version}-macos-arm64.dmg`,
-    windows: `Cage-${version}-windows-amd64-setup.exe`,
-    linux: `Cage-${version}-linux-amd64.deb`,
+    mac: `ccBox-${version}-macos-arm64.dmg`,
+    windows: `ccBox-${version}-windows-amd64-setup.exe`,
+    linux: `ccBox-${version}-linux-amd64.deb`,
     linuxSource: linuxDependencies.mihomoSource.file,
     macSource: `mihomo-${macCore}-source.tar.gz`,
     macGuestSource: `cage-macos-guest-${version}-source.tar.gz`,
@@ -107,7 +107,7 @@ export async function prepareReleaseAssets({ inputs, output }) {
     const info = await lstat(directory);
     if (!info.isDirectory() || info.isSymbolicLink()) throw new Error(`Expected a platform release directory: ${directory}`);
     const files = await readdir(directory);
-    if (files.some(name => /^Cage-.*-windows-.*-unsigned\.exe$/i.test(name) || name === 'DEVELOPMENT-BUILD.txt')) {
+    if (files.some(name => /^ccBox-.*-windows-.*-unsigned\.exe$/i.test(name) || name === 'DEVELOPMENT-BUILD.txt')) {
       throw new Error(`Unsigned Windows development build cannot be prepared for release: ${directory}`);
     }
     const entries = await readManifest(directory);
@@ -176,7 +176,7 @@ async function main() {
     return;
   }
   const result = await prepareReleaseAssets({ inputs: positionals, output: values.output });
-  console.log(`Prepared Cage ${result.version}: ${result.assets.length} verified assets and one SHA256SUMS in ${result.directory}`);
+  console.log(`Prepared ccBox ${result.version}: ${result.assets.length} verified assets and one SHA256SUMS in ${result.directory}`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

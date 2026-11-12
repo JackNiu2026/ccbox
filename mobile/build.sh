@@ -42,13 +42,17 @@ if [[ "$platform" == ios ]]; then
   mkdir -p "$icon"
   printf '%s\n' '{"info":{"author":"xcode","version":1}}' > ".build/ios/Assets.xcassets/Contents.json"
   cp ios/AppIcon.json "$icon/Contents.json"
-  sips -z 1024 1024 ../ui/src/logo.png --out "$icon/Cage.png" >/dev/null
+  cp ios/ccBox-AppIcon.png "$icon/Cage.png"
   # One arm64 iPhone slice and one simulator slice for this Mac.
   # Each platform framework is then passed to -create-xcframework exactly once.
   (cd bindings && gomobile bind -target="ios/arm64,iossimulator/$(go env GOHOSTARCH)" -iosversion=17.0 -o "$mobile_dir/.build/ios/Cagemobile.xcframework" .)
   if [[ "$1" == ios-ipa* ]]; then
     scheme=CageMobile
-    if [[ "$1" == ios-ipa-basic ]]; then scheme=CageMobileBasic; fi
+    distribution_name=ccBox-iOS
+    if [[ "$1" == ios-ipa-basic ]]; then
+      scheme=CageMobileBasic
+      distribution_name=ccBox-iOS-Basic
+    fi
     output=$(mktemp -d "$mobile_dir/.build/ios/device-XXXXXXXX")
     xcodebuild -project ios/CageMobile.xcodeproj -scheme "$scheme" -configuration Release \
       -destination 'generic/platform=iOS' -archivePath "$output/CageMobile.xcarchive" \
@@ -62,7 +66,9 @@ if [[ "$platform" == ios ]]; then
     test -s "$app/embedded.mobileprovision"
     codesign --verify --deep --strict "$app"
     rm -r "$output/check"
-    printf 'Cage iPhone development IPA: %s\n' "$ipa"
+    branded_ipa="$output/export/$distribution_name.ipa"
+    mv -- "$ipa" "$branded_ipa"
+    printf 'ccBox iPhone development IPA: %s\n' "$branded_ipa"
   else
     xcodebuild -project ios/CageMobile.xcodeproj -target CageMobile -sdk iphoneos -configuration Debug \
       CODE_SIGNING_ALLOWED=NO SYMROOT="$mobile_dir/.build/ios/products" OBJROOT="$mobile_dir/.build/ios/obj" build

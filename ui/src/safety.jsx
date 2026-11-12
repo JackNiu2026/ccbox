@@ -24,18 +24,10 @@ const diagnostics = [
   },
   {
     name: "浏览器信息",
-    source: "fuck-claude.vercel.app",
-    url: "https://fuck-claude.vercel.app/",
-    description: "查看时区、语言、字体等浏览器信号的社区评估。",
-    attribution: "原项目 FuckClaude 由 LinXiaoTao 创建并持续维护。",
-    links: [
-      { label: "原项目官网", url: "https://fuck-claude.vercel.app/" },
-      { label: "开源仓库", url: "https://github.com/LinXiaoTao/FuckClaude" },
-      {
-        label: "初始提交",
-        url: "https://github.com/LinXiaoTao/FuckClaude/commit/420c79bb0531b12ea2788e726ffbf81075111737",
-      },
-    ],
+    source: "browserleaks.com",
+    url: "https://browserleaks.com/javascript",
+    description: "查看浏览器时区与语言，可从站内进入字体检测。",
+    attribution: "浏览器信息与字体检测由 BrowserLeaks 提供。",
   },
 ];
 
@@ -258,32 +250,19 @@ export function SafetyPanel({
               <small>{site.source}</small>
               <p>{site.description}</p>
               <button disabled={!online || busy} onClick={() => open(site.url)}>
-                在 Cage 中打开
+                在 ccBox 中打开
                 <ArrowUpRight size={14} />
               </button>
               {site.attribution && (
                 <div className="safety-scope">
                   <p>{site.attribution}</p>
-                  <div className="safety-sources">
-                    {site.links.map((link) => (
-                      <button
-                        key={link.url}
-                        className="text-button"
-                        disabled={!online || busy}
-                        onClick={() => open(link.url)}
-                      >
-                        {link.label}
-                        <ArrowUpRight size={12} />
-                      </button>
-                    ))}
-                  </div>
                 </div>
               )}
             </div>
           ))}
         </div>
         <p className="field-help">
-          点击后才访问第三方站点。站点会收到 Cage 的出口
+          点击后才访问第三方站点。站点会收到 ccBox 的出口
           IP，并可读取该页面可访问的浏览器信息。评分属于社区参考。
         </p>
         <details className="safety-scope">
@@ -297,29 +276,7 @@ export function SafetyPanel({
             报告包含运行时策略和采样证据，不能代替完整虚拟化审计，也不代表平台账号资格或封禁预测。全面检查有效期为
             24 小时；控制服务失联后，联网授权最多保留 90 秒。
           </p>
-          <div className="safety-sources">
-            <span>方法参考</span>
-            <button
-              className="text-button"
-              disabled={!online}
-              onClick={() =>
-                open("https://github.com/YOURSJEYO/claude-switcher")
-              }
-            >
-              claude-switcher
-              <ArrowUpRight size={12} />
-            </button>
-            <button
-              className="text-button"
-              disabled={!online}
-              onClick={() =>
-                open("https://github.com/DUNHKpcc/Claude-Guardian")
-              }
-            >
-              Claude-Guardian
-              <ArrowUpRight size={12} />
-            </button>
-          </div>
+          <p className="safety-sources">方法参考 · claude-switcher、Claude-Guardian</p>
         </details>
       </div>
     </Modal>

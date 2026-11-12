@@ -44,7 +44,7 @@ function ConvertTo-SmokeSafeText {
 
 function Assert-WindowsWorkbenchReport {
     param([int]$ExitCode, [string]$Report)
-    if (-not (Test-Path -LiteralPath $Report -PathType Leaf)) { throw "Cage workbench acceptance failed ($ExitCode). No smoke report: $Report" }
+    if (-not (Test-Path -LiteralPath $Report -PathType Leaf)) { throw "ccBox workbench acceptance failed ($ExitCode). No smoke report: $Report" }
     if ((Get-Item -LiteralPath $Report).Length -gt 65536) { throw 'Cage smoke report exceeds the bounded diagnostic size.' }
     $result = Get-Content -LiteralPath $Report -Raw | ConvertFrom-Json -AsHashtable
     $safe = @{ phase = ConvertTo-SmokeSafeText $result['phase']; nativeStatus = ConvertTo-SmokeSafeText $result['nativeStatus']; jsErrors = @() }
@@ -65,7 +65,7 @@ function Assert-WindowsWorkbenchReport {
     # not print launch entries, page URLs, account data or the raw report.
     Write-Host ('Cage smoke diagnostic: ' + ($safe | ConvertTo-Json -Depth 6 -Compress))
     if ($ExitCode -ne 0 -or $result['success'] -ne $true -or $result['nativeBridgeReady'] -ne $true) {
-        throw "Cage workbench/bridge acceptance failed ($ExitCode), phase $($safe.phase): $($safe.nativeStatus). Diagnostics: $Report"
+        throw "ccBox workbench/bridge acceptance failed ($ExitCode), phase $($safe.phase): $($safe.nativeStatus). Diagnostics: $Report"
     }
 }
 
@@ -104,7 +104,7 @@ function Assert-WindowsWorkbench {
     $window = [Diagnostics.Process]::Start($start)
     $passed = $false
     try {
-        if (-not $window.WaitForExit(180000)) { throw "Cage workbench acceptance timed out. Diagnostics retained at $testRoot" }
+        if (-not $window.WaitForExit(180000)) { throw "ccBox workbench acceptance timed out. Diagnostics retained at $testRoot" }
         Assert-WindowsWorkbenchReport -ExitCode $window.ExitCode -Report $report
         Wait-WindowsWorkbenchFiles -AppDirectory $AppDirectory
         $passed = $true

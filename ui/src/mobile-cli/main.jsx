@@ -4,7 +4,7 @@ import { Archive, ArrowLeft, ArrowUp, LoaderCircle, Monitor, RefreshCw, Settings
 import { RemoteDisplay } from "./remote-browser";
 import { CodeNavigation, ProjectTree, WorkspaceDrawer, workspaceTools } from "./workspace-drawer";
 import { deviceCommand } from "./device-navigation.mjs";
-import cageLogo from "../logo.png";
+import cageLogo from "../logo.svg";
 import { accessDenied, request, sessionPath } from "./transport.mjs";
 import { recoverPendingMessage, retryableSessionError, sessionFailureMessage, sessionRetryDelay, sessionRetryLimit } from "./session-recovery.mjs";
 import { SessionActionDialog, sortSessions } from "./session-row";
@@ -258,8 +258,8 @@ function App() {
     <header className="topbar workspace-topbar">
       {phoneWorkspace
         ? <button type="button" className="icon-button" aria-haspopup="dialog" aria-expanded={drawer} aria-label="展开侧栏"
-          onClick={() => setDrawer(true)}><img className="brand-mark" src={cageLogo} alt="Cage" /></button>
-        : <a className="icon-button" href="/" aria-label="返回工作台"><img className="brand-mark" src={cageLogo} alt="Cage" /></a>}
+          onClick={() => setDrawer(true)}><img className="brand-mark" src={cageLogo} alt="ccBox" /></button>
+        : <a className="icon-button" href="/" aria-label="返回工作台"><img className="brand-mark" src={cageLogo} alt="ccBox" /></a>}
       {phoneWorkspace && (current.tool === "browser" || current.tool === "claude") && <div className="workspace-address-slot" ref={setAddressSlot} />}
       <div className="top-actions">{phoneWorkspace
         ? <span className="workspace-tool-icon" role="img" aria-label={activeTool?.name || "Claude Code"}><ActiveToolIcon size={19} aria-hidden="true" /></span>
@@ -541,7 +541,7 @@ function Chat({ id, drafts, ready, visible, refresh, onOpenWeb, onDenied, onMiss
     <form className="compose" onSubmit={send}>
       {actionError && <Notice onRetry={uncertain ? retry : undefined} label="再次连接">{actionError}</Notice>}
       {session?.single_turn && <p className="note">当前凭据或路由只能验证本轮。请返回会话列表，新建会话后继续。</p>}
-      {!ready && <p className="note">请在电脑上启动 Cage 环境。</p>}
+      {!ready && <p className="note">请在电脑上启动 ccBox 环境。</p>}
       <div className="composer-field">
         <textarea ref={composerInput} aria-label="消息" rows="1" placeholder="给 Claude Code 发消息" value={draft} disabled={!session || session.single_turn || !ready || uncertain || busy}
           onChange={(e) => {

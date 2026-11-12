@@ -21,6 +21,6 @@ tar -xOf "$directory/mihomo-v1.19.33-source.tar.gz" mihomo-1.19.33/LICENSE > "$d
 cat > "$directory/NOTICE" <<'EOF'
 Mihomo v1.19.33, unmodified executable distributed under GPL-3.0.
 Source: https://github.com/MetaCubeX/mihomo/tree/v1.19.33
-Corresponding source accompanies the Cage Linux release as mihomo-v1.19.33-source.tar.gz.
+Corresponding source accompanies the ccBox Linux release as mihomo-v1.19.33-source.tar.gz.
 Binary checksum and download URL: packaging/linux/dependencies.json in Cage sources.
 EOF

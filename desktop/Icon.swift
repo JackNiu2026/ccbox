@@ -17,7 +17,6 @@ for (name, size) in [("icon_16x16", 16), ("icon_16x16@2x", 32), ("icon_32x32", 3
     transform.scale(by: scale)
     transform.concat()
     let bounds = NSRect(x: 60, y: 60, width: 904, height: 904)
-    NSBezierPath(roundedRect: bounds, xRadius: 210, yRadius: 210).addClip()
     image.draw(in: bounds, from: .zero, operation: .sourceOver, fraction: 1)
     NSGraphicsContext.restoreGraphicsState()
     try rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: folder + "/" + name + ".png"))

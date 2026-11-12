@@ -503,7 +503,7 @@ func (s *Server) stopEnvironment() (returned error) {
 	if s.macosGuest != nil {
 		return s.stopMacOSGuest()
 	}
-	s.setMessage("正在停止 Cage 环境…")
+	s.setMessage("正在停止 ccBox 环境…")
 	if (explicitStop || s.jobs.snapshot().Kind == "storage") && cage.InstanceJobID(filepath.Join(s.profile, "state"), "base-building") != "" {
 		if err := s.runCage("stop", "base-building"); err != nil {
 			return err

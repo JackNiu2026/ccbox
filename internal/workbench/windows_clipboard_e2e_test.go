@@ -75,7 +75,7 @@ func TestWindowsGuestClipboardWorkbench(t *testing.T) {
 			}
 		}
 	}
-	send(map[string]any{"text": "Cage workbench 中文🙂\nsecond line"}, 1)
+	send(map[string]any{"text": "ccBox workbench 中文🙂\nsecond line"}, 1)
 	img := image.NewRGBA(image.Rect(0, 0, 12, 9))
 	img.Set(0, 0, color.RGBA{R: 60, G: 110, B: 170, A: 255})
 	var pngData bytes.Buffer

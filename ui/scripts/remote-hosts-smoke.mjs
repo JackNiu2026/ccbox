@@ -1,5 +1,5 @@
 // Real client service and browser interaction, using only a fresh temp profile.
-// No cloud host or personal Cage configuration is accessed.
+// No cloud host or personal ccBox configuration is accessed.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";

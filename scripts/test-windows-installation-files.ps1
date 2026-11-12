@@ -76,8 +76,8 @@ function Commit([string]$Old, [string]$Stage, [string]$Receipt) {
 function Test-InstallerTransaction {
     if (!$windows -or $PSVersionTable.PSVersion.Major -lt 7) { throw 'The optional NSIS fixture requires PowerShell 7 on a disposable Windows user.' }
     $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ClaudeCage'
-    $desktop = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'Cage.lnk'
-    $menu = Join-Path ([Environment]::GetFolderPath('Programs')) 'Cage'
+    $desktop = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'ccBox.lnk'
+    $menu = Join-Path ([Environment]::GetFolderPath('Programs')) 'ccBox'
     if ((Test-Path $key) -or (Test-Path -LiteralPath $desktop) -or (Test-Path -LiteralPath $menu)) { throw 'The NSIS fixture refuses an existing Cage registration or shortcuts.' }
     $runtime = $false
     foreach ($hive in @([Microsoft.Win32.RegistryHive]::LocalMachine, [Microsoft.Win32.RegistryHive]::CurrentUser)) {

@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm, writeFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { parseArgs, selectAsset, checksumFor, makePlan, downloadPlan, httpsResponse } from '../www/public/agent-bootstrap.mjs';
+import { parseArgs, selectAsset, checksumFor, makePlan, downloadPlan, httpsResponse } from './upstream-agent-bootstrap.mjs';
 
 const tag = 'v0.1.0-test';
 const prefix = `https://github.com/Lee-xeo/Claude-Cage/releases/download/${tag}/`;

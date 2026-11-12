@@ -49,7 +49,7 @@ for (const failure of ["http", "native"]) {
   try {
     await page.getByRole("dialog",{name:"首次设置虚拟 Mac"}).waitFor();
     await waitCall("screen");
-    await page.getByRole("dialog",{name:"首次设置虚拟 Mac"}).getByText(/打开 Cage Guest Window 的窗口录制开关/).waitFor();
+    await page.getByRole("dialog",{name:"首次设置虚拟 Mac"}).getByText(/打开 ccBox Guest Window 的窗口录制开关/).waitFor();
     const image = page.getByRole("dialog",{name:"首次设置虚拟 Mac"}).getByRole("img");
     await image.waitFor();
     if (process.env.CAGE_INITIALIZATION_EVIDENCE) await page.screenshot({ path: `${process.env.CAGE_INITIALIZATION_EVIDENCE}/setup-window-${failure}.png`, fullPage: true });
@@ -62,7 +62,7 @@ for (const failure of ["http", "native"]) {
     await waitCall("fill-password");
     permissions.screen=true;
     await waitCall("input");
-    await page.getByRole("dialog",{name:"首次设置虚拟 Mac"}).getByText(/打开 Cage Guest Window 的辅助功能开关/).waitFor();
+    await page.getByRole("dialog",{name:"首次设置虚拟 Mac"}).getByText(/打开 ccBox Guest Window 的辅助功能开关/).waitFor();
     permissions.input=true;
     await waitCall("projects");
     await page.getByRole("dialog",{name:"首次设置虚拟 Mac"}).getByText(/打开 macFUSE 和 macFUSE \(local\) 两个开关，用于/).waitFor();
@@ -81,7 +81,7 @@ for (const failure of ["http", "native"]) {
     await page.evaluate(() => window.cageNativeAction("settings"));
     await page.getByRole("region", { name: "设置", exact: true }).waitFor();
     await page.evaluate(() => window.cageNativeAction("quit"));
-    await page.getByRole("dialog", { name: "退出 Cage", exact: true }).getByRole("button", { name: "取消", exact: true }).click();
+    await page.getByRole("dialog", { name: "退出 ccBox", exact: true }).getByRole("button", { name: "取消", exact: true }).click();
     assert.equal(calls.filter(c=>c==="finish").length,2);
     assert.equal(calls.filter(c=>c==="verify-projects").length,0);
     assert.deepEqual(errors, []);

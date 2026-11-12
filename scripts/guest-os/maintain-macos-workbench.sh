@@ -66,7 +66,7 @@ finish() {
     if (( status == 0 )); then
         rm -rf "$backup"
     else
-        printf '组件更新未完成。已恢复可恢复的原文件，备份位于 %s。可以在 Cage 重试。\n' "$backup" >&2
+        printf '组件更新未完成。已恢复可恢复的原文件，备份位于 %s。可以在 ccBox 重试。\n' "$backup" >&2
     fi
     exit "$status"
 }

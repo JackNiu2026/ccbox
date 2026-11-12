@@ -86,7 +86,7 @@ func (s *Server) terminalLoginLink(w http.ResponseWriter, r *http.Request) {
 		ID string `json:"id"`
 	}
 	if err != nil || json.Unmarshal(data, &tab) != nil || tab.ID == "" {
-		http.Error(w, "Cage 浏览器未能打开授权页，请检查浏览器连接并重试", 502)
+		http.Error(w, "ccBox 浏览器未能打开授权页，请检查浏览器连接并重试", 502)
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")

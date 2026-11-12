@@ -62,10 +62,10 @@ func sealMacAccount(record *accountRecord, key []byte, login macAccountData) err
 func (a *localAccount) openMacAccount() (macAccountData, error) {
 	var login macAccountData
 	if len(a.key) != 32 || a.record == nil {
-		return login, errors.New("请先解锁 Cage")
+		return login, errors.New("请先解锁 ccBox")
 	}
 	if a.record.MacLogin == nil {
-		return login, errors.New("请先确认 Cage 用户名和密码，再安装 macOS 客机")
+		return login, errors.New("请先确认 ccBox 用户名和密码，再安装 macOS 客机")
 	}
 	block, _ := aes.NewCipher(a.key)
 	aead, _ := cipher.NewGCM(block)
@@ -94,7 +94,7 @@ func (a *localAccount) prepareMacAccount(name, password string, guests map[strin
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if len(a.key) != 32 || a.record == nil {
-		return errors.New("请先解锁 Cage")
+		return errors.New("请先解锁 ccBox")
 	}
 	if a.record.MacLogin != nil {
 		return errors.New("共用账密已经设置，请在账户设置中修改密码")
@@ -185,7 +185,7 @@ func (a *localAccount) savedMacGuestPassword(ctx context.Context, id uuid.UUID) 
 	a.mu.Lock()
 	if len(a.key) != 32 || ctx.Err() != nil {
 		a.mu.Unlock()
-		return "", errors.New("请先解锁 Cage")
+		return "", errors.New("请先解锁 ccBox")
 	}
 	if a.record.MacLogin != nil {
 		login, err := a.openMacAccount()
@@ -234,7 +234,7 @@ func (a *localAccount) syncMacPassword(ctx context.Context, id uuid.UUID, user s
 	target := login.Password
 	a.mu.Unlock()
 	if err = apply(ctx, guest.Password, target); err != nil {
-		return errors.New("Cage 密码已保存；客机密码尚待同步，请启动客机后重试，期间客机仍可能需要原密码")
+		return errors.New("ccBox 密码已保存；客机密码尚待同步，请启动客机后重试，期间客机仍可能需要原密码")
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()

@@ -39,7 +39,7 @@ func (s *Server) macOSAudioStatus(w http.ResponseWriter, r *http.Request) {
 	if !status.Available {
 		message := "请先登录并解锁虚拟 Mac 的普通账户"
 		if status.Reason == "screen_recording_permission" {
-			message = "请在虚拟 Mac 的系统设置中允许 Cage Guest Window 录制屏幕和系统声音"
+			message = "请在虚拟 Mac 的系统设置中允许 ccBox Guest Window 录制屏幕和系统声音"
 		}
 		http.Error(w, message, http.StatusConflict)
 		return
@@ -80,7 +80,7 @@ func (s *Server) macOSAudioCapture(w http.ResponseWriter, r *http.Request, ctx c
 	err = readAudioReady(reader)
 	stopped := cancelWindowsAdmissionDeadline(deadline, deadlineDone)
 	if err != nil || !stopped {
-		http.Error(w, "虚拟 Mac 声音未能启动，请确认客机已解锁并允许 Cage Guest Window 录制屏幕和系统声音", http.StatusBadGateway)
+		http.Error(w, "虚拟 Mac 声音未能启动，请确认客机已解锁并允许 ccBox Guest Window 录制屏幕和系统声音", http.StatusBadGateway)
 		return
 	}
 	s.streamAudio(w, r.WithContext(ctx), bufferedAudio{Reader: reader, Closer: pipe})

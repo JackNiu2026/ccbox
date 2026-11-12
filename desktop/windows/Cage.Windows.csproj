@@ -11,6 +11,10 @@
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <AssemblyName>Cage</AssemblyName>
+    <AssemblyTitle>ccBox</AssemblyTitle>
+    <Company>ccBox</Company>
+    <Product>ccBox</Product>
+    <Description>ccBox desktop workbench</Description>
     <RootNamespace>Cage.Windows</RootNamespace>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

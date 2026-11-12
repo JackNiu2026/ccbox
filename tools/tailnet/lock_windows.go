@@ -9,7 +9,7 @@ func lockState(f *os.File) error {
 	return windows.LockFileEx(windows.Handle(f.Fd()), windows.LOCKFILE_EXCLUSIVE_LOCK|windows.LOCKFILE_FAIL_IMMEDIATELY, 0, 1, 0, new(windows.Overlapped))
 }
 func protectStateDir(path string) error {
-	user, err := windows.GetCurrentProcessToken().GetTokenUser()
+	user, err := windows.GetCurrentProcessToken().ccBoxUser()
 	if err != nil {
 		return err
 	}

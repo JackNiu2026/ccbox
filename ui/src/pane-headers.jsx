@@ -8,7 +8,7 @@ import { BrowserDownloads } from "./browser-downloads";
 import { BrowserCookies } from "./browser-cookies";
 import { tabName } from "./workspace-state.mjs";
 import { shortcut } from "./platform.mjs";
-import logo from "./logo.png";
+import logo from "./logo.svg";
 
 export const ExpandSidebar = ({ onClick }) => <button className="icon-button sidebar-expand"
   aria-label="展开侧栏" onClick={onClick}>
@@ -191,7 +191,7 @@ export function BrowserHeader({ vault, onManageVault, tab, tabs, metadata, ready
           onFocus={(e) => e.target.select()}
           placeholder={
             ready
-              ? "输入网址或搜索，在 Cage 内打开"
+              ? "输入网址或搜索，在 ccBox 内打开"
               : "启动环境后浏览网页"
           }
           disabled={!ready}

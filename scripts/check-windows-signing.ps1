@@ -5,7 +5,7 @@ param([ValidateSet('sign', 'credential-info')][string]$Mode = 'sign')
 . (Join-Path $PSScriptRoot 'windows-common.ps1')
 if (-not $IsWindows) { throw 'This verification requires Windows trust APIs.' }
 if ($env:GITHUB_ACTIONS -ne 'true' -or $env:GITHUB_EVENT_NAME -ne 'workflow_dispatch' -or
-    $env:GITHUB_REPOSITORY -ne 'Lee-xeo/Claude-Cage' -or
+    $env:GITHUB_REPOSITORY -ne 'JackNiu2026/ccbox' -or
     $env:GITHUB_REF -ne 'refs/heads/main') {
     throw 'Run the explicit main-branch signing verification workflow.'
 }

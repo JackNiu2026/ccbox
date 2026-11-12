@@ -16,7 +16,7 @@ const writes = () =>
 try {
   state.hostGit = { ...missing };
   await page
-    .getByRole("button", { name: "启动 Cage 环境", exact: true })
+    .getByRole("button", { name: "启动 ccBox 环境", exact: true })
     .click();
   await page
     .getByRole("button", { name: "启用保护并继续", exact: true })
@@ -27,7 +27,7 @@ try {
   await page.getByRole("dialog").waitFor({ state: "hidden" });
   assert.equal(starts(), 0);
   await page
-    .getByRole("button", { name: "启动 Cage 环境", exact: true })
+    .getByRole("button", { name: "启动 ccBox 环境", exact: true })
     .click();
   state.failHostGit = true;
   await page
@@ -44,7 +44,7 @@ try {
     .getByRole("button", { name: "启用保护并继续", exact: true })
     .click();
   await page
-    .getByRole("heading", { name: "Cage 环境已就绪", exact: true })
+    .getByRole("heading", { name: "ccBox 环境已就绪", exact: true })
     .waitFor();
   assert.equal(starts(), 1);
   assert.equal(writes(), 2);
@@ -52,10 +52,10 @@ try {
   state.status.vm_running = false;
   await page.reload();
   await page
-    .getByRole("button", { name: "启动 Cage 环境", exact: true })
+    .getByRole("button", { name: "启动 ccBox 环境", exact: true })
     .click();
   await page
-    .getByRole("heading", { name: "Cage 环境已就绪", exact: true })
+    .getByRole("heading", { name: "ccBox 环境已就绪", exact: true })
     .waitFor();
   assert.equal(starts(), 2);
   assert.equal(writes(), 2);
@@ -69,7 +69,7 @@ try {
   };
   await page.reload();
   await page
-    .getByRole("button", { name: "启动 Cage 环境", exact: true })
+    .getByRole("button", { name: "启动 ccBox 环境", exact: true })
     .click();
   await page.getByText(state.hostGit.message, { exact: true }).waitFor();
   assert.equal(

@@ -33,7 +33,7 @@ func inspectHostGit(ctx context.Context) hostGitState {
 	case gitguard.BareOld:
 		view.Message = "本机 Git 版本过旧，请升级到 2.38 或更新版本后重新检查。"
 	default:
-		view.Message = "暂时无法检查本机 Git。请确认 Git 安装完整，再重新检查；Cage 不会自动打开安装器。"
+		view.Message = "暂时无法检查本机 Git。请确认 Git 安装完整，再重新检查；ccBox 不会自动打开安装器。"
 	}
 	return view
 }

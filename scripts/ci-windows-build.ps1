@@ -107,7 +107,7 @@ try {
     & (Join-Path $PSScriptRoot 'package-windows.ps1') @packageArguments
     $version = Get-CageVersion $repository
     $suffix = if ($Release) { '' } else { '-unsigned' }
-    & (Join-Path $PSScriptRoot 'test-windows-install.ps1') -Installer "$repository/_output/releases/$version/windows/Cage-$version-windows-amd64-setup$suffix.exe"
+    & (Join-Path $PSScriptRoot 'test-windows-install.ps1') -Installer "$repository/_output/releases/$version/windows/ccBox-$version-windows-amd64-setup$suffix.exe"
     if ($Release) {
         Invoke-BuildTool 'node' @('scripts/release-version.mjs', 'metadata', 'windows', "_output/releases/$version/windows/build-metadata.json")
     }

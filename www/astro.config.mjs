@@ -1,6 +1,10 @@
 import { defineConfig } from 'astro/config';
+const site = process.env.SITE_URL;
+if (site && /(?:^|\.)(?:github\.com|github\.io|githubusercontent\.com|githubassets\.com|claude-cage\.com)$/i.test(new URL(site).hostname)) {
+  throw new Error('SITE_URL must point to the ccBox website.');
+}
 export default defineConfig({
-  site: process.env.SITE_URL || 'https://claude-cage.com',
+  site,
   base: process.env.SITE_BASE || '/',
   trailingSlash: 'always',
   server: { port: 4822 },

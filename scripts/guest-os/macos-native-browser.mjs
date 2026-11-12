@@ -96,7 +96,7 @@ async function audit(context, { timezone, network }) {
 
 const marker = await lstat("/var/db/cage-guest-os");
 if (process.platform !== "darwin" || process.getuid() < 500 || !marker.isFile() || marker.uid !== 0 || (marker.mode & 0o022) ||
-    (await readFile("/var/db/cage-guest-os", "utf8")).trim() !== "macos") throw new Error("Cage browser requires its bound guest user");
+    (await readFile("/var/db/cage-guest-os", "utf8")).trim() !== "macos") throw new Error("ccBox browser requires its bound guest user");
 const directory = path.join(homedir(), "Library", "Caches", "dev.cage.GuestBrowser");
 if (process.argv.length > 3 || process.argv[2] && process.argv[2] !== "--service" && process.argv[2] !== "--client")
   throw new Error("Unknown browser service operation");

@@ -14,7 +14,7 @@ export function installRemoteInput(
   transport,
   container,
   { mode, guestPlatform = () => "linux", systemClipboard = () => true, onStatus, onFallback, isActive,
-    insertText, insertComposition, caretRect, surface, inputLabel = "Cage 网页输入", tabId: getTargetId = () => "", pasteContent, preparePaste, setCopyContext, copyText },
+    insertText, insertComposition, caretRect, surface, inputLabel = "ccBox 网页输入", tabId: getTargetId = () => "", pasteContent, preparePaste, setCopyContext, copyText },
 ) {
   const listeners = [],
     handled = new Set(),
@@ -376,7 +376,7 @@ export function installRemoteInput(
     clearTimeout(copyTimer);
     copyTimer = setTimeout(() => {
       copyRequested = false;
-      onFallback(lastText, "未收到新的选中文本，可在这里复制 Cage 剪贴板。");
+      onFallback(lastText, "未收到新的选中文本，可在这里复制 ccBox 剪贴板。");
     }, 1600);
   };
   const copy = (key = "c") => {

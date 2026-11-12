@@ -1,9 +1,9 @@
 {
-  "name": "claude-cage-website",
+  "name": "ccbox-website",
   "type": "module",
   "version": "0.1.7",
   "private": true,
-  "description": "Claude Cage project website and macOS, Windows and Linux downloads",
+  "description": "ccBox website, user guides, and downloads",
   "license": "MIT",
   "scripts": {
     "dev": "astro dev",

@@ -1,8 +1,8 @@
 # 通过中继连接移动 CLI 会话
 
-`cage-mobile-link` 把一个已信任设备连接到一台正在运行的 Cage 主机。客户端可以浏览主机授权的项目、创建 Claude Code 会话、发送消息、查看进度、回答工具审批和停止本轮执行。主机账户锁定时，这些操作返回 HTTP 423，需要在电脑上解锁。服务端继续负责项目授权、消息去重和执行结果。
+`cage-mobile-link` 把一个已信任设备连接到一台正在运行的 ccBox 主机。客户端可以浏览主机授权的项目、创建 Claude Code 会话、发送消息、查看进度、回答工具审批和停止本轮执行。主机账户锁定时，这些操作返回 HTTP 423，需要在电脑上解锁。服务端继续负责项目授权、消息去重和执行结果。
 
-使用官方中继时，按[手机使用说明](../../mobile/README.md)直接创建配对；主机助手默认读取桌面的中继设置。以下示例演示使用管理令牌的[自建中继](../../deploy/relay/README.md)。在电脑上启动包含移动 CLI 接口的 Cage，并构建主机连接助手。Android 和 iPhone 通过 [Cage 手机客户端](../../mobile/README.md)连接。若用另一台电脑的浏览器代替手机进行调试，该电脑也需构建本工具，并准备包含 `mobile.html` 和 `assets/` 的移动页面目录。
+使用默认中继时，按[手机使用说明](../../mobile/README.md)直接创建配对；主机助手默认读取桌面的中继设置。以下示例演示使用管理令牌的[自建中继](../../deploy/relay/README.md)。在电脑上启动包含移动 CLI 接口的 ccBox，并构建主机连接助手。Android 和 iPhone 通过 [ccBox 手机客户端](../../mobile/README.md)连接。若用另一台电脑的浏览器代替手机进行调试，该电脑也需构建本工具，并准备包含 `mobile.html` 和 `assets/` 的移动页面目录。
 
 ```sh
 go build -o /tmp/cage-mobile-link ./cmd/cage-mobile-link

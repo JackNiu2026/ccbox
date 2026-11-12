@@ -1,5 +1,5 @@
 // Local copy preview of the production workbench. API requests stay in this
-// process; none are forwarded to Cage or used to install a guest.
+// process; none are forwarded to ccBox or used to install a guest.
 import http from "node:http";
 import { defaultAppearance } from "../src/appearance-state.mjs";
 
@@ -79,6 +79,6 @@ http.createServer(async (req, res) => {
       res.writeHead(response.statusCode, headers); res.end(body);
     });
   });
-  request.on("error", () => { res.writeHead(502); res.end("Start the Cage frontend preview server first."); });
+  request.on("error", () => { res.writeHead(502); res.end("Start the ccBox frontend preview server first."); });
   req.pipe(request);
 }).listen(port, "127.0.0.1", () => console.log(`Installation copy preview: http://127.0.0.1:${port}/?host=macos`));

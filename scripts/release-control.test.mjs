@@ -10,7 +10,7 @@ import {
   verifyCandidate, versionPaths, workflowContext, releaseNotes,
 } from './release-control.mjs';
 
-const repository = 'Lee-xeo/Claude-Cage';
+const repository = 'JackNiu2026/ccbox';
 const base = `/repos/${repository}`;
 const currentVersion = (await readFile(new URL('../VERSION', import.meta.url), 'utf8')).trim();
 const windowsDependencies = JSON.parse(await readFile(new URL('../packaging/windows/dependencies.json', import.meta.url), 'utf8'));
@@ -151,7 +151,7 @@ async function repositoryFixture(t) {
 async function uploadFiles(root, version) {
   const directory = join(root, 'publish');
   await mkdir(directory);
-  const names = [`Cage-${version}-macos-arm64.dmg`, `Cage-${version}-windows-amd64-setup.exe`, `Cage-${version}-linux-amd64.deb`];
+  const names = [`ccBox-${version}-macos-arm64.dmg`, `ccBox-${version}-windows-amd64-setup.exe`, `ccBox-${version}-linux-amd64.deb`];
   for (const name of names) await writeFile(join(directory, name), `fixture ${name}`);
   await writeFile(join(directory, 'SHA256SUMS'), names.map(name => `${digest(`fixture ${name}`)}  ${name}\n`).join(''));
   return releaseFiles(directory);
@@ -264,9 +264,9 @@ async function artifactFixture(t) {
   const root = await temporary(t);
   const commitSha = 'a'.repeat(40);
   const packages = {
-    macos: { [`Cage-${currentVersion}-macos-arm64.dmg`]: 'mac installer', [`mihomo-${macCoreVersion}-source.tar.gz`]: 'same core source', [`cage-macos-guest-${currentVersion}-source.tar.gz`]: 'mac guest corresponding source' },
-    windows: { [`Cage-${currentVersion}-windows-amd64-setup.exe`]: 'windows installer', [`mihomo-${windowsDependencies.mihomo.version}-source.tar.gz`]: 'same core source', [`qemu-${windowsDependencies.qemu.version}-windows-full-source.zip`]: 'complete qemu source' },
-    linux: { [`Cage-${currentVersion}-linux-amd64.deb`]: 'linux installer', [linuxDependencies.mihomoSource.file]: 'same core source' },
+    macos: { [`ccBox-${currentVersion}-macos-arm64.dmg`]: 'mac installer', [`mihomo-${macCoreVersion}-source.tar.gz`]: 'same core source', [`cage-macos-guest-${currentVersion}-source.tar.gz`]: 'mac guest corresponding source' },
+    windows: { [`ccBox-${currentVersion}-windows-amd64-setup.exe`]: 'windows installer', [`mihomo-${windowsDependencies.mihomo.version}-source.tar.gz`]: 'same core source', [`qemu-${windowsDependencies.qemu.version}-windows-full-source.zip`]: 'complete qemu source' },
+    linux: { [`ccBox-${currentVersion}-linux-amd64.deb`]: 'linux installer', [linuxDependencies.mihomoSource.file]: 'same core source' },
   };
   for (const [platform, entries] of Object.entries(packages)) {
     const directory = join(root, platform);
@@ -298,14 +298,14 @@ test('all three platform identities are required before any assets are assembled
 test('assembly accepts matching platforms but excludes metadata from public assets', async t => {
   const f = await artifactFixture(t);
   const result = await assembleRelease(f);
-  assert.ok(result.assets.includes(`Cage-${currentVersion}-linux-amd64.deb`));
+  assert.ok(result.assets.includes(`ccBox-${currentVersion}-linux-amd64.deb`));
   assert.ok(!result.assets.some(name => name.includes('metadata')));
   assert.ok((await releaseFiles(f.output)).length > 3);
 });
 
 test('an installer for an unsupported version cannot enter the public release', async t => {
   const f = await artifactFixture(t);
-  const wrong = 'Cage-99999.0.0-linux-amd64.deb';
+  const wrong = 'ccBox-99999.0.0-linux-amd64.deb';
   const path = join(f.directory, 'linux');
   await writeFile(join(path, wrong), 'wrong version');
   const manifest = await readFile(join(path, 'SHA256SUMS'), 'utf8');

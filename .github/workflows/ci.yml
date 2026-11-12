@@ -41,18 +41,18 @@ jobs:
     with:
       ref: ${{ github.sha }}
       release: false
-      artifact_name: cage-macos-arm64-test
+      artifact_name: ccbox-macos-arm64-test
   windows:
     needs: workflow-checks
     uses: ./.github/workflows/windows-build.yml
     with:
       ref: ${{ github.sha }}
       release: false
-      artifact_name: cage-windows-amd64-test
+      artifact_name: ccbox-windows-amd64-test
   linux:
     needs: workflow-checks
     uses: ./.github/workflows/linux-build.yml
     with:
       ref: ${{ github.sha }}
       release: false
-      artifact_name: cage-linux-amd64-test
+      artifact_name: ccbox-linux-amd64-test

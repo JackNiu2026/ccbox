@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readSiteRelease, upstreamReleaseURL } from './stage-downloads.mjs';
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const readme = fs.readFileSync(path.join(root,'README.md'),'utf8');
 const menu = readme.split('\n').find(line => line.includes('(README.md)') && line.includes('(README.'));
@@ -14,14 +15,24 @@ assert.equal(codes[0], 'zh');
 assert.ok(!codes.includes('en'));
 const dist = path.join(root,'www/dist');
 const measurementId = process.env.PUBLIC_GA_MEASUREMENT_ID?.trim();
+const brandMark = fs.readFileSync(path.join(dist, 'ccbox-icon.svg'), 'utf8');
+assert.match(brandMark, /<path\b/, 'Published logo must contain vector geometry');
+assert.doesNotMatch(brandMark, /<image\b|data:image\//i, 'Published logo must not embed a raster image');
 const htmlFiles = fs.readdirSync(dist, { recursive: true }).filter(file => file.endsWith('.html'));
 for (const file of htmlFiles) {
   const html = fs.readFileSync(path.join(dist, file), 'utf8');
-  assert.ok(!html.includes('https://lee-xeo.github.io/Claude-Cage/'), `${file}: old website URL remains`);
+  assert.match(html, /<link\b[^>]*\brel="icon"[^>]*\bhref="\/ccbox-icon\.svg"/, `${file}: vector favicon is missing`);
+  assert.match(html, /<header class="site-header">[\s\S]*?<img\b[^>]*\bsrc="\/ccbox-icon\.svg"/, `${file}: header logo is missing`);
+  assert.doesNotMatch(html, /<img\b[^>]*\bsrc="\/ccbox-icon\.png"/, `${file}: visible logo should use SVG`);
+  assert.doesNotMatch(html, upstreamReleaseURL, file + ": public page links to an upstream service");
   assert.ok(!/(?:src|href)="\/Claude-Cage(?:\/|")/.test(html), `${file}: old project base remains`);
   if (file !== '404.html') {
     const route = file.replaceAll(path.sep, '/').replace(/index\.html$/, '');
-    assert.ok(html.includes(`rel="canonical" href="https://claude-cage.com/${route}"`), `${file}: incorrect canonical URL`);
+    if (process.env.SITE_URL) {
+      assert.ok(html.includes(`rel="canonical" href="${new URL(route, process.env.SITE_URL + '/')}"`), file + ": incorrect canonical URL");
+    } else {
+      assert.ok(!html.includes('rel="canonical"'), file + ": no canonical origin is configured");
+    }
   }
   if (file !== path.join('privacy', 'index.html')) {
     assert.ok(html.includes('href="/privacy/"'), `${file}: analytics disclosure link is missing`);
@@ -33,7 +44,11 @@ for (const file of htmlFiles) {
     assert.ok(/\sasync(?:\s|>)/.test(tags[0][0]), `${file}: analytics must not block page rendering`);
   }
 }
-const published = JSON.parse(fs.readFileSync(path.join(root, 'www/src/data/release.json'), 'utf8'));
+const published = await readSiteRelease(path.join(root, 'www'));
+if (published.releaseURL) {
+  const releaseNotes = fs.readFileSync(path.join(dist, published.releaseURL.slice(1)), 'utf8');
+  assert.doesNotMatch(releaseNotes, upstreamReleaseURL, 'Published release notes link to an upstream service');
+}
 for (const code of codes) {
   const html = fs.readFileSync(path.join(dist,code === 'zh' ? '' : code,'index.html'),'utf8');
   const picker = html.match(/<details\b[^>]*id="site-language"[^>]*>([\s\S]*?)<\/details>/)?.[1];
@@ -52,9 +67,9 @@ for (const code of codes) {
     assert.ok(fs.existsSync(target), `${code}: broken local asset or link ${match[1]}`);
   }
   assert.ok(!html.includes('/Users/'), `${code}: local developer path leaked`);
-  assert.ok(html.includes(`href="${published.downloadURL}"`), `${code}: macOS download is missing`);
+  if (published.downloadURL) assert.ok(html.includes(`href="${published.downloadURL}"`), code + ": macOS download is missing");
   const downloadSection = html.match(/<section\b[^>]*id="download"[^>]*>([\s\S]*?)<\/section>/)?.[1];
-  assert.ok(downloadSection?.includes(`CLAUDE CAGE · v${published.version}`), `${code}: download release label must follow published metadata`);
+  assert.ok(downloadSection?.includes(`ccBox · v${published.version}`), `${code}: download release label must follow published metadata`);
   assert.ok(!downloadSection?.includes('CLAUDE CAGE · ALPHA'), `${code}: stale release channel label`);
   assert.equal([...html.matchAll(/<a\b[^>]*\bdata-download-open(?:\s|>)/g)].length, 3, `${code}: all download entries must open the platform chooser`);
   assert.ok(html.includes('aria-labelledby="platform-title"'), `${code}: platform dialog has no accessible title`);
@@ -116,22 +131,23 @@ const agentGuide = fs.readFileSync(path.join(dist, 'agent.md'), 'utf8');
 assert.equal(agentGuide, fs.readFileSync(path.join(dist, 'llms-full.txt'), 'utf8'), 'Agent text copies must share the same source');
 assert.ok(agentGuide.includes('agent capabilities') && agentGuide.includes('job_not_found'), 'Agent guide lacks discovery or recovery contract');
 assert.ok(!agentGuide.includes('title: 让 Agent'), 'Agent Markdown must omit frontmatter');
-for (const name of ['llms.txt', 'agent-bootstrap.mjs', 'cage-install.sh']) assert.ok(fs.existsSync(path.join(dist, name)), `Missing Agent entry ${name}`);
-for (const name of ['agent.md', 'llms.txt', 'agent-bootstrap.mjs', 'cage-install.sh']) {
-  const text = fs.readFileSync(path.join(dist, name), 'utf8');
-  assert.ok(text.includes('https://claude-cage.com/'), `${name}: new website URL missing`);
-  assert.ok(!text.includes('https://lee-xeo.github.io/'), `${name}: old website URL remains`);
+for (const name of ["agent.md", "llms.txt", "llms-full.txt"]) {
+  const text = fs.readFileSync(path.join(dist, name), "utf8");
+  assert.doesNotMatch(text, /github\.com|github\.io|claude-cage\.com/i, name + ": upstream service in published guide");
 }
-assert.ok(fs.readFileSync(path.join(dist, 'docs/agent/index.html'), 'utf8').includes('JSON 结果和异步任务'), 'Rendered Agent guide missing');
-console.log('Verified Agent Markdown, discovery, download helper and rendered guide.');
-
-const screenshotManifest = JSON.parse(fs.readFileSync(path.join(root, 'www/public/docs/screenshots/manifest.json'), 'utf8'));
-for (const shot of screenshotManifest) {
-  assert.ok(shot.version && shot.platform && shot.capturedAt && shot.source, `${shot.id}: screenshot provenance missing`);
-  assert.ok(fs.existsSync(path.join(dist, 'docs/screenshots', shot.file)), `${shot.id}: screenshot was not shipped`);
-  const article = fs.readFileSync(path.join(guideDir, shot.chapter, 'index.html'), 'utf8');
-  assert.ok(article.includes(`src="/docs/screenshots/${shot.file}"`), `${shot.id}: broken screenshot URL`);
-  assert.ok(article.includes(shot.version), `${shot.id}: version caption missing`);
-  assert.ok(article.includes(`width="${shot.width}" height="${shot.height}"`), `${shot.id}: original dimensions missing`);
+for (const name of ["install.sh", "cage-install.sh", "agent-bootstrap.mjs", "first-run-2026-11.jpg", "workbench-2026-11.jpg"]) {
+  assert.ok(!fs.existsSync(path.join(dist, name)), name + ": retired upstream asset was published");
 }
-console.log(`Verified ${screenshotManifest.length} screenshots, original dimensions and version captions.`);
+assert.ok(fs.readFileSync(path.join(dist, "docs/agent/index.html"), "utf8").includes("JSON 结果和异步任务"), "Rendered Agent guide missing");
+const home = fs.readFileSync(path.join(dist, "index.html"), "utf8");
+for (const name of ["workbench-preview.jpg", "first-launch-preview.jpg"]) {
+  assert.ok(fs.existsSync(path.join(dist, name)), name + ": preview missing");
+  assert.ok(home.includes(`src="/${name}"`), name + ": homepage preview missing");
+}
+assert.ok(home.includes('class="first-look"') && home.includes('class="evidence-grid"'), "Homepage preview sections missing");
+assert.match(home, /src="[^"]*browser-checks[^"]*"/, "ccBox browser-check preview missing");
+assert.doesNotMatch(home, /community-browser-check|FuckClaude/i, "Upstream browser-check material remains");
+for (const file of ["docs/index.html", "docs/workbench/index.html"]) {
+  assert.ok(fs.readFileSync(path.join(dist, file), "utf8").includes('src="/first-launch-preview.jpg"'), file + ": startup preview missing");
+}
+console.log("Verified homepage preview sections, Agent guides, and absence of upstream routes.");

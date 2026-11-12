@@ -58,7 +58,7 @@ sys.stdout.buffer.write(b.getvalue())`], { maxBuffer: 1 << 20, stdio: ['ignore',
   const registry = JSON.parse(await readFile(join(directory, 'extensions/registry.json'), 'utf8'));
   assert.deepEqual(registry, []);
   checks.push('uninstall removes the extension and persistent installation record');
-  const helper = (await cdp(null, 'Extensions.getExtensions')).extensions.find(item => item.name === 'Cage browser panes');
+  const helper = (await cdp(null, 'Extensions.getExtensions')).extensions.find(item => item.name === 'ccBox browser panes');
   const control = (await cdp(null, 'Target.getTargets')).targetInfos.find(item => item.url.endsWith('/control.html'));
   const { sessionId } = await cdp(null, 'Target.attachToTarget', { targetId: control.targetId, flatten: true });
   await api('/__privacy-test', { sessionId, method: 'Runtime.evaluate', params: { expression: `chrome.management.setEnabled(${JSON.stringify(helper.id)}, false)`, userGesture: true } }).catch(() => {});

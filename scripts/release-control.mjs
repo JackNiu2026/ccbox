@@ -15,7 +15,7 @@ const shaPattern = /^[0-9a-f]{40}$/;
 const platforms = ['macos', 'windows', 'linux'];
 
 function checkContext(context) {
-  if (context.repository !== 'Lee-xeo/Claude-Cage' || !shaPattern.test(context.sourceSha) || !/^\d+$/.test(context.runId) || context.defaultBranch !== 'main') {
+  if (context.repository !== 'JackNiu2026/ccbox' || !shaPattern.test(context.sourceSha) || !/^\d+$/.test(context.runId) || context.defaultBranch !== 'main') {
     throw new Error('Invalid release repository, source commit, run ID or default branch.');
   }
 }
@@ -154,7 +154,7 @@ export async function assembleRelease({ directory, output, version, commitSha, a
     }
   }
   const result = await assemble({ inputs: platforms.map(platform => join(directory, platform)), output });
-  const required = [`Cage-${version}-macos-arm64.dmg`, `Cage-${version}-windows-amd64-setup.exe`, `Cage-${version}-linux-amd64.deb`];
+  const required = [`ccBox-${version}-macos-arm64.dmg`, `ccBox-${version}-windows-amd64-setup.exe`, `ccBox-${version}-linux-amd64.deb`];
   if (result.version !== version || required.some(name => !result.assets.includes(name))) throw new Error('All three verified platform installers are required.');
   return result;
 }

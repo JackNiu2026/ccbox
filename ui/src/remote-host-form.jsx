@@ -145,7 +145,7 @@ export function HostForm({ initial, platform, onSaved, onClose }) {
             <summary>云端安装路径</summary>
             <div className="remote-advanced">
               <label>
-                Cage 程序路径
+                ccBox 程序路径
                 <input
                   value={form.executable || ""}
                   onChange={(event) => update("executable", event.target.value)}
@@ -155,7 +155,7 @@ export function HostForm({ initial, platform, onSaved, onClose }) {
                 <small>默认使用 cage，也可填写云端程序的绝对路径。</small>
               </label>
               <label>
-                Cage 配置文件
+                ccBox 配置文件
                 <input
                   value={form.config_path || ""}
                   onChange={(event) =>

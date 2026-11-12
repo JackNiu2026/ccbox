@@ -18,7 +18,7 @@ internal static class UpdateInstaller
             throw new IOException("安装包下载后发生变化，请重新下载");
         Authenticode.SamePublisher(path, publisher);
         var metadata = FileVersionInfo.GetVersionInfo(path);
-        if (metadata.ProductName != "Cage" || metadata.ProductVersion != version)
+        if (metadata.ProductName is not ("ccBox" or "Cage") || metadata.ProductVersion != version)
             throw new IOException("安装包产品身份或版本不匹配");
     }
 
@@ -42,7 +42,7 @@ internal static class UpdateInstaller
                 throw new IOException("安装目标无效");
             UpdatePolicy.PlainPath(plan.Target); UpdatePolicy.PlainPath(AppUpdater.Root);
             if (File.ReadAllText(Path.Combine(plan.Target, "Cage.install-id")).Trim() != "io.github.lee-xeo.claude-cage")
-                throw new IOException("请先使用 Cage 安装程序安装应用，再自动更新");
+                throw new IOException("请先使用 ccBox 安装程序安装应用，再自动更新");
             var original = Path.Combine(plan.Target, "Cage.exe");
             var ownPublisher = Authenticode.Publisher(Environment.ProcessPath!);
             if (plan.Publisher != ownPublisher) throw new IOException("安装计划发布者不匹配");
@@ -89,7 +89,7 @@ internal static class UpdateInstaller
             if (File.Exists(marker)) File.Delete(marker);
             var launch = new ProcessStartInfo(original) { UseShellExecute = false, WorkingDirectory = plan.Target };
             launch.Environment["CAGE_UPDATE_CONFIRMATION"] = plan.Confirmation;
-            launched = Process.Start(launch) ?? throw new IOException("新版 Cage 无法启动");
+            launched = Process.Start(launch) ?? throw new IOException("新版 ccBox 无法启动");
             var deadline = DateTime.UtcNow.AddSeconds(120);
             var ready = false;
             while (DateTime.UtcNow < deadline && !launched.HasExited)
@@ -109,7 +109,7 @@ internal static class UpdateInstaller
             }
             if (!ready) throw new IOException("新版工作台未能完成启动确认");
             succeeded = true;
-            Result(true, "Cage 已更新至 " + plan.Version);
+            Result(true, "ccBox 已更新至 " + plan.Version);
             // The currently executing helper cannot delete itself on Windows.
             // Keep this small signed file; the next successful update may remove it.
             return 0;
@@ -168,7 +168,7 @@ internal static class UpdateInstaller
                 }
             }
             Result(false, "更新未完成：" + detail);
-            if (recoveryIncomplete && OperatingSystem.IsWindows()) MessageBoxW(IntPtr.Zero, detail, "Cage 更新需要恢复", 0x00010010);
+            if (recoveryIncomplete && OperatingSystem.IsWindows()) MessageBoxW(IntPtr.Zero, detail, "ccBox 更新需要恢复", 0x00010010);
             if (committed && !replaced && plan != null)
             {
                 try

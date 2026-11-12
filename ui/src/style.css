@@ -753,14 +753,7 @@ button.large {
 .brand-mark {
   width: 60px;
   height: 60px;
-  border: 1px solid var(--line);
-  border-radius: 17px;
-  background: var(--chrome);
-  color: var(--ink);
-  display: grid;
-  place-items: center;
-  font-size: 2.4286rem;
-  font-weight: 500;
+  object-fit: contain;
 }
 .modal-scrim {
   position: fixed;
@@ -1823,7 +1816,6 @@ svg {
   width: 72px;
   height: 72px;
   object-fit: contain;
-  border-radius: 16px;
   margin: 0 auto 24px;
 }
 .welcome h1 {
@@ -2529,7 +2521,6 @@ svg {
   width: 22px;
   height: 22px;
   object-fit: contain;
-  border-radius: 4px;
 }
 .sidebar-expand-icon {
   display: none;

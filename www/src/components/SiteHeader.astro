@@ -1,0 +1,22 @@
+---
+import '@fontsource-variable/inter';
+import '../styles/site-header.css';
+interface Props { homeHref?: string; homeLabel?: string }
+const base = import.meta.env.BASE_URL;
+const { homeHref = base, homeLabel = 'ccBox' } = Astro.props;
+---
+<header class="site-header">
+  <div class="home-nav wrap">
+    <a class="brand" href={homeHref} aria-label={homeLabel}>
+      <img src={base + 'ccbox-icon.svg'} width="36" height="36" alt="" />
+      <span>ccBox</span>
+    </a>
+    <nav class="home-nav-links">
+      <slot name="links">
+        <a href={base + 'docs/'}>使用文档</a>
+        <a class="nav-download" href={base + '#download'}>下载应用 <span aria-hidden="true">↓</span></a>
+      </slot>
+    </nav>
+    <slot />
+  </div>
+</header>

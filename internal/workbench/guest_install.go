@@ -114,7 +114,7 @@ func (s *Server) guestInstallView() (guestInstallView, error) {
 
 func (s *Server) guestInstallation(w http.ResponseWriter, r *http.Request) {
 	if !s.hasTrustedView(r) || !s.localVMStorage() {
-		http.Error(w, "请在本机 Cage 窗口选择客户机系统", http.StatusForbidden)
+		http.Error(w, "请在本机 ccBox 窗口选择客户机系统", http.StatusForbidden)
 		return
 	}
 	v, err := s.guestInstallView()
@@ -189,7 +189,7 @@ func (s *Server) installedWindowsVMOwner(install guestos.Installation) (string, 
 
 func (s *Server) beginGuestInstall(w http.ResponseWriter, r *http.Request, in guestInstallRequest) {
 	if in.System == guestos.MacOS && !s.account.view().MacOSCredentialsReady {
-		http.Error(w, "请先注册或确认 Cage 账密，再安装 macOS 客机", http.StatusConflict)
+		http.Error(w, "请先注册或确认 ccBox 账密，再安装 macOS 客机", http.StatusConflict)
 		return
 	}
 	v, err := s.guestInstallView()
@@ -225,7 +225,7 @@ func (s *Server) beginGuestInstall(w http.ResponseWriter, r *http.Request, in gu
 		install.Source = plan
 	} else if catalog {
 		if in.Media != "" || in.SHA256 != "" || in.EditorTerms {
-			requestError(w, errors.New("Ubuntu 使用 Cage 校验过的官方镜像，无需另选安装介质"))
+			requestError(w, errors.New("Ubuntu 使用 ccBox 校验过的官方镜像，无需另选安装介质"))
 			return
 		}
 		plan, err := linuxGuestImagePlan(r.Context(), s.profile, in.System, runtime.GOARCH)

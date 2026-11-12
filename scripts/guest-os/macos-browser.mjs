@@ -109,7 +109,7 @@ async function openEditor(folder) {
         if (address) finish(null, address[1]);
       };
       const failed = () =>
-        finish(new Error("请先在 Cage 授权此项目，再打开编辑器"));
+        finish(new Error("请先在 ccBox 授权此项目，再打开编辑器"));
       function finish(error, address) {
         clearTimeout(timer);
         child.stdout.off("data", read);
