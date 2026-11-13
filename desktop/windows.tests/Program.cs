@@ -2,6 +2,7 @@ using Cage.Windows;
 
 if (args is ["smoke-wait", var smokeRelease])
 {
+    File.WriteAllText(smokeRelease + ".ready", "");
     using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
     while (!File.Exists(smokeRelease)) await Task.Delay(20, deadline.Token);
     return;
@@ -198,6 +199,13 @@ try
                 var foreignRejected = false;
                 try { Backend.CaptureSmokeControllers(); } catch (IOException) { foreignRejected = true; }
                 Check(foreignRejected, "smoke captured a controller outside its application executable");
+                using var startup = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                while (!File.Exists(release + ".ready"))
+                {
+                    if (owned.HasExited)
+                        throw new IOException($"Smoke controller fixture exited before startup: {owned.StandardError.ReadToEnd()}");
+                    await Task.Delay(20, startup.Token);
+                }
                 File.WriteAllText(record, System.Text.Json.JsonSerializer.Serialize(new { pid = owned.Id }));
                 controllers = Backend.CaptureSmokeControllers();
                 Check(controllers.Count == 1 && !controllers[0].HasExited, "smoke did not pin its live controller");
