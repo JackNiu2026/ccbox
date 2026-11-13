@@ -1,6 +1,8 @@
 name: ccBox mobile test packages
 on:
   workflow_dispatch:
+  push:
+    branches: ['codex/release/mobile-test-packages']
 permissions:
   contents: read
 
