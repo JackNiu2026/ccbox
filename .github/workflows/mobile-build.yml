@@ -1,0 +1,104 @@
+name: ccBox mobile test packages
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: mobile/bindings/go.mod
+          cache-dependency-path: mobile/bindings/go.sum
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Prepare the pinned Android toolchain
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;27.2.12479018'
+      - name: Build and verify the Android test APK
+        run: |
+          set -euo pipefail
+          npm ci --prefix ui --no-audit --no-fund
+          bash mobile/build.sh android
+          version=$(tr -d '\r\n' < VERSION)
+          tools="$ANDROID_HOME/build-tools/35.0.0"
+          apk=mobile/.build/android/ccBox-android-arm64-debug.apk
+          "$tools/apksigner" verify --verbose "$apk"
+          "$tools/zipalign" -c -P 16 4 "$apk"
+          "$tools/aapt2" dump badging "$apk" > "$RUNNER_TEMP/apk-badging.txt"
+          grep -Fx "application-label:'ccBox'" "$RUNNER_TEMP/apk-badging.txt"
+          grep -Fx "native-code: 'arm64-v8a'" "$RUNNER_TEMP/apk-badging.txt"
+          grep -F "versionName='$version'" "$RUNNER_TEMP/apk-badging.txt"
+          mark=$(find mobile/.build/resources/mobile-ui/assets -name 'logo-*.svg' -print -quit)
+          test -s "$mark"
+          unzip -p "$apk" "assets/mobile-ui/assets/$(basename "$mark")" | cmp "$mark" -
+          mkdir -p _output/ci-android
+          artifact="ccBox-$version-android-arm64-debug.apk"
+          cp "$apk" "_output/ci-android/$artifact"
+          (cd _output/ci-android && sha256sum "$artifact" > SHA256SUMS && sha256sum -c SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ccbox-android-arm64-debug
+          path: _output/ci-android/
+          if-no-files-found: error
+          retention-days: 14
+
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: mobile/bindings/go.mod
+          cache-dependency-path: mobile/bindings/go.sum
+      - name: Build and verify both iOS Simulator apps
+        run: |
+          set -euo pipefail
+          npm ci --prefix ui --no-audit --no-fund
+          bash mobile/build.sh ios-assets
+          version=$(tr -d '\r\n' < VERSION)
+          short_version=${version%%-*}
+          output="$PWD/_output/ci-ios"
+          products="$RUNNER_TEMP/ccbox-ios-products"
+          mkdir -p "$output"
+          for target in CageMobile CageMobileBasic; do
+            variant=
+            if [[ "$target" == CageMobileBasic ]]; then variant=-basic; fi
+            xcodebuild -project mobile/ios/CageMobile.xcodeproj -target "$target" \
+              -sdk iphonesimulator -configuration Debug ARCHS=arm64 ONLY_ACTIVE_ARCH=YES \
+              CODE_SIGNING_ALLOWED=NO MARKETING_VERSION="$short_version" SYMROOT="$products" build
+            app="$products/Debug-iphonesimulator/$target.app"
+            [[ "$(/usr/libexec/PlistBuddy -c 'Print CFBundleDisplayName' "$app/Info.plist")" == ccBox ]]
+            [[ "$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$app/Info.plist")" == "$short_version" ]]
+            [[ "$(lipo -archs "$app/$target")" == arm64 ]]
+            vtool -show-build "$app/$target" | grep -E 'platform[[:space:]]+IOSSIMULATOR'
+            test -s "$app/Assets.car"
+            ditto -c -k --keepParent "$app" "$output/ccBox-$version-ios$variant-simulator-arm64.zip"
+          done
+          (cd "$output" && shasum -a 256 ./*.zip > SHA256SUMS && shasum -a 256 -c SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ccbox-ios-arm64-simulator
+          path: _output/ci-ios/
+          if-no-files-found: error
+          retention-days: 14

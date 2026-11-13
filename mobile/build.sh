@@ -4,6 +4,7 @@ mobile_dir="$(cd "$(dirname "$0")" && pwd)"
 cd "$mobile_dir"
 case "${1:-}" in
   android|ios) platform="$1" ;;
+  ios-assets) platform=ios ;;
   android-release) platform=android ;;
   ios-ipa|ios-ipa-basic)
     platform=ios
@@ -12,11 +13,13 @@ case "${1:-}" in
       exit 2
     fi
     ;;
-  *) echo "Usage: mobile/build.sh android | android-release | ios | ios-ipa TEAM_ID | ios-ipa-basic TEAM_ID" >&2; exit 2 ;;
+  *) echo "Usage: mobile/build.sh android | android-release | ios | ios-assets | ios-ipa TEAM_ID | ios-ipa-basic TEAM_ID" >&2; exit 2 ;;
 esac
 if [[ "$platform" == ios ]]; then
   # xcrun distinguishes a missing SDK from a pending Xcode license or setup step.
   xcrun --sdk iphoneos --show-sdk-path >/dev/null
+  version="$(tr -d '\r\n' < ../VERSION)"
+  [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]] || { echo 'Invalid application VERSION.' >&2; exit 2; }
 fi
 mkdir -p .build/bin ".build/$platform"
 node build-ui.mjs
@@ -46,6 +49,7 @@ if [[ "$platform" == ios ]]; then
   # One arm64 iPhone slice and one simulator slice for this Mac.
   # Each platform framework is then passed to -create-xcframework exactly once.
   (cd bindings && gomobile bind -target="ios/arm64,iossimulator/$(go env GOHOSTARCH)" -iosversion=17.0 -o "$mobile_dir/.build/ios/Cagemobile.xcframework" .)
+  if [[ "$1" == ios-assets ]]; then exit 0; fi
   if [[ "$1" == ios-ipa* ]]; then
     scheme=CageMobile
     distribution_name=ccBox-iOS
@@ -56,7 +60,7 @@ if [[ "$platform" == ios ]]; then
     output=$(mktemp -d "$mobile_dir/.build/ios/device-XXXXXXXX")
     xcodebuild -project ios/CageMobile.xcodeproj -scheme "$scheme" -configuration Release \
       -destination 'generic/platform=iOS' -archivePath "$output/CageMobile.xcarchive" \
-      DEVELOPMENT_TEAM="$2" archive
+      DEVELOPMENT_TEAM="$2" MARKETING_VERSION="${version%%-*}" archive
     xcodebuild -exportArchive -archivePath "$output/CageMobile.xcarchive" \
       -exportOptionsPlist ios/DebuggingExport.plist -exportPath "$output/export"
     ipa="$output/export/$scheme.ipa"
@@ -71,7 +75,7 @@ if [[ "$platform" == ios ]]; then
     printf 'ccBox iPhone development IPA: %s\n' "$branded_ipa"
   else
     xcodebuild -project ios/CageMobile.xcodeproj -target CageMobile -sdk iphoneos -configuration Debug \
-      CODE_SIGNING_ALLOWED=NO SYMROOT="$mobile_dir/.build/ios/products" OBJROOT="$mobile_dir/.build/ios/obj" build
+      CODE_SIGNING_ALLOWED=NO MARKETING_VERSION="${version%%-*}" SYMROOT="$mobile_dir/.build/ios/products" OBJROOT="$mobile_dir/.build/ios/obj" build
   fi
 else
   : "${ANDROID_HOME:?Set ANDROID_HOME to the Android SDK directory}"
