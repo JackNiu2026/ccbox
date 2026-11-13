@@ -1,4 +1,4 @@
-name: ccBox mobile test packages
+name: ccBox Windows and mobile test packages
 on:
   workflow_dispatch:
   push:
@@ -7,6 +7,13 @@ permissions:
   contents: read
 
 jobs:
+  windows:
+    uses: ./.github/workflows/windows-build.yml
+    with:
+      ref: ${{ github.sha }}
+      release: false
+      artifact_name: ccbox-windows-amd64-test
+
   android:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -28,7 +35,14 @@ jobs:
           distribution: temurin
           java-version: '21'
       - name: Prepare the pinned Android toolchain
-        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;27.2.12479018'
+        run: |
+          set -euo pipefail
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [[ ! -x "$sdkmanager" ]]; then
+            sdkmanager=$(find "$ANDROID_HOME/cmdline-tools" -path '*/bin/sdkmanager' -type f -print -quit)
+          fi
+          test -x "$sdkmanager"
+          "$sdkmanager" --sdk_root="$ANDROID_HOME" 'platforms;android-35' 'build-tools;35.0.0' 'ndk;27.2.12479018'
       - name: Build and verify the Android test APK
         run: |
           set -euo pipefail
