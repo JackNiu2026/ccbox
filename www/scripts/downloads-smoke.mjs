@@ -8,10 +8,10 @@ const origin = process.env.CAGE_SITE_URL || 'http://127.0.0.1:4833/';
 const output = process.env.CAGE_SITE_REPORT || '_output/platform-publication/site';
 const release = await readSiteRelease();
 const expected = {
-  macOS: release.downloadURL || '/docs/installation/',
+  macOS: release.downloadURL || release.macosPreview?.downloadURL || '/docs/installation/',
   Windows: release.windowsDownloadURL || release.windowsPreview?.downloadURL || '/docs/installation/',
-  Linux: release.linuxDownloadURL || '/docs/installation/',
-  Android: release.androidDownloadURL || '/docs/mobile/',
+  Linux: release.linuxDownloadURL || release.linuxPreview?.downloadURL || '/docs/installation/',
+  Android: release.androidDownloadURL || release.androidPreview?.downloadURL || '/docs/mobile/',
   iOS: '/docs/mobile/',
 };
 await mkdir(output, { recursive: true });

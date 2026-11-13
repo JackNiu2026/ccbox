@@ -64,6 +64,19 @@ for (const [field, name] of Object.entries(downloadNames)) {
   if (published[field]) assert.equal(published[field], `/downloads/${version}/${name}`);
 }
 const expectedDownloads = Object.entries(downloadNames).filter(([field]) => published[field]).map(([, name]) => name);
+const previewNames = {
+  macosPreview: `ccBox-${version}-macos-arm64-test.dmg`,
+  windowsPreview: `ccBox-${version}-windows-amd64-setup-unsigned.exe`,
+  linuxPreview: `ccBox-${version}-linux-amd64.deb`,
+  androidPreview: `ccBox-${version}-android-arm64-debug.apk`,
+};
+const previewLinks = Object.entries(previewNames).filter(([field]) => published[field]);
+for (const [field, name] of previewLinks) {
+  assert.equal(published[field].version, version);
+  assert.equal(published[field].downloadURL, `/downloads/${version}/${name}`);
+  assert.equal(published[field].releaseURL, `/downloads/${version}/preview-notes.txt`);
+  expectedDownloads.push(name);
+}
 if (expectedDownloads.length) {
   const folder = path.join(dist, 'downloads', version);
   const entries = new Set();
@@ -79,6 +92,10 @@ if (expectedDownloads.length) {
   for (const name of expectedDownloads) assert.ok(entries.has(name), `Website checksum missing: ${name}`);
   const availableInstallers = [...entries].filter(name => /\.(dmg|exe|deb|apk)$/i.test(name)).sort();
   assert.deepEqual(availableInstallers, expectedDownloads.sort(), 'Website contains an unmapped or unofficial installer');
+}
+if (previewLinks.length) {
+  const previewNotes = fs.readFileSync(path.join(dist, 'downloads', version, 'preview-notes.txt'), 'utf8');
+  assert.doesNotMatch(previewNotes, upstreamReleaseURL, 'Published preview notes link to an upstream service');
 }
 if (published.releaseURL) {
   const releaseNotes = fs.readFileSync(path.join(dist, published.releaseURL.slice(1)), 'utf8');
@@ -113,9 +130,15 @@ for (const code of codes) {
   }
   const windowsLinks = [...html.matchAll(/href="([^"]*windows-amd64-setup\.exe)"/g)].map(match => match[1]);
   assert.deepEqual(windowsLinks, published.windowsDownloadURL ? [published.windowsDownloadURL, published.windowsDownloadURL] : [], `${code}: Windows download must match the verified optional release metadata`);
-  for (const [suffix, url] of [['linux-amd64.deb', published.linuxDownloadURL], ['android-arm64.apk', published.androidDownloadURL], ['windows-amd64-setup-unsigned.exe', published.windowsDownloadURL ? undefined : published.windowsPreview?.downloadURL]]) {
+  for (const [suffix, url] of [['linux-amd64.deb', published.linuxDownloadURL || published.linuxPreview?.downloadURL], ['android-arm64.apk', published.androidDownloadURL], ['windows-amd64-setup-unsigned.exe', published.windowsDownloadURL ? undefined : published.windowsPreview?.downloadURL], ['macos-arm64-test.dmg', published.downloadURL ? undefined : published.macosPreview?.downloadURL], ['android-arm64-debug.apk', published.androidDownloadURL ? undefined : published.androidPreview?.downloadURL]]) {
     const links = [...html.matchAll(/href="([^"]+)"/g)].map(match => match[1]).filter(link => link.endsWith(suffix));
     assert.deepEqual(links, url ? [url, url] : [], `${code}: ${suffix} must match verified metadata`);
+  }
+  for (const [platform, field] of [['macOS', 'macosPreview'], ['Windows', 'windowsPreview'], ['Linux', 'linuxPreview'], ['Android', 'androidPreview']]) {
+    if (!published[field]) continue;
+    const card = html.match(new RegExp(`<article\\b[^>]*data-platform="${platform}"[^>]*>([\\s\\S]*?)<\\/article>`))?.[1];
+    assert.ok(card?.includes('data-preview'), `${code}: ${platform} preview status is missing`);
+    assert.ok(card?.includes(`href="${published[field].releaseURL}"`), `${code}: ${platform} preview notes are missing`);
   }
   const ios = html.match(/<article\b[^>]*data-platform="iOS"[^>]*>([\s\S]*?)<\/article>/)?.[1];
   assert.ok(ios?.includes('href="/docs/mobile/"'), `${code}: iOS needs its local build guide`);

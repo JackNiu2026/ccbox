@@ -18,10 +18,14 @@ const hero = homeHero[locale];
 const titleSeparator = c.lang.startsWith('zh-') ? '' : ' ';
 const pageTitle = `ccBox — ${hero.lead}${titleSeparator}${hero.emphasis}`;
 type PlatformRelease = { version: string; releaseURL?: string; downloadURL?: string };
-type ReleaseMetadata = PlatformRelease & { windowsDownloadURL?: string; linuxDownloadURL?: string; androidDownloadURL?: string; windowsPreview?: PlatformRelease };
+type ReleaseMetadata = PlatformRelease & {
+  windowsDownloadURL?: string; linuxDownloadURL?: string; androidDownloadURL?: string;
+  macosPreview?: PlatformRelease; windowsPreview?: PlatformRelease; linuxPreview?: PlatformRelease; androidPreview?: PlatformRelease;
+};
 const stagedRelease = import.meta.glob<ReleaseMetadata>('../data/local-release.json', { eager: true, import: 'default' });
 const published: ReleaseMetadata = stagedRelease['../data/local-release.json'] ?? releaseData;
-for (const url of [published.releaseURL, published.downloadURL, published.windowsDownloadURL, published.linuxDownloadURL, published.androidDownloadURL, published.windowsPreview?.downloadURL, published.windowsPreview?.releaseURL]) {
+const previews = [published.macosPreview, published.windowsPreview, published.linuxPreview, published.androidPreview];
+for (const url of [published.releaseURL, published.downloadURL, published.windowsDownloadURL, published.linuxDownloadURL, published.androidDownloadURL, ...previews.flatMap(preview => [preview?.downloadURL, preview?.releaseURL])]) {
   if (url && (!/^\/downloads\/[\w./-]+$/.test(url) || url.split("/").some(part => part === "." || part === ".."))) throw new Error("ccBox release links must point to local downloads.");
 }
 const base = import.meta.env.BASE_URL;
@@ -32,22 +36,25 @@ const guideLabels: Record<CageLocale, string> = {
 };
 const guideLabel = guideLabels[locale];
 const docHref = (slug: string) => base + 'docs/' + (slug === 'index' ? '' : slug + '/');
-const platforms = [
+const previewLabels = locale === 'zh' ? ['预览版 · 未经 Apple 公证', '预览版', '预览版 · 调试签名']
+  : locale === 'zh-TW' ? ['預覽版 · 未經 Apple 公證', '預覽版', '預覽版 · 偵錯簽章']
+  : ['Preview · not Apple-notarized', 'Preview', 'Preview · debug-signed'];
+function platformRelease(download: string | undefined, preview: PlatformRelease | undefined, label: string) {
+  if (download) return { url: download, version: published.version, notes: published.releaseURL };
+  return { url: preview?.downloadURL, version: preview?.version, notes: preview?.releaseURL, preview: preview?.downloadURL ? label : undefined };
+}
+const platforms: Array<{
+  name: string; icon: string; requirements: string; guideURL: string;
+  format?: string; url?: string; version?: string; notes?: string; preview?: string; localBuild?: boolean;
+}> = [
   { name: 'macOS', icon: 'apple', requirements: 'Apple Silicon · macOS 14+', format: '.dmg',
-    url: published.downloadURL, version: published.downloadURL ? published.version : undefined, notes: published.downloadURL ? published.releaseURL : undefined, guideURL: base + 'docs/installation/' },
+    ...platformRelease(published.downloadURL, published.macosPreview, previewLabels[0]), guideURL: base + 'docs/installation/' },
   { name: 'Windows', icon: 'windows', requirements: 'Windows 10 22H2 / 11 · x64', format: '.exe',
-    url: published.windowsDownloadURL || published.windowsPreview?.downloadURL,
-    version: published.windowsDownloadURL ? published.version : published.windowsPreview?.version,
-    preview: !published.windowsDownloadURL && !!published.windowsPreview,
-    notes: published.windowsDownloadURL ? published.releaseURL : published.windowsPreview?.releaseURL, guideURL: base + 'docs/installation/' },
+    ...platformRelease(published.windowsDownloadURL, published.windowsPreview, c.unsignedLabel), guideURL: base + 'docs/installation/' },
   { name: 'Linux', icon: 'linux', requirements: 'Debian 12 / Ubuntu 22.04 / 24.04 · x86_64', format: '.deb',
-    url: published.linuxDownloadURL,
-    version: published.linuxDownloadURL ? published.version : undefined,
-    notes: published.linuxDownloadURL ? published.releaseURL : undefined, guideURL: base + 'docs/installation/' },
+    ...platformRelease(published.linuxDownloadURL, published.linuxPreview, previewLabels[1]), guideURL: base + 'docs/installation/' },
   { name: 'Android', icon: 'android', requirements: 'Android 8.0+ · arm64', format: '.apk',
-    url: published.androidDownloadURL,
-    version: published.androidDownloadURL ? published.version : undefined,
-    notes: published.androidDownloadURL ? published.releaseURL : undefined, guideURL: `${base}docs/mobile/` },
+    ...platformRelease(published.androidDownloadURL, published.androidPreview, previewLabels[2]), guideURL: `${base}docs/mobile/` },
   { name: 'iOS', icon: 'apple', requirements: 'iOS 17+ · Secure Enclave', localBuild: true,
     guideURL: `${base}docs/mobile/` },
 ];
@@ -187,7 +194,7 @@ const canonical = site && new URL(pathFor(locale), site);
             <a class="button" href="#download" data-download-open aria-haspopup="dialog">{c.downloadLabel} <span aria-hidden="true">↓</span></a>
             {published.releaseURL && <a class="text-link" href={published.releaseURL}>{c.releaseNotesLabel} ↗</a>}
           </div>
-          <noscript><p class="download-fallback">{platforms.map(platform => <a class="text-link" href={platform.url || platform.guideURL}>{platform.name}{platform.localBuild ? ` · ${c.localBuildLabel}` : platform.preview ? ` · ${c.unsignedLabel}` : ''} ↗ </a>)}</p></noscript>
+          <noscript><p class="download-fallback">{platforms.map(platform => <a class="text-link" href={platform.url || platform.guideURL}>{platform.name}{platform.localBuild ? ` · ${c.localBuildLabel}` : platform.preview ? ` · ${platform.preview}` : ''} ↗ </a>)}</p></noscript>
         </div>
         <div class="download-brand">
           <img src={`${base}ccbox-icon.svg`} width="84" height="84" alt="" />
@@ -215,7 +222,7 @@ const canonical = site && new URL(pathFor(locale), site);
     <div class="dialog-heading"><h2 id="platform-title">{c.platformLabel}</h2><form method="dialog"><button class="dialog-close" aria-label={c.closeLabel}>×</button></form></div>
     <div class="platform-options">{platforms.map(platform => <article class="platform-option" data-platform={platform.name}>
       <div class="platform-heading"><span class="platform-icon" aria-hidden="true"><img src={`${base}platforms/${platform.icon}.svg`} width="32" height="32" alt="" /></span><h3 dir="ltr">{platform.name}</h3></div><p class="platform-requirements" dir="ltr">{platform.requirements}</p>
-      <p class="platform-status"><bdi>{platform.localBuild ? c.localBuildLabel : platform.preview ? c.unsignedLabel : platform.url ? platform.format : c.unavailableLabel}</bdi>{platform.version && <bdi dir="ltr"> · v{platform.version}</bdi>}</p>
+      <p class="platform-status" data-preview={platform.preview ? '' : undefined}><bdi>{platform.localBuild ? c.localBuildLabel : platform.preview || (platform.url ? platform.format : c.unavailableLabel)}</bdi>{platform.version && <bdi dir="ltr"> · v{platform.version}</bdi>}</p>
       <a class="button" href={platform.url || platform.guideURL}>{platform.localBuild ? c.buildGuideLabel : platform.url ? c.downloadLabel : c.installGuideLabel} ↗</a>
       {platform.notes && <a class="text-link" href={platform.notes}>{c.releaseNotesLabel} ↗</a>}
       {platform.url && <a class="text-link" href={platform.guideURL}>{c.installGuideLabel} ↗</a>}
