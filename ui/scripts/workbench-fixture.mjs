@@ -64,7 +64,7 @@ export async function createWorkbench({
     accountPassword: "fixture-password",
     failAccountSave: false,
     settings: {
-      workspace: "/Users/shihao/.claude-cage-workspace",
+      workspace: "/Users/shihao/.ccbox-workspace",
       browser_home_url: "https://www.bing.com/",
       dns_url: "https://cloudflare-dns.com/dns-query",
       timezone: "Asia/Shanghai",
@@ -76,9 +76,9 @@ export async function createWorkbench({
       exit_policy: { mode: "dynamic", scope: "country", country_code: "US" },
     },
     status: {
-      environment_directory: "/Users/shihao/.claude-cage-workspace",
+      environment_directory: "/Users/shihao/.ccbox-workspace",
       environment_workspace: true,
-      projects: ["/Users/shihao/.claude-cage-workspace"],
+      projects: ["/Users/shihao/.ccbox-workspace"],
       ready: false,
       vm_running: false,
       keyboard: "mac",
@@ -264,7 +264,7 @@ export async function createWorkbench({
           if (!state.status.projects.includes(body.workspace))
             state.status.projects.push(body.workspace);
           state.status.environment_workspace = body.workspace.endsWith(
-            "/.claude-cage-workspace",
+            "/.ccbox-workspace",
           );
         }
       }
@@ -277,7 +277,7 @@ export async function createWorkbench({
       result = { id };
     } else if (path === "/start") {
       state.status.job = { id: "start", kind: "start", running: false };
-      state.settings.workspace = "/Users/shihao/.claude-cage-workspace";
+      state.settings.workspace = "/Users/shihao/.ccbox-workspace";
       state.status.environment_workspace = true;
       state.status.ready = true;
       state.status.vm_running = true;

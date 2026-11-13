@@ -1,4 +1,4 @@
-// Package cage supplies the configuration and network boundary of Claude Cage.
+// Package cage supplies the configuration and network boundary of ccBox.
 package cage
 
 import (
@@ -15,7 +15,7 @@ import (
 	_ "time/tzdata"
 )
 
-const ConfigEnv = "CLAUDE_CAGE_CONFIG"
+const ConfigEnv = "CCBOX_CONFIG"
 
 type Config struct {
 	ProxyURL        string     `json:"proxy_url"`

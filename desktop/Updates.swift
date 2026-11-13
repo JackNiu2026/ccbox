@@ -3,24 +3,24 @@ import CryptoKit
 import Security
 import Darwin
 
-let cageUpdateBundleID = "io.github.lee-xeo.claude-cage"
+let cageUpdateBundleID = "org.ccbox.desktop"
 
 enum CageProfile {
     static var clientOnly: Bool { Bundle.main.object(forInfoDictionaryKey: "CageClientOnly") as? Bool == true }
     static var macGuestTrial: Bool { Bundle.main.bundleIdentifier == cageUpdateBundleID + ".macos-trial" }
     static func configURL() -> URL {
         if macGuestTrial {
-            return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude-cage/macos-trial/config.json")
+            return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".ccbox/macos-trial/config.json")
         }
-        if let path = ProcessInfo.processInfo.environment["CLAUDE_CAGE_CONFIG"], !path.isEmpty {
+        if let path = ProcessInfo.processInfo.environment["CCBOX_CONFIG"], !path.isEmpty {
             return URL(fileURLWithPath: path).standardizedFileURL
         }
-        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(clientOnly ? ".claude-cage/client/config.json" : ".claude-cage/config.json")
+        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(clientOnly ? ".ccbox/client/config.json" : ".ccbox/config.json")
     }
 
     // Every helper and relaunched app inherits the same absolute profile, even
     // when its working directory differs from the original launch directory.
-    static func pinEnvironment() { setenv("CLAUDE_CAGE_CONFIG", configURL().path, 1) }
+    static func pinEnvironment() { setenv("CCBOX_CONFIG", configURL().path, 1) }
 }
 
 final class CageUpdateValidation {

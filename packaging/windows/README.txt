@@ -26,7 +26,7 @@ Projects and links inside the installation folder are retained. Modified files
 that conflict with the new program, and unrecognized libraries in program load
 directories, are kept in ccBox-preserved-files inside that folder. Changes made
 during installation can also be retained in its late-* subdirectories.
-If recovery is interrupted, a .cage-installation.json record beside the
+If recovery is interrupted, a .ccbox-installation.json record beside the
 application folder identifies the retained installation, staged and backup
 folders. Keep the record and those folders until recovery is complete.
 Automatic updates stop application launch while recovery remains incomplete.
@@ -37,7 +37,7 @@ Unsigned development builds cannot install automatic updates.
 
 Uninstall using Windows Settings > Apps > Installed apps (Windows 11) or
 Apps & features (Windows 10). Uninstall removes application files and shortcuts.
-It preserves user data in %USERPROFILE%\.claude-cage and all shared projects.
+It preserves user data in %USERPROFILE%\.ccbox and all shared projects.
 If personal files remain inside the installation folder, the folder remains
 available for a later installation.
 Microsoft WebView2 is a shared runtime and is not removed by ccBox uninstall.

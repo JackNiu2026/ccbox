@@ -4,7 +4,7 @@ set -euo pipefail
 profile="$1"
 team="$2"
 output="$3"
-bundle_id=io.github.lee-xeo.claude-cage
+bundle_id=org.ccbox.desktop
 [[ "$team" =~ ^[A-Z0-9]{10}$ ]] || { echo 'A valid Developer ID team is required.' >&2; exit 1; }
 security cms -D -i "$profile" -o "$output.profile.plist"
 profile_team=$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "$output.profile.plist")

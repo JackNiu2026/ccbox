@@ -82,7 +82,7 @@ try {
   }
   assert.equal(state.requests.filter(request => request.path === "/start").length, 0);
 
-  location = { directory: "D:\\Cage 环境", has_environment: true, custom: true, backup: "C:\\Users\\demo\\.claude-cage\\state" };
+  location = { directory: "D:\\Cage 环境", has_environment: true, custom: true, backup: "C:\\Users\\demo\\.ccbox\\state" };
   state.status.storage_recovery = { required: false, repair_allowed: false };
   state.status.job = { ...state.status.job, running: false, error: "", message: "环境存储已恢复，可以启动环境" };
   await panel.getByText(location.directory, { exact: true }).waitFor();

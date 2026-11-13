@@ -12,7 +12,7 @@ if [ "${1:-}" = upgrade ] || [ "${1:-}" = install ] || [ "${1:-}" = remove ]; th
       executable=$(tr '\000' '\n' < "$process/cmdline" 2>/dev/null | head -n 1) || executable=
     fi
     case "$executable" in
-      /usr/bin/claude-cage|/usr/bin/cage-desktop|/usr/lib/claude-cage/cage|/usr/lib/claude-cage/cage-desktop|/usr/lib/claude-cage/mihomo|/usr/lib/claude-cage/*' (deleted)')
+      /usr/bin/ccbox|/usr/bin/ccbox-desktop|/usr/lib/ccbox/cage|/usr/lib/ccbox/cage-desktop|/usr/lib/ccbox/mihomo|/usr/lib/ccbox/*' (deleted)')
         echo 'ccBox is running. Save work, stop the environment, and quit ccBox before changing the installation.' >&2
         exit 1
         ;;

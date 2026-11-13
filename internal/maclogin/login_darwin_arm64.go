@@ -44,7 +44,7 @@ func init() {
 		runtime.LockOSThread()
 	}
 	driver.OwnsOffscreenView = func(dir string) bool {
-		config := os.Getenv("CLAUDE_CAGE_CONFIG")
+		config := os.Getenv("CCBOX_CONFIG")
 		if !filepath.IsAbs(config) || !sameGuestDirectory(dir, filepath.Join(filepath.Dir(config), "state", "lima", "mac")) {
 			return false
 		}
@@ -247,7 +247,7 @@ func run(ctx context.Context, machine *apple.VirtualMachine, dir string) error {
 	}
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	s := loginSession{profile: filepath.Dir(os.Getenv("CLAUDE_CAGE_CONFIG"))}
+	s := loginSession{profile: filepath.Dir(os.Getenv("CCBOX_CONFIG"))}
 	go func() {
 		for {
 			_ = ln.SetDeadline(time.Now().Add(time.Second))

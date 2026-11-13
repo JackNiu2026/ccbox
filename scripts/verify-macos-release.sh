@@ -46,7 +46,7 @@ hdiutil attach -readonly -nobrowse -mountpoint "$mount" "$archive" >/dev/null
 bundle="$mount/ccBox.app"
 test "$(/usr/libexec/PlistBuddy -c 'Print :CageVersion' "$bundle/Contents/Info.plist")" = "$version"
 codesign --verify --deep --strict --verbose=2 \
-  -R='anchor apple generic and identifier "io.github.lee-xeo.claude-cage" and certificate 1[field.1.2.840.113635.100.6.2.6] exists and certificate leaf[field.1.2.840.113635.100.6.1.13] exists' "$bundle"
+  -R='anchor apple generic and identifier "org.ccbox.desktop" and certificate 1[field.1.2.840.113635.100.6.2.6] exists and certificate leaf[field.1.2.840.113635.100.6.1.13] exists' "$bundle"
 validate_ticket "$bundle"
 spctl --assess --type execute --verbose=2 "$bundle"
 cmp "$guest_source" "$bundle/Contents/Resources/guest-os/sources/${guest_source##*/}"

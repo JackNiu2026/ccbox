@@ -37,7 +37,7 @@ func LoadEnvironmentRecord(profile string) (EnvironmentRecord, error) {
 func DefaultEnvironmentDir(profile string) string {
 	path := filepath.Clean(profile) + "-workspace"
 	if home, err := os.UserHomeDir(); err == nil {
-		defaultProfile := filepath.Join(home, ".claude-cage")
+		defaultProfile := filepath.Join(home, ".ccbox")
 		if !paths.Equal(profile, defaultProfile) && StorageContains(defaultProfile, profile) {
 			if relative, err := filepath.Rel(defaultProfile, profile); err == nil {
 				path = filepath.Join(defaultProfile+"-workspaces", relative)

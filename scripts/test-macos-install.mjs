@@ -19,7 +19,7 @@ const qaHome = path.join(root, "user");
 const manifest = path.join(root, "personal-data.json");
 // The 12 preservation fixtures contain marker bytes. Use a separate valid profile for login.
 const profile = path.join(root, "runtime-profile");
-const env = { ...process.env, HOME: qaHome, CLAUDE_CAGE_CONFIG: path.join(profile, "config.json") };
+const env = { ...process.env, HOME: qaHome, CCBOX_CONFIG: path.join(profile, "config.json") };
 const installed = path.join(qaHome, "Applications", "Cage.app");
 const mount = path.join(root, "mount");
 const image = path.join(root, "manual-install.dmg");

@@ -32,7 +32,7 @@ trap {
     throw $failure
 }
 $manifestName = 'Cage.install-files.json'
-$identityName = 'Cage.install-id'
+$identityName = 'ccBox.install-id'
 
 function Read-FileManifest([string]$Path) {
     $files = [Collections.Generic.Dictionary[string,string]]::new([StringComparer]::OrdinalIgnoreCase)
@@ -144,7 +144,7 @@ function Save-Transfer($Transfer) {
 
 function Complete-Transfer {
     $transfer = Get-Content -LiteralPath $Receipt -Raw -Encoding UTF8 | ConvertFrom-Json
-    if ($transfer.kind -ne 'cage-installation' -or !(Test-Path -LiteralPath (Join-Path $Target $identityName))) { throw '安装目录尚未恢复，事务回执已保留。' }
+    if ($transfer.kind -ne 'ccbox-installation' -or !(Test-Path -LiteralPath (Join-Path $Target $identityName))) { throw '安装目录尚未恢复，事务回执已保留。' }
     if ($transfer.backupPath -and (Test-Path -LiteralPath $transfer.backupPath)) { throw ('旧目录仍需恢复，事务回执已保留：' + $transfer.backupPath) }
     foreach ($entry in $transfer.moves) {
         if ($entry.state -eq 'absent') { continue }
@@ -249,7 +249,7 @@ if ($Operation -eq 'prepare') {
     $files = @($current.Keys | Sort-Object | ForEach-Object { @{ path = $_; sha256 = $current[$_] } })
     @{ version = 1; files = $files } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $Target $manifestName) -Encoding UTF8
     $diagnosticStep = 'writing_transaction_receipt'
-    $record = @{kind = 'cage-installation'; version = 1; installPath = $Source; stagePath = $Target; backupPath = $Backup; files = @($transfers); directories = $directories; moves = @($moves)}
+    $record = @{kind = 'ccbox-installation'; version = 1; installPath = $Source; stagePath = $Target; backupPath = $Backup; files = @($transfers); directories = $directories; moves = @($moves)}
     $encoding = [Text.UTF8Encoding]::new($true)
     [byte[]]$bytes = $encoding.GetPreamble() + $encoding.GetBytes(($record | ConvertTo-Json -Depth 6))
     $temporary = $Receipt + '.' + [guid]::NewGuid().ToString('N') + '.tmp'

@@ -16,6 +16,14 @@ func TestWindowsInitialDataDirectoryAndApplicationBoundary(t *testing.T) {
 		t.Fatalf("unmarked build default=%s", got)
 	}
 	writeStorageFixture(t, filepath.Join(app, "Cage.install-id"), []byte("io.github.lee-xeo.claude-cage"))
+	if got := initialStorageDirectory(backend, "windows"); got != "" {
+		t.Fatalf("legacy installer marker accepted: %s", got)
+	}
+	writeStorageFixture(t, filepath.Join(app, "ccBox.install-id"), []byte("org.example.otherapp"))
+	if got := initialStorageDirectory(backend, "windows"); got != "" {
+		t.Fatalf("foreign installer identity accepted: %s", got)
+	}
+	writeStorageFixture(t, filepath.Join(app, "ccBox.install-id"), []byte("org.ccbox.desktop"))
 	data := filepath.Join(app, "CageData")
 	if got := initialStorageDirectory(backend, "windows"); got != data {
 		t.Fatalf("default=%s want=%s", got, data)
@@ -36,7 +44,7 @@ func TestWindowsInitialDataDirectoryAndApplicationBoundary(t *testing.T) {
 	if err := validateStorageTarget(profile, data, app, "darwin"); err == nil {
 		t.Fatal("Mac application directory allowed")
 	}
-	if err := os.Remove(filepath.Join(app, "Cage.install-id")); err != nil {
+	if err := os.Remove(filepath.Join(app, "ccBox.install-id")); err != nil {
 		t.Fatal(err)
 	}
 	if err := validateStorageTarget(profile, data, app, "windows"); err == nil {

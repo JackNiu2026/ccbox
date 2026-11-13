@@ -10,7 +10,7 @@ enum MacGuestLoginCredential {
         let url = CageProfile.configURL().deletingLastPathComponent().appendingPathComponent("macos-guest.json")
         let binding = try JSONDecoder().decode(Binding.self, from: Data(contentsOf: url))
         return [kSecClass as String: kSecClassGenericPassword,
-                kSecAttrService as String: "io.github.lee-xeo.claude-cage.macos-trial.guest-login",
+                kSecAttrService as String: "org.ccbox.desktop.macos-trial.guest-login",
                 kSecAttrAccount as String: binding.user + "@" + binding.machineID,
                 kSecAttrSynchronizable as String: false]
     }

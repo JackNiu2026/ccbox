@@ -11,7 +11,7 @@ const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.CAGE_PLAYWRIGHT_MODULE || "playwright");
 const root = await fs.mkdtemp(path.join(os.tmpdir(), "cage-diagnostics-"));
 const profile = path.join(root, "profile");
-const env = { ...process.env, CLAUDE_CAGE_CONFIG: path.join(profile, "config.json") };
+const env = { ...process.env, CCBOX_CONFIG: path.join(profile, "config.json") };
 let browser;
 const reportDirectory = process.env.CAGE_DIAGNOSTIC_REPORT
   ? path.resolve(process.env.CAGE_DIAGNOSTIC_REPORT)

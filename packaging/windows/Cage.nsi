@@ -28,8 +28,8 @@ ManifestSupportedOS all
   !error "OUTPUT_FILE is required"
 !endif
 
-!define APP_ID "io.github.lee-xeo.claude-cage"
-!define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\ClaudeCage"
+!define APP_ID "org.ccbox.desktop"
+!define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\ccBox"
 !define WEBVIEW2_APP_ID "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
 Name "ccBox ${VERSION}"
 OutFile "${OUTPUT_FILE}"
@@ -169,7 +169,7 @@ FunctionEnd
 !macro AcquireInstallationMutex
   ; NSIS and UpdateInstaller both reject an existing named object and keep
   ; their handle until the transaction ends. No caller waits for ownership.
-  System::Call 'kernel32::CreateMutexW(p 0, i 0, w "Global\Cage.Installation") p.r0 ?e'
+  System::Call 'kernel32::CreateMutexW(p 0, i 0, w "Global\ccBox.Installation") p.r0 ?e'
   Pop $1
   ${If} $0 == 0
     SetErrorLevel 2
@@ -202,12 +202,10 @@ Function LoadShortcutOptions
   ${If} $0 != ""
     StrCpy $DesktopShortcut 0
     StrCpy $StartMenuShortcuts 0
-    ${If} ${FileExists} "$DESKTOP\Cage.lnk"
-    ${OrIf} ${FileExists} "$DESKTOP\ccBox.lnk"
+    ${If} ${FileExists} "$DESKTOP\ccBox.lnk"
       StrCpy $DesktopShortcut 1
     ${EndIf}
-    ${If} ${FileExists} "$SMPROGRAMS\Cage\Cage.lnk"
-    ${OrIf} ${FileExists} "$SMPROGRAMS\ccBox\ccBox.lnk"
+    ${If} ${FileExists} "$SMPROGRAMS\ccBox\ccBox.lnk"
       StrCpy $StartMenuShortcuts 1
     ${EndIf}
   ${EndIf}
@@ -343,12 +341,12 @@ Function CheckDestination
     Abort "Choose a dedicated application folder."
   ${EndIf}
   StrCpy $ExistingInstall "0"
-  IfFileExists "$INSTDIR\Cage.install-id" existing
+  IfFileExists "$INSTDIR\ccBox.install-id" existing
   ; IfFileExists with a wildcard also matches an empty directory.
   ${DirState} "$INSTDIR" $0
   StrCmp $0 1 foreign done
   existing:
-    FileOpen $0 "$INSTDIR\Cage.install-id" r
+    FileOpen $0 "$INSTDIR\ccBox.install-id" r
     FileRead $0 $1
     FileClose $0
     ${If} $1 != "${APP_ID}"
@@ -395,7 +393,7 @@ FunctionEnd
 Section "ccBox" Main
   !insertmacro InstallPhase "acquiring_installation_lock"
   !insertmacro AcquireInstallationMutex
-  StrCpy $TransactionRecord "$INSTDIR.cage-installation.json"
+  StrCpy $TransactionRecord "$INSTDIR.ccbox-installation.json"
   ${If} ${FileExists} "$TransactionRecord"
     SetErrorLevel 2
     Abort "存在未处理的安装事务记录：$TransactionRecord。请先按记录恢复保留的目录，再重试。"
@@ -551,10 +549,6 @@ Section "ccBox" Main
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoModify" 1
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoRepair" 1
   SetOutPath "$INSTDIR"
-  Delete "$DESKTOP\Cage.lnk"
-  Delete "$SMPROGRAMS\Cage\Cage.lnk"
-  Delete "$SMPROGRAMS\Cage\Uninstall Cage.lnk"
-  RMDir "$SMPROGRAMS\Cage"
   ${If} $DesktopShortcut == 1
     CreateShortcut "$DESKTOP\ccBox.lnk" "$INSTDIR\Cage.exe"
   ${Else}
@@ -587,7 +581,7 @@ Function un.onInit
   !insertmacro UninstallPhase "checking_installation_identity"
   SetShellVarContext current
   SetRegView 64
-  FileOpen $0 "$INSTDIR\Cage.install-id" r
+  FileOpen $0 "$INSTDIR\ccBox.install-id" r
   FileRead $0 $1
   FileClose $0
   ${If} $1 != "${APP_ID}"
@@ -607,11 +601,11 @@ Section "Uninstall"
   !insertmacro UninstallPhase "acquiring_installation_lock"
   !insertmacro AcquireInstallationMutex
   !insertmacro UninstallPhase "checking_pending_transaction"
-  ${If} ${FileExists} "$INSTDIR.cage-installation.json"
+  ${If} ${FileExists} "$INSTDIR.ccbox-installation.json"
     StrCpy $HelperExit "pending_install_transaction"
     Call un.WriteInstallDiagnostic
     SetErrorLevel 2
-    Abort "存在待恢复的安装事务，请先处理 $INSTDIR.cage-installation.json 中记录的目录。"
+    Abort "存在待恢复的安装事务，请先处理 $INSTDIR.ccbox-installation.json 中记录的目录。"
   ${EndIf}
   InitPluginsDir
   SetOutPath "$PLUGINSDIR"

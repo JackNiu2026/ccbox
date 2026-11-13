@@ -22,6 +22,6 @@ while read -r digest archive; do
   (cd "$stage"; printf '%s  %s\n' "$digest" "$archive" | shasum -a 256 -c -)
 done < <(node -e 'for(const a of require("./deploy/cloud/runtime-artifacts.json").artifacts)console.log(a.sha256,a.file)')
 name=cloud-linux-amd64.tar
-COPYFILE_DISABLE=1 tar -cf "$stage/$name" -C "$stage" cage mihomo cage-container-engine.service cage-server.service image-id guest.tar.zst docker-29.9.1.tgz docker-rootless-extras-29.9.1.tgz
+COPYFILE_DISABLE=1 tar -cf "$stage/$name" -C "$stage" cage mihomo ccbox-container-engine.service ccbox-server.service image-id guest.tar.zst docker-29.9.1.tgz docker-rootless-extras-29.9.1.tgz
 shasum -a 256 "$stage/$name" | cut -d' ' -f1 > "$stage/$name.sha256"
 mv "$stage/$name" "$stage/$name.sha256" "$target/"

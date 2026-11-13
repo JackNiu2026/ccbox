@@ -8,7 +8,7 @@ await mkdir(out,{recursive:true});
 const scheduling={mode:"balanced",switch_policy:"ask"};
 let profiles=[{id:"a",label:"账号 A",email:"a@example.invalid",status:"ready",enabled:true},{id:"b",label:"账号 B",email:"b@example.invalid",status:"ready",enabled:true}];
 const sid="12345678-1234-4321-aaaa-123456789abc";
-const session={id:sid,workspace:"/Users/shihao/.claude-cage-workspace",title:"调度验证",terminal_available:true,desktop_terminal_id:"first",can_send:true,revision:1,account_id:"a",account_label:"账号 A",switch_policy:"ask",turns:[]};
+const session={id:sid,workspace:"/Users/shihao/.ccbox-workspace",title:"调度验证",terminal_available:true,desktop_terminal_id:"first",can_send:true,revision:1,account_id:"a",account_label:"账号 A",switch_policy:"ask",turns:[]};
 let switchCalls=[];
 const account=(route,body)=>{
   if(body.action==="policy")session.switch_policy=body.policy;

@@ -14,7 +14,7 @@ const cage = process.argv[2];
 assert.ok(path.isAbsolute(cage || ""), "Supply an absolute ccBox helper path");
 const run = promisify(execFile);
 const root = await fs.mkdtemp(path.join(os.tmpdir(), "cage-remember-live-"));
-const env = { ...process.env, HOME: root, LOCALAPPDATA: root, CLAUDE_CAGE_CONFIG: path.join(root, "profile", "config.json") };
+const env = { ...process.env, HOME: root, LOCALAPPDATA: root, CCBOX_CONFIG: path.join(root, "profile", "config.json") };
 const output = new URL("../../docs/test-reports/2026-11-08-remember-device/", import.meta.url);
 await fs.mkdir(output, { recursive: true });
 const require = createRequire(import.meta.url);

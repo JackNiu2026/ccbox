@@ -23,23 +23,23 @@ enum UpdatesTests {
         try CageUpdateFiles.privateDirectory(root)
         defer { try? FileManager.default.removeItem(at: root) }
         do {
-            let saved = ProcessInfo.processInfo.environment["CLAUDE_CAGE_CONFIG"]
+            let saved = ProcessInfo.processInfo.environment["CCBOX_CONFIG"]
             let directory = FileManager.default.currentDirectoryPath
             defer {
                 _ = FileManager.default.changeCurrentDirectoryPath(directory)
-                if let saved { setenv("CLAUDE_CAGE_CONFIG", saved, 1) } else { unsetenv("CLAUDE_CAGE_CONFIG") }
+                if let saved { setenv("CCBOX_CONFIG", saved, 1) } else { unsetenv("CCBOX_CONFIG") }
             }
-            setenv("CLAUDE_CAGE_CONFIG", "", 1)
-            try expect(CageProfile.configURL() == FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude-cage/config.json"), "empty profile agrees with backend default")
+            setenv("CCBOX_CONFIG", "", 1)
+            try expect(CageProfile.configURL() == FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".ccbox/config.json"), "empty profile agrees with backend default")
             try expect(FileManager.default.changeCurrentDirectoryPath(root.path), "enter isolated launch directory")
             let launchDirectory = FileManager.default.currentDirectoryPath
-            setenv("CLAUDE_CAGE_CONFIG", "selected profile/config.json", 1)
+            setenv("CCBOX_CONFIG", "selected profile/config.json", 1)
             CageProfile.pinEnvironment()
             let pinned = CageProfile.configURL()
             try expect(pinned.path == launchDirectory + "/selected profile/config.json", "relative profile pinned at launch")
             try expect(FileManager.default.changeCurrentDirectoryPath(directory), "simulate helper working directory")
             try expect(CageProfile.configURL() == pinned, "helper keeps original profile after cwd changes")
-            let inherited = try CageUpdateFiles.run("/bin/sh", ["-c", "printf '%s' \"$CLAUDE_CAGE_CONFIG\""])
+            let inherited = try CageUpdateFiles.run("/bin/sh", ["-c", "printf '%s' \"$CCBOX_CONFIG\""])
             try expect(String(data: inherited, encoding: .utf8) == pinned.path, "actual child process inherits absolute profile")
         }
         let personalFiles = [
@@ -156,9 +156,9 @@ enum UpdatesTests {
         let savedEnvironment = ProcessInfo.processInfo.environment
         let confirmation = UUID().uuidString
         setenv("CAGE_UPDATE_CONFIRMATION", confirmation, 1)
-        setenv("CLAUDE_CAGE_CONFIG", root.appendingPathComponent("profile/config.json").path, 1)
+        setenv("CCBOX_CONFIG", root.appendingPathComponent("profile/config.json").path, 1)
         defer {
-            for key in ["CAGE_UPDATE_CONFIRMATION", "CLAUDE_CAGE_CONFIG"] {
+            for key in ["CAGE_UPDATE_CONFIRMATION", "CCBOX_CONFIG"] {
                 if let value = savedEnvironment[key] { setenv(key, value, 1) } else { unsetenv(key) }
             }
         }

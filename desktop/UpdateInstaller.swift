@@ -127,7 +127,7 @@ final class CageUpdateInstaller: NSObject, NSApplicationDelegate {
         }
     }
     private func inheritedProfile() -> [String: String] {
-        if let path = ProcessInfo.processInfo.environment["CLAUDE_CAGE_CONFIG"] { return ["CLAUDE_CAGE_CONFIG": path] }
+        if let path = ProcessInfo.processInfo.environment["CCBOX_CONFIG"] { return ["CCBOX_CONFIG": path] }
         return [:]
     }
     private func recover(_ reason: String) {

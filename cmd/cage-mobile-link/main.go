@@ -279,7 +279,7 @@ func localWorkbench(ctx context.Context, cageBinary, config string) (*mobilelink
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, cageBinary, "server-entry", "--json")
-	cmd.Env = append(os.Environ(), "CLAUDE_CAGE_CONFIG="+config)
+	cmd.Env = append(os.Environ(), "CCBOX_CONFIG="+config)
 	buf := &entryBuffer{}
 	cmd.Stdout, cmd.Stderr = buf, io.Discard
 	if err := cmd.Run(); err != nil {

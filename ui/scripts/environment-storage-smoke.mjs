@@ -9,7 +9,7 @@ const { browser, page, state, errors } = await createWorkbench({
 try {
   state.status.local_vm_storage = true;
   const windows = platform === "windows";
-  let location = { directory: windows ? "C:\\Users\\demo\\.claude-cage\\state" : "/home/demo/.claude-cage/state", has_environment: false };
+  let location = { directory: windows ? "C:\\Users\\demo\\.ccbox\\state" : "/home/demo/.ccbox/state", has_environment: false };
   const writes = [];
   const destination = windows ? "D:\\开发工具\\Cage 环境" : "/Volumes/开发工具/Cage 环境";
   const occupied = windows ? "E:\\occupied" : "/mnt/occupied";

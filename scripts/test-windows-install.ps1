@@ -5,7 +5,7 @@ param([Parameter(Mandatory)][string]$Installer)
 . (Join-Path $PSScriptRoot 'windows-common.ps1')
 if (-not $IsWindows) { throw 'Installation smoke tests must run on Windows.' }
 $target = Join-Path $env:LOCALAPPDATA ('Programs/Cage-test-' + [guid]::NewGuid().ToString('N'))
-$savedKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ClaudeCage'
+$savedKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ccBox'
 if (Test-Path $savedKey) { throw 'Use a disposable Windows user without an existing Cage installation.' }
 $fixture = Join-Path $PSScriptRoot 'personal-data-fixture.mjs'
 $manifest = Join-Path ([IO.Path]::GetTempPath()) ('cage-personal-data-' + [guid]::NewGuid().ToString('N') + '.json')
@@ -38,18 +38,18 @@ function Run-Installer {
 }
 $desktopShortcut = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'ccBox.lnk'
 $startMenuDirectory = Join-Path ([Environment]::GetFolderPath('Programs')) 'ccBox'
-$otherDesktop = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'GetToken.lnk'
-$otherMenu = Join-Path ([Environment]::GetFolderPath('Programs')) 'GetToken'
-if ((Test-Path -LiteralPath $otherDesktop) -or (Test-Path -LiteralPath $otherMenu)) { throw 'The GetToken shortcut fixture requires a disposable user.' }
+$otherDesktop = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'IndependentApp.lnk'
+$otherMenu = Join-Path ([Environment]::GetFolderPath('Programs')) 'IndependentApp'
+if ((Test-Path -LiteralPath $otherDesktop) -or (Test-Path -LiteralPath $otherMenu)) { throw 'The other product shortcut fixture requires a disposable user.' }
 New-Item -ItemType Directory -Path $otherMenu | Out-Null
-$otherShortcuts = @($otherDesktop, (Join-Path $otherMenu 'GetToken.lnk'), (Join-Path $otherMenu 'Uninstall GetToken.lnk'))
-foreach ($path in $otherShortcuts) { Set-Content -LiteralPath $path -Value 'Independent GetToken shortcut fixture' -Encoding utf8NoBOM }
+$otherShortcuts = @($otherDesktop, (Join-Path $otherMenu 'IndependentApp.lnk'), (Join-Path $otherMenu 'Uninstall IndependentApp.lnk'))
+foreach ($path in $otherShortcuts) { Set-Content -LiteralPath $path -Value 'Independent other product shortcut fixture' -Encoding utf8NoBOM }
 $otherHashes = @($otherShortcuts | Get-FileHash -Algorithm SHA256)
 function Assert-Shortcuts {
     param([bool]$Desktop, [bool]$StartMenu)
     foreach ($file in $otherHashes) {
         if (!(Test-Path -LiteralPath $file.Path -PathType Leaf) -or (Get-FileHash -LiteralPath $file.Path -Algorithm SHA256).Hash -ne $file.Hash) {
-            throw 'ccBox changed a GetToken shortcut.'
+            throw 'ccBox changed a shortcut belonging to another product.'
         }
     }
     if ((Test-Path -LiteralPath $desktopShortcut) -ne $Desktop) { throw 'Desktop shortcut differs from the installer selection.' }

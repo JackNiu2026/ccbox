@@ -63,7 +63,7 @@ func validateHostProjectData(root, profile string) error {
 	if err != nil {
 		return err
 	}
-	defaultProfile := filepath.Join(home, ".claude-cage")
+	defaultProfile := filepath.Join(home, ".ccbox")
 	// Independent profiles also protect disks and backups of the default workload.
 	if !paths.Equal(profile, defaultProfile) {
 		private, err := privateProjectDirectories(defaultProfile)

@@ -21,9 +21,9 @@
 | Android | 在 `cage-release` 设置 `CCBOX_ANDROID_KEYSTORE_BASE64` 和 `CCBOX_ANDROID_KEYSTORE_PASSWORD` Secrets。设置 `CCBOX_ANDROID_KEY_ALIAS`、`CCBOX_ANDROID_VERSION_CODE`、`CCBOX_ANDROID_CERT_SHA256` 变量。后续更新使用同一个发布密钥和递增的版本码。 |
 | iPhone | Apple Developer 团队、团队拥有的 Bundle ID、签名证书及对应分发描述文件。标准版和 Basic 版的当前仓库工件仅用于模拟器。真机开发包见[移动端构建说明](../mobile/README.md)。App Store 和 TestFlight 还需要 App Store Connect 配置。 |
 | 手机中继 | 现有源码仍含继承的默认中继地址。提供已部署并验证的 ccBox HTTPS 中继，或明确发布版本采用用户自建中继。官网与软件下载之前需核对该项。 [中继部署说明](../deploy/relay/README.md) |
-| 支持与品牌 | 确认对外安全反馈邮箱、品牌名使用权和发行主体。MIT 版权及第三方许可继续随包提供。兼容旧安装的包标识和数据路径需要按迁移方案单独调整。 |
+| 支持与品牌 | 确认对外安全反馈邮箱、品牌名使用权和发行主体。MIT 版权及第三方许可继续随包提供。 |
 
-对外显示名为 `ccBox`，下载与项目主页为 `https://ccbox.org/`。Windows 安装器和 Linux 软件包均声明该主页。桌面旧包标识和数据路径用于已有安装的兼容。Android 正式应用标识为 `org.ccbox.android`，iOS 标准版和 Basic 分别使用 `org.ccbox.ios` 和 `org.ccbox.ios.basic`。移动端预览用户需单独安装新应用并重新配对。
+对外显示名为 `ccBox`，下载与项目主页为 `https://ccbox.org/`。Windows 安装器使用专属安装标记和卸载注册项，macOS 使用 `org.ccbox.desktop`，Linux 软件包和命令使用 `ccbox`。新桌面包默认使用 `~/.ccbox`，可用 `CCBOX_CONFIG` 明确指定单独的配置文件。旧预览用户应先备份，使用独立目录安装，确认旧资料归属后再选择需要迁移的内容。Android 应用标识为 `org.ccbox.android`，iOS 标准版和 Basic 分别使用 `org.ccbox.ios` 和 `org.ccbox.ios.basic`。移动端预览用户需单独安装新应用并重新配对。
 
 证书、密码和私钥应通过 GitHub Secrets 配置，勿写入源码、Issue 或聊天。
 

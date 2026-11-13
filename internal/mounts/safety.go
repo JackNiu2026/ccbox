@@ -134,6 +134,7 @@ func GitDirShare(dir string) (string, bool) {
 // home folder, so these are named. Lowercase-folded where case is ignored.
 var credentialRel = []string{
 	".ssh", ".aws", ".gnupg", ".pki", ".kube", ".docker", ".azure", ".oci", ".terraform.d",
+	".ccbox", ".claude-cage",
 	".config", ".password-store", ".1password", ".op", ".mozilla", ".thunderbird", ".var", "snap",
 	".local/share/keyrings", ".local/share/gnome-keyring", ".local/share/kwalletd",
 	"Library", "AppData",

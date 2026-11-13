@@ -15,7 +15,7 @@ await fs.writeFile(path.join(profile, "workbench.json"), JSON.stringify({ worksp
 let service, browser, page;
 async function start() {
   await fs.rm(path.join(profile, "control.json"), { force: true });
-  service = spawn(path.join(root, "_output/vault-qa/cage"), ["serve"], { env: { ...process.env, CLAUDE_CAGE_CONFIG: path.join(profile, "config.json") }, stdio: "ignore" });
+  service = spawn(path.join(root, "_output/vault-qa/cage"), ["serve"], { env: { ...process.env, CCBOX_CONFIG: path.join(profile, "config.json") }, stdio: "ignore" });
   let control;
   for (let i = 0; i < 100; i++) {
     try { control = JSON.parse(await fs.readFile(path.join(profile, "control.json"), "utf8")); break; }

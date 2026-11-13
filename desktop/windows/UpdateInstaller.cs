@@ -41,7 +41,7 @@ internal static class UpdateInstaller
                 string.Equals(Path.GetPathRoot(plan.Target), plan.Target, StringComparison.OrdinalIgnoreCase))
                 throw new IOException("安装目标无效");
             UpdatePolicy.PlainPath(plan.Target); UpdatePolicy.PlainPath(AppUpdater.Root);
-            if (File.ReadAllText(Path.Combine(plan.Target, "Cage.install-id")).Trim() != "io.github.lee-xeo.claude-cage")
+            if (File.ReadAllText(Path.Combine(plan.Target, "ccBox.install-id")).Trim() != "org.ccbox.desktop")
                 throw new IOException("请先使用 ccBox 安装程序安装应用，再自动更新");
             var original = Path.Combine(plan.Target, "Cage.exe");
             var ownPublisher = Authenticode.Publisher(Environment.ProcessPath!);
@@ -125,7 +125,7 @@ internal static class UpdateInstaller
                 {
                     // NSIS and this helper both require a newly created named
                     // object and retain its handle for the entire transaction.
-                    using var installationLock = new Mutex(false, "Global\\Cage.Installation", out var ownsInstallation);
+                    using var installationLock = new Mutex(false, "Global\\ccBox.Installation", out var ownsInstallation);
                     if (!ownsInstallation) throw new IOException("另一个安装或卸载正在进行，已保留更新备份，请等待完成后恢复。");
                     EnsureInstallationComplete(plan.Target);
                     // Stop the exact new controller through its lifecycle API before
@@ -136,7 +136,7 @@ internal static class UpdateInstaller
                     var restored = plan.Target + ".restore-" + plan.Confirmation;
                     var failed = plan.Target + ".failed-" + plan.Confirmation;
                     CopyTree(backup, restored);
-                    var receipt = plan.Target + ".cage-installation.json";
+                    var receipt = plan.Target + ".ccbox-installation.json";
                     await PreserveFiles("prepare", plan.Target, restored, receipt, failed);
                     Directory.Move(plan.Target, failed);
                     try
@@ -162,8 +162,8 @@ internal static class UpdateInstaller
                 {
                     recoveryIncomplete = true;
                     detail += "。自动恢复未完成。" + recovery.Message;
-                    if (File.Exists(plan.Target + ".cage-installation.json"))
-                        detail += "。恢复目录记录在 " + plan.Target + ".cage-installation.json";
+                    if (File.Exists(plan.Target + ".ccbox-installation.json"))
+                        detail += "。恢复目录记录在 " + plan.Target + ".ccbox-installation.json";
                     if (backup != null) detail += "。程序备份保留在 " + backup;
                 }
             }
@@ -203,7 +203,7 @@ internal static class UpdateInstaller
 
     private static void EnsureInstallationComplete(string target)
     {
-        var receipt = target + ".cage-installation.json";
+        var receipt = target + ".ccbox-installation.json";
         if (!File.Exists(receipt) && Directory.Exists(target)) return;
         var message = "安装目录或个人文件仍需恢复，已停止自动启动。请保留并检查 " + receipt;
         if (File.Exists(receipt) && new FileInfo(receipt).Length <= 16 * 1024 * 1024)

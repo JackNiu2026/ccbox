@@ -67,7 +67,7 @@ func (e *app) inVM(ctx context.Context, opts VMOpts, fn session) int {
 		return e.scratch(ctx, cleanup, opts, dir, fn)
 	}
 	s := &start{app: e, ctx: ctx, opts: opts, dir: dir, name: e.instanceName(dir)}
-	if os.Getenv("CLAUDE_CAGE_CONFIG") != "" {
+	if os.Getenv("CCBOX_CONFIG") != "" {
 		b, err := s.backend()
 		if err != nil {
 			fmt.Fprintln(e.io.Stderr, err)

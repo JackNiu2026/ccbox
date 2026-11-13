@@ -51,7 +51,7 @@ func writableGitOptOut(flag bool) bool {
 	return cageWritableGit() || flag || os.Getenv("AGENT_VM_UNSAFE_WRITABLE_GIT") == "1"
 }
 
-func cageWritableGit() bool { return os.Getenv("CLAUDE_CAGE_CONFIG") != "" }
+func cageWritableGit() bool { return os.Getenv("CCBOX_CONFIG") != "" }
 
 // tristate is a key's value: 1, 0, or unknown when the backend could not be
 // asked, never a confident 0.

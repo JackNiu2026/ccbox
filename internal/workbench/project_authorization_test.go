@@ -18,7 +18,7 @@ func TestProjectAuthorizationProtectsCredentialsAcrossGuests(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 	credentials := filepath.Join(home, ".ssh")
-	siblingState := filepath.Join(home, ".claude-cage", "state")
+	siblingState := filepath.Join(home, ".ccbox", "state")
 	for _, directory := range []string{credentials, siblingState} {
 		if err := os.MkdirAll(directory, 0700); err != nil {
 			t.Fatal(err)

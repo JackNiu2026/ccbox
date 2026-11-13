@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 if [[ "$(uname -s)" != Darwin ]]; then echo 'ccBox.app must be built on macOS.' >&2; exit 1; fi
 case "${1:-}" in ''|--install|--macos-trial|--install-macos-trial) ;; *) echo 'Usage: scripts/build-app.sh [--install|--macos-trial|--install-macos-trial]' >&2; exit 2 ;; esac
-bundle_id=io.github.lee-xeo.claude-cage
+bundle_id=org.ccbox.desktop
 app_name=ccBox
 if [[ "${1:-}" == *macos-trial ]]; then
   bundle_id+=.macos-trial
@@ -146,7 +146,7 @@ if [[ "${1:-}" == --install* ]]; then
   fi
   node scripts/cleanup-apps.mjs --keep "$installed_app" \
     --root "$bundle" --root "$PWD/_output" --root "$HOME/Applications" \
-    --root /Applications --root "$HOME/.claude-cage-validation"
+    --root /Applications --root "$HOME/.ccbox-validation"
 else
   if [[ -z "${CAGE_BUILD_OUTPUT:-}" && "${1:-}" != --macos-trial ]]; then
     node scripts/cleanup-apps.mjs --keep "$bundle" --root "$PWD/_output"

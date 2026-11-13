@@ -54,7 +54,7 @@ if [[ "$platform" == macos ]]; then
 <plist version="1.0"><dict>
 <key>CFBundleName</key><string>ccBox Client</string>
 <key>CFBundleDisplayName</key><string>ccBox Client</string>
-<key>CFBundleIdentifier</key><string>io.github.lee-xeo.claude-cage-client</string>
+<key>CFBundleIdentifier</key><string>org.ccbox.desktop-client</string>
 <key>CFBundleVersion</key><string>1</string>
 <key>CFBundleShortVersionString</key><string>$short_version</string>
 <key>CageVersion</key><string>$version</string>
@@ -92,7 +92,7 @@ else
   cat > "$app/README.txt" <<'LINUX_README'
 ccBox 轻量远程客户端（Linux 开发构建）
 在兼容 BUILD-PLATFORM.txt 所列发行版的图形桌面中，以普通用户运行 cage-desktop。
-系统依赖见 dependencies.txt。项目、应用与网络在云端运行；本机连接配置默认位于 ~/.claude-cage/client。
+系统依赖见 dependencies.txt。项目、应用与网络在云端运行；本机连接配置默认位于 ~/.ccbox/client。
 构建不安装或覆盖现有应用，不包含虚拟机、Mihomo 或 OpenSSH 程序。验收范围以项目测试报告为准。
 LINUX_README
   "$app/cage-desktop" --self-test
@@ -104,7 +104,7 @@ cat > "$stage/result/README.txt" <<'README'
 ccBox 轻量远程客户端（开发构建）
 
 本机只提供窗口、SSH 连接、输入和文件传递；项目、浏览器、终端与网络在云端 ccBox 运行。
-默认连接配置目录为 ~/.claude-cage/client；显式设置 CLAUDE_CAGE_CONFIG 时沿用指定路径。
+默认连接配置目录为 ~/.ccbox/client；显式设置 CCBOX_CONFIG 时沿用指定路径。
 此目录为独立构建产物，不会安装或替换已安装的 ccBox。当前构建使用手动更新。
 macOS 运行 ccBox Client.app。Linux 安装 app/dependencies.txt 中的系统依赖后运行 app/cage-desktop。
 本构建未公证或发布；原生运行验收范围以项目测试报告为准。

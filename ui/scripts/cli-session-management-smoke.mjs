@@ -4,7 +4,7 @@ import { createWorkbench } from "./workbench-fixture.mjs";
 
 const base = process.env.CAGE_UI_URL || "http://127.0.0.1:5209";
 const output = process.env.CAGE_TEST_CAPTURE || "../docs/test-reports/2026-11-07-cli-session-sync";
-const workspace = "/Users/shihao/.claude-cage-workspace";
+const workspace = "/Users/shihao/.ccbox-workspace";
 const id = "12345678-1234-4321-aaaa-123456789abc";
 const otherID = "12345678-1234-4321-aaaa-123456789abd";
 const otherProject = "/Users/shihao/Projects/mobile";
@@ -121,7 +121,7 @@ try {
   await search.fill("核对");
   assert.equal(await panel.getByRole("article").count(),1);
   await search.fill("");
-  await panel.getByRole("heading",{name:".claude-cage-workspace",exact:true}).click();
+  await panel.getByRole("heading",{name:".ccbox-workspace",exact:true}).click();
   await mkdir(output,{recursive:true});
   await page.screenshot({path:output+"/"+(process.env.CAGE_TEST_BROWSER||"chromium")+"-archive-layout.png"});
   const target = panel.getByRole("article").filter({has:page.getByRole("heading",{name:"电脑保留的历史",exact:true})});

@@ -3,12 +3,12 @@ set -eu
 umask 077
 action=$1
 exe=$2
-config=${3:-"$HOME/.claude-cage/config.json"}
-export CLAUDE_CAGE_CONFIG="$config"
+config=${3:-"$HOME/.ccbox/config.json"}
+export CCBOX_CONFIG="$config"
 profile=$(dirname -- "$config")
 root="$profile/cloud-host"
 key=$(printf %s "$config" | sha256sum | cut -c1-16)
-unit=cage-cloud-$key
+unit=ccbox-cloud-$key
 engine=$unit-engine
 units="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 owned() { [[ -f "$root/owner" && $(cat "$root/owner") == "$config" ]]; }
@@ -17,7 +17,7 @@ installed() { owned && [[ -e "$root/ready" ]]; }
 manual() {
   if [[ "$exe" != cage ]]; then [[ -x "$exe" ]] && printf '%s' "$exe"
   elif command -v cage >/dev/null; then command -v cage
-  elif [[ -x "$HOME/.local/lib/cage/cage" ]]; then printf '%s' "$HOME/.local/lib/cage/cage"
+  elif [[ -x "$HOME/.local/lib/ccbox/cage" ]]; then printf '%s' "$HOME/.local/lib/ccbox/cage"
   else return 1
   fi
 }
@@ -42,8 +42,8 @@ probe)
   if [[ "$exe" == cage ]] && installed; then printf managed
   elif binary=$(manual); then
     # Match the service's exact profile before starting a manual installation.
-    if [[ " $(systemctl --user show cage-server.service -p Environment --value) " == *" CLAUDE_CAGE_CONFIG=$config "* ]] &&
-       [[ "$(systemctl --user show cage-server.service -p ExecStart --value)" == *"path=$binary ;"* ]]; then printf manual
+    if [[ " $(systemctl --user show ccbox-server.service -p Environment --value) " == *" CCBOX_CONFIG=$config "* ]] &&
+       [[ "$(systemctl --user show ccbox-server.service -p ExecStart --value)" == *"path=$binary ;"* ]]; then printf manual
     else
       exec "$binary" server-entry --json
     fi
@@ -55,7 +55,7 @@ entry)
   exec "$binary" server-entry --json ;;
 start)
   if [[ "$exe" == cage ]] && installed; then systemctl --user start "$unit.service"
-  else systemctl --user start cage-server.service; fi ;;
+  else systemctl --user start ccbox-server.service; fi ;;
 install)
   preflight; vacant
   [[ "$exe" == cage ]] || exit 66
@@ -130,14 +130,14 @@ install)
   # Install only our units. An existing independent service must never be replaced.
   write_unit() {
     local name=$1 src=$2
-    sed -e "s|%h/.claude-cage/container-engine|$eng|g" \
-        -e "s|%h/.claude-cage/config.json|$config|g" -e "s|%h/.local/lib/cage|$root/bin|g" \
-        -e "s|cage-container-engine|$engine|g" "$src" > "$stage/$name"
+    sed -e "s|%h/.ccbox/container-engine|$eng|g" \
+        -e "s|%h/.ccbox/config.json|$config|g" -e "s|%h/.local/lib/ccbox|$root/bin|g" \
+        -e "s|ccbox-container-engine|$engine|g" "$src" > "$stage/$name"
     if exists "$units/$name"; then cmp -s "$stage/$name" "$units/$name" || exit 65
     else ln "$stage/$name" "$units/$name" 2>/dev/null || ( set -C; cat "$stage/$name" > "$units/$name" ); fi
   }
-  write_unit "$engine.service" "$stage/cage-container-engine.service"
-  write_unit "$unit.service" "$stage/cage-server.service"
+  write_unit "$engine.service" "$stage/ccbox-container-engine.service"
+  write_unit "$unit.service" "$stage/ccbox-server.service"
   systemctl --user daemon-reload
   systemctl --user start "$engine.service" || exit 70
   export DOCKER_HOST="unix:///run/user/$(id -u)/$engine/docker.sock" DOCKER_CONFIG="$eng/client"

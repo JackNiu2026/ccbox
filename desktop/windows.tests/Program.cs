@@ -20,7 +20,7 @@ if (args is ["app-update", "check" or "download"])
 if (args is ["prepare-update", "--json", "--stop"])
 {
     File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "controller-invoked"), Environment.ProcessId.ToString());
-    File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "profile-invoked"), Environment.GetEnvironmentVariable("CLAUDE_CAGE_CONFIG") ?? "missing");
+    File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "profile-invoked"), Environment.GetEnvironmentVariable("CCBOX_CONFIG") ?? "missing");
     if (File.Exists(Path.Combine(AppContext.BaseDirectory, "broken-backend")))
     {
         Console.WriteLine("{\"status\":\"failed\"}"); Environment.Exit(7);
@@ -84,11 +84,11 @@ Console.WriteLine($"Windows update/bridge policy: {assertions} assertions passed
 
 var integration = Path.Combine(OperatingSystem.IsMacOS() ? "/private/tmp" : Path.GetTempPath(), "cage-recovery-" + Guid.NewGuid());
 Directory.CreateDirectory(integration);
-var savedProfile = Environment.GetEnvironmentVariable("CLAUDE_CAGE_CONFIG");
+var savedProfile = Environment.GetEnvironmentVariable("CCBOX_CONFIG");
 try
 {
     var selectedProfile = Path.Combine(integration, "selected profile", "config.json");
-    Environment.SetEnvironmentVariable("CLAUDE_CAGE_CONFIG", Path.GetRelativePath(Environment.CurrentDirectory, selectedProfile));
+    Environment.SetEnvironmentVariable("CCBOX_CONFIG", Path.GetRelativePath(Environment.CurrentDirectory, selectedProfile));
     var backup = Path.Combine(integration, "old application");
     var candidate = Path.Combine(integration, "new application");
     void InstallFixture(string app, bool broken)
@@ -123,7 +123,7 @@ try
     Check(!Directory.Exists(nestedSnapshot), "overlapping snapshot destination was created before validation");
     var ensureComplete = typeof(UpdateInstaller).GetMethod("EnsureInstallationComplete", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
     ensureComplete.Invoke(null, [snapshotSource]);
-    var recoveryReceipt = snapshotSource + ".cage-installation.json";
+    var recoveryReceipt = snapshotSource + ".ccbox-installation.json";
     File.WriteAllText(recoveryReceipt, System.Text.Json.JsonSerializer.Serialize(new { stagePath = candidate, backupPath = backup }));
     string? pendingRecovery = null;
     try { ensureComplete.Invoke(null, [snapshotSource]); }
@@ -245,6 +245,6 @@ try
     }
 }
 finally {
-    Environment.SetEnvironmentVariable("CLAUDE_CAGE_CONFIG", savedProfile);
+    Environment.SetEnvironmentVariable("CCBOX_CONFIG", savedProfile);
     Directory.Delete(integration, true);
 }

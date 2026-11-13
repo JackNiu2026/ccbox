@@ -20,11 +20,11 @@ keywords: Agent CLI JSON 自动化 配置 接口 安装 诊断 修复 capabiliti
 | --- | --- | --- |
 | macOS | `/Applications/ccBox.app/Contents/Resources/cage` | `"/Applications/ccBox.app/Contents/Resources/cage" agent capabilities` |
 | Windows | `%LOCALAPPDATA%\Programs\ccBox\resources\cage.exe`，自定义安装目录以实际位置为准 | `& "$env:LOCALAPPDATA\Programs\ccBox\resources\cage.exe" agent capabilities` |
-| Linux | `/usr/bin/claude-cage` | `claude-cage agent capabilities` |
+| Linux | `/usr/bin/ccbox` | `ccbox agent capabilities` |
 
 `agent capabilities` 输出本构建的协议版本、操作清单、输入字段和退出码，不启动后台或创建配置。首次配置与每次升级后都先读取一次。机器阅读入口为 `/agent.md`、`/llms.txt`、`/llms-full.txt`，使用 ccBox 的外部 Agent 从本页开始。
 
-所有 `agent` 命令自动输出 JSON，`--json` 可省略。示例把 `cage` 作为占位命令；执行时替换为上表路径。`--config /absolute/path/config.json` 明确选择配置；省略时使用 `CLAUDE_CAGE_CONFIG`，再省略则使用用户主目录下的 `.claude-cage/config.json`。每次输出中的 `config_path` 是实际目标。桌面配置的远端选择不会改变这个目标；管理服务器时，也可通过下文的 desktop / selected 范围管理桌面连接，或在授权的 SSH 通道内运行服务器接口。
+所有 `agent` 命令自动输出 JSON，`--json` 可省略。示例把 `cage` 作为占位命令；执行时替换为上表路径。`--config /absolute/path/config.json` 明确选择配置；省略时使用 `CCBOX_CONFIG`，再省略则使用用户主目录下的 `.ccbox/config.json`。每次输出中的 `config_path` 是实际目标。桌面配置的远端选择不会改变这个目标；管理服务器时，也可通过下文的 desktop / selected 范围管理桌面连接，或在授权的 SSH 通道内运行服务器接口。
 
 ## 下载、校验与安装
 
@@ -34,9 +34,9 @@ keywords: Agent CLI JSON 自动化 配置 接口 安装 诊断 修复 capabiliti
 | --- | --- |
 | macOS | 只读挂载 DMG，检查应用签名与 Gatekeeper 结果，按[安装指南](installation.md)放入应用程序目录。更新前保存任务并停止旧环境；保留可恢复的旧应用，安装失败时回滚应用文件。不要移除隔离属性或关闭系统校验来继续安装。 |
 | Windows | 检查下载包的签名状态；在用户授权的安装上下文运行安装器。`/S` 支持静默安装；已有自定义安装目录以安装记录为准。系统安全提示、Hyper-V 启用与重启可能需要用户操作。 |
-| Linux | 在用户授权的权限上下文执行 `sudo apt-get install -- /absolute/path/ccBox-版本-linux-amd64.deb`，由包管理器检查依赖。公共命令名是 `claude-cage`。 |
+| Linux | 在用户授权的权限上下文执行 `sudo apt-get install -- /absolute/path/ccBox-版本-linux-amd64.deb`，由包管理器检查依赖。公共命令名是 `ccbox`。 |
 
-安装、更新与卸载只处理应用文件。保留 `.claude-cage`、用户指定的数据目录、共享项目与持久虚拟机磁盘。已有账户重新出现创建界面时，首先核对 `config_path` 与原数据位置；不要创建替代账户或初始化旧数据目录。下载成功与应用已安装是两个状态；安装后验证真实 CLI 文件和 `agent capabilities`，再开始配置。
+安装、更新与卸载只处理应用文件。保留 `.ccbox`、用户指定的数据目录、共享项目与持久虚拟机磁盘。已有账户重新出现创建界面时，首先核对 `config_path` 与原数据位置；不要创建替代账户或初始化旧数据目录。下载成功与应用已安装是两个状态；安装后验证真实 CLI 文件和 `agent capabilities`，再开始配置。
 
 ## 第一次配置的完整顺序
 
@@ -210,7 +210,7 @@ cage agent diagnostics --output /absolute/path/new-cage-diagnostics.zip
 | `selected` | 完整应用桌面当前选择的环境，必须带 `--connection`，值取 client.context.connection_id。切换后旧代次被拒绝。 |
 | `client`，轻量客户端默认 | 轻量客户端的连接服务；业务请求必须带当前 `--connection`，连接管理请求可不带。 |
 
-完整应用的 `--config` 仍指原主配置；desktop 范围会定位对应的 desktop-entry 服务。轻量客户端使用自己安装包中的 CLI，默认配置为 `~/.claude-cage/client/config.json`。需要桌面窗口时，Agent 可以用正常系统启动方式打开 ccBox，再继续接口操作；没有要求用户必须亲手打开窗口。
+完整应用的 `--config` 仍指原主配置；desktop 范围会定位对应的 desktop-entry 服务。轻量客户端使用自己安装包中的 CLI，默认配置为 `~/.ccbox/client/config.json`。需要桌面窗口时，Agent 可以用正常系统启动方式打开 ccBox，再继续接口操作；没有要求用户必须亲手打开窗口。
 
 ```sh
 cage agent call client.context --scope desktop

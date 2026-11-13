@@ -15,7 +15,7 @@ const cage = packaged ? path.join(target, "Contents/Resources/cage") : target;
 const evidence = process.env.CAGE_REMOTE_QA_DIR;
 if (evidence) await fs.mkdir(evidence, { recursive: true });
 const profile = await fs.mkdtemp(path.join(os.tmpdir(), "cage-packaged-"));
-const env = { ...process.env, CLAUDE_CAGE_CONFIG: path.join(profile, "config.json") };
+const env = { ...process.env, CCBOX_CONFIG: path.join(profile, "config.json") };
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.CAGE_PLAYWRIGHT_MODULE || "playwright");
 let browser;

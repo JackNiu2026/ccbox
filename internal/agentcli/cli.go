@@ -126,9 +126,9 @@ func runAgent(args []string, stdin io.Reader, stdout io.Writer, clientOnly bool)
 		if err != nil {
 			return finish(nil, err)
 		}
-		*config = filepath.Join(home, ".claude-cage", "config.json")
+		*config = filepath.Join(home, ".ccbox", "config.json")
 		if clientOnly {
-			*config = filepath.Join(home, ".claude-cage", "client", "config.json")
+			*config = filepath.Join(home, ".ccbox", "client", "config.json")
 		}
 	}
 	path, err := filepath.Abs(*config)

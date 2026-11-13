@@ -31,7 +31,7 @@ func ServerEntryCommand(p HostProfile) (string, error) {
 	}
 	command := shellQuote(p.Executable) + " server-entry --json"
 	if p.ConfigPath != "" {
-		command = "env CLAUDE_CAGE_CONFIG=" + shellQuote(p.ConfigPath) + " " + command
+		command = "env CCBOX_CONFIG=" + shellQuote(p.ConfigPath) + " " + command
 	}
 	return "exec " + command, nil
 }

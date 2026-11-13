@@ -59,7 +59,7 @@ cage diagnostics --json PATH.zip   Export a redacted diagnostic bundle
 cage version       Print this build's version. --min VERSION fails if older
 cage licenses      Print third-party license notices
 
-Configuration: ~/.claude-cage/config.json (override CLAUDE_CAGE_CONFIG).
+Configuration: ~/.ccbox/config.json (override CCBOX_CONFIG).
 Each configuration directory is an independent ccBox profile.
 Only explicitly opened project folders are shared. No host Claude credentials are imported.
 `
@@ -163,7 +163,7 @@ func run() int {
 	path := os.Getenv(cage.ConfigEnv)
 	if path == "" {
 		home, _ := os.UserHomeDir()
-		path = filepath.Join(home, ".claude-cage", "config.json")
+		path = filepath.Join(home, ".ccbox", "config.json")
 	}
 	path, err := filepath.Abs(path)
 	if err != nil {

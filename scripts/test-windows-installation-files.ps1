@@ -35,7 +35,7 @@ function Remove-TestTree([string]$Path) {
     }
 }
 function App([string]$Path, [string]$Version) {
-    Write-File (Join-Path $Path 'Cage.install-id') 'io.github.lee-xeo.claude-cage'
+    Write-File (Join-Path $Path 'ccBox.install-id') 'org.ccbox.desktop'
     Write-File (Join-Path $Path 'program.txt') $Version
     Write-File (Join-Path $Path 'resources/customizable.txt') ('default-' + $Version)
     Write-File (Join-Path $Path 'Uninstall.exe') ('uninstaller-' + $Version)
@@ -75,7 +75,7 @@ function Commit([string]$Old, [string]$Stage, [string]$Receipt) {
 }
 function Test-InstallerTransaction {
     if (!$windows -or $PSVersionTable.PSVersion.Major -lt 7) { throw 'The optional NSIS fixture requires PowerShell 7 on a disposable Windows user.' }
-    $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ClaudeCage'
+    $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ccBox'
     $desktop = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'ccBox.lnk'
     $menu = Join-Path ([Environment]::GetFolderPath('Programs')) 'ccBox'
     if ((Test-Path $key) -or (Test-Path -LiteralPath $desktop) -or (Test-Path -LiteralPath $menu)) { throw 'The NSIS fixture refuses an existing Cage registration or shortcuts.' }
@@ -96,11 +96,11 @@ function Test-InstallerTransaction {
     $version = (Get-Content (Join-Path $PSScriptRoot '../VERSION') -Raw).Trim()
     & (Get-Command makensis.exe -ErrorAction Stop).Source /V2 /INPUTCHARSET UTF8 "/DAPP_DIR=$app" "/DVERSION=$version" "/DVERSION_NUMERIC=$(($version -split '-')[0]).0" "/DFILE_MANIFEST=$app\Cage.install-files.json" "/DOUTPUT_FILE=$setup" (Join-Path $PSScriptRoot '../packaging/windows/Cage.nsi')
     if ($LASTEXITCODE -ne 0) { throw 'The production NSIS fixture did not compile.' }
-    function Run-Fixture([string]$Executable, [string[]]$Arguments) {
+    function Run-Fixture([string]$Executable, [string[]]$Arguments, [int]$ExpectedExit = 0) {
         $process = Start-Process -FilePath $Executable -ArgumentList $Arguments -PassThru
         try {
             if (!$process.WaitForExit(30000)) { $process.Kill($true); $process.WaitForExit(); throw 'The owned NSIS fixture exceeded 30 seconds.' }
-            if ($process.ExitCode -ne 0) {
+            if ($process.ExitCode -ne $ExpectedExit) {
                 foreach ($path in @($report, "$report.helper.json", "$report.uninstall.json", "$report.uninstall.json.helper.json")) {
                     if ((Test-Path -LiteralPath $path) -and (Get-Item -LiteralPath $path).Length -le 8192) { Write-Output ('Quick NSIS diagnostic: ' + (Get-Content -LiteralPath $path -Raw)) }
                 }
@@ -109,10 +109,17 @@ function Test-InstallerTransaction {
         } finally { $process.Dispose() }
     }
     try {
+        $foreign = Join-Path $scenario 'foreign installation'
+        Write-File (Join-Path $foreign 'Cage.install-id') 'io.github.lee-xeo.claude-cage'
+        Write-File (Join-Path $foreign 'program.txt') 'foreign application'
+        $foreignReport = $report + '.foreign.json'
+        Run-Fixture $setup @('/S', "/DIAGNOSTICS=`"$foreignReport`"", "/D=$foreign") 2
+        Check ((Get-Content (Join-Path $foreign 'program.txt') -Raw) -eq 'foreign application') 'NSIS changed a foreign installation.'
+        Check (!(Test-Path -LiteralPath $key)) 'NSIS registered a foreign installation as ccBox.'
         [IO.Directory]::CreateDirectory($target) | Out-Null
         Run-Fixture $setup @('/S','/DESKTOPSHORTCUT=0','/STARTMENUSHORTCUT=0',"/DIAGNOSTICS=`"$report`"","/D=$target")
         Check ((Get-Content (Join-Path $target 'program.txt') -Raw) -eq 'fixture') 'NSIS did not publish its text payload.'
-        Check (!(Test-Path -LiteralPath ($target + '.cage-installation.json'))) 'NSIS left the first-install receipt unfinished.'
+        Check (!(Test-Path -LiteralPath ($target + '.ccbox-installation.json'))) 'NSIS left the first-install receipt unfinished.'
         Check ((Get-ItemProperty $key).InstallLocation -eq $target) 'NSIS registered a different fixture target.'
     } finally {
         if (Test-Path $key) {
@@ -191,7 +198,7 @@ try {
         Check ((Get-Content (Join-Path $old 'my-project/work.txt') -Raw) -eq 'project data') 'Uninstall deleted a project.'
         Check ((Get-Content (Join-Path $old 'resources/customizable.txt') -Raw) -eq 'new customization') 'Uninstall deleted a modified program file.'
         Check (Test-Path (Join-Path $old 'empty-project') -PathType Container) 'Uninstall deleted an unknown empty project.'
-        Check (Test-Path (Join-Path $old 'Cage.install-id')) 'Retained data directory cannot be recognized on reinstall.'
+        Check (Test-Path (Join-Path $old 'ccBox.install-id')) 'Retained data directory cannot be recognized on reinstall.'
         foreach ($file in @('state/guest-media/system.img','state/lima/instance/disk','cache/lima/image')) {
             Check ((Get-Content (Join-Path $old ('CageData/' + $file)) -Raw) -eq ('persistent-' + $file)) 'Uninstall changed CageData.'
         }

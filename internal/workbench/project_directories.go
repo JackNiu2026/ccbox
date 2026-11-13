@@ -34,7 +34,7 @@ func (s *Server) projectDirectories(w http.ResponseWriter, r *http.Request) {
 		home, err = os.UserHomeDir()
 		if err == nil {
 			var other []string
-			other, err = privateProjectDirectories(filepath.Join(home, ".claude-cage"))
+			other, err = privateProjectDirectories(filepath.Join(home, ".ccbox"))
 			reserved = append(reserved, other...)
 		}
 	}

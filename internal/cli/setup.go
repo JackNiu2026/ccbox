@@ -416,7 +416,7 @@ func (e *app) buildBase(ctx context.Context, in install, disk, memory, cpus int)
 		}
 	}
 	resume := false
-	if os.Getenv("CLAUDE_CAGE_CONFIG") != "" {
+	if os.Getenv("CCBOX_CONFIG") != "" {
 		previous, err := b.Get(ctx, building)
 		resume = err == nil && previous != nil
 	}
@@ -544,7 +544,7 @@ func (e *app) buildBase(ctx context.Context, in install, disk, memory, cpus int)
 }
 
 func cageInstallEnv() string {
-	if os.Getenv("CLAUDE_CAGE_CONFIG") != "" {
+	if os.Getenv("CCBOX_CONFIG") != "" {
 		progress := ""
 		if os.Getenv("CAGE_SETUP_PROGRESS") == "1" {
 			progress = "export CAGE_SETUP_PROGRESS=1\n"

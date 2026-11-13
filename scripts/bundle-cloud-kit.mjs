@@ -44,7 +44,7 @@ if (offline) {
       fs.copyFileSync(path.join("deploy/cloud",name),path.join(recipe,name));
     fs.mkdirSync(path.join(stage,"internal/cage"),{recursive:true});
     fs.copyFileSync("internal/cage/apt-bootstrap.sh",path.join(stage,"internal/cage/apt-bootstrap.sh"));
-    for (const name of ["cage-server.service","cage-container-engine.service"])
+    for (const name of ["ccbox-server.service","ccbox-container-engine.service"])
       fs.copyFileSync(path.join("deploy/cloud",name),path.join(stage,name));
     const runtime = JSON.parse(fs.readFileSync("deploy/cloud/runtime-artifacts.json"));
     fs.writeFileSync(path.join(stage,"engine-downloads"),runtime.artifacts.map(a=>[a.sha256,a.file,a.url].join(" ")).join("\n")+"\n");

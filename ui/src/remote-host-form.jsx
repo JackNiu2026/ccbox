@@ -161,7 +161,7 @@ export function HostForm({ initial, platform, onSaved, onClose }) {
                   onChange={(event) =>
                     update("config_path", event.target.value)
                   }
-                  placeholder="默认使用云端账户的 ~/.claude-cage/config.json"
+                  placeholder="默认使用云端账户的 ~/.ccbox/config.json"
                   spellCheck="false"
                 />
                 <small>自定义时填写云端绝对路径。</small>

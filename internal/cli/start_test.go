@@ -102,7 +102,7 @@ func (se *startEnv) base() {
 func TestCageRefusesSecondActiveEnvironment(t *testing.T) {
 	se := newStartEnv(t)
 	se.base()
-	t.Setenv("CLAUDE_CAGE_CONFIG", "/unused-by-rejected-command")
+	t.Setenv("CCBOX_CONFIG", "/unused-by-rejected-command")
 	se.fake.VMs["other-workspace"] = &vm.Instance{Name: "other-workspace", Status: vm.Running}
 	if code := se.run("run", "true"); code != 1 || !strings.Contains(se.out(), "one persistent environment") {
 		t.Fatalf("second workspace was not refused: %d %s", code, se.out())
@@ -132,7 +132,7 @@ func TestCageProjectGitWritesAndStoppedMountMigration(t *testing.T) {
 	if err = os.WriteFile(configPath, data, 0600); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("CLAUDE_CAGE_CONFIG", configPath)
+	t.Setenv("CCBOX_CONFIG", configPath)
 	if code := se.run("run", "true"); code != 0 {
 		t.Fatalf("Cage migration: %d %s", code, se.out())
 	}

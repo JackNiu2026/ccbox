@@ -19,7 +19,7 @@ const root = await mkdtemp(join(tmpdir(), 'cage-linux-smoke-'));
 // fixture directory so cleanup also removes the temporary workspace.
 // Keep the selected gateway alive for the two native storage phases. The
 // native windows register their own owners in addition to this test process.
-const env = { ...process.env, CLAUDE_CAGE_CONFIG: join(root, 'profile', 'config.json'), CAGE_DESKTOP_OWNER_PID: String(process.pid) };
+const env = { ...process.env, CCBOX_CONFIG: join(root, 'profile', 'config.json'), CAGE_DESKTOP_OWNER_PID: String(process.pid) };
 let clean = false;
 let result = 1;
 

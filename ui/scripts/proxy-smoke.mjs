@@ -19,7 +19,7 @@ await fs.mkdir(output, { recursive: true });
 await fs.writeFile(path.join(output, "result.json"), JSON.stringify({ passed: false, state: "running" }));
 const profile = await fs.mkdtemp("/private/tmp/cage-proxy-qa-");
 const config = path.join(profile, "config.json");
-const env = { ...process.env, CLAUDE_CAGE_CONFIG: config };
+const env = { ...process.env, CCBOX_CONFIG: config };
 await run(executable, ["init"], { env });
 const sockets = new Set();
 async function upstream(label) {

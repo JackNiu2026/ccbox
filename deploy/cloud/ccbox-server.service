@@ -1,0 +1,17 @@
+[Unit]
+Description=Cage cloud control service
+Requires=ccbox-container-engine.service
+After=ccbox-container-engine.service
+
+[Service]
+Environment=CCBOX_CONFIG=%h/.ccbox/config.json
+Environment=PATH=%h/.local/lib/ccbox:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+WorkingDirectory=%h
+ExecStart=%h/.local/lib/ccbox/cage serve
+KillMode=mixed
+TimeoutStopSec=120
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

@@ -303,7 +303,7 @@ func TestCageCustomSetupUsesBashRegardlessOfGuestLoginShell(t *testing.T) {
 	if code != 0 {
 		t.Fatal(te.out())
 	}
-	t.Setenv("CLAUDE_CAGE_CONFIG", filepath.Join(t.TempDir(), "config.json"))
+	t.Setenv("CCBOX_CONFIG", filepath.Join(t.TempDir(), "config.json"))
 	if err := os.WriteFile(te.state.Path("setup.sh"), []byte("set -euo pipefail\nlocal_marker=ready\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -322,7 +322,7 @@ func TestCageCustomSetupUsesBashRegardlessOfGuestLoginShell(t *testing.T) {
 }
 
 func TestCageSetupResumesExistingBuild(t *testing.T) {
-	t.Setenv("CLAUDE_CAGE_CONFIG", filepath.Join(t.TempDir(), "config.json"))
+	t.Setenv("CCBOX_CONFIG", filepath.Join(t.TempDir(), "config.json"))
 	te := newTestEnv(t, vmtest.New())
 	te.fake.VMs[building] = &vm.Instance{Name: building, Status: vm.Stopped, CPUs: 2, Memory: 4 << 30, Disk: 24 << 30}
 	if code := te.setupBase([]string{"setup", "--preinstall=none"}); code != 0 {

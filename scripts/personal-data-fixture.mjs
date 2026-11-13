@@ -6,18 +6,18 @@ import { dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const entries = [
-  '.claude-cage/config.json',
-  '.claude-cage/environment.json',
-  '.claude-cage/account.json',
-  '.claude-cage/password-vault.json',
-  '.claude-cage/favorites.json',
-  '.claude-cage/projects.json',
-  '.claude-cage/workbench.json',
-  '.claude-cage/appearance.json',
-  '.claude-cage/webview2/Default/Local Storage/leveldb/000001.log',
-  '.claude-cage/webkit/data/WebsiteData/LocalStorage/storage.sqlite3',
-  '.claude-cage/state/lima/persistent/disk',
-  '.claude-cage-workspace/project.txt',
+  '.ccbox/config.json',
+  '.ccbox/environment.json',
+  '.ccbox/account.json',
+  '.ccbox/password-vault.json',
+  '.ccbox/favorites.json',
+  '.ccbox/projects.json',
+  '.ccbox/workbench.json',
+  '.ccbox/appearance.json',
+  '.ccbox/webview2/Default/Local Storage/leveldb/000001.log',
+  '.ccbox/webkit/data/WebsiteData/LocalStorage/storage.sqlite3',
+  '.ccbox/state/lima/persistent/disk',
+  '.ccbox-workspace/project.txt',
 ];
 const digest = (data) => createHash('sha256').update(data).digest('hex');
 

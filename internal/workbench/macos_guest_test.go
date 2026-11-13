@@ -102,8 +102,8 @@ func TestMacOSProjectRejectsSiblingProfileAndCredentials(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
-	profile := filepath.Join(home, ".claude-cage", "macos-trial")
-	dailyState := filepath.Join(home, ".claude-cage", "state", "lima")
+	profile := filepath.Join(home, ".ccbox", "macos-trial")
+	dailyState := filepath.Join(home, ".ccbox", "state", "lima")
 	credentials := filepath.Join(home, ".ssh")
 	project := filepath.Join(home, "Cage Projects", "demo")
 	for _, dir := range []string{profile, dailyState, credentials, project} {

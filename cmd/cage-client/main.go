@@ -50,7 +50,7 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
-		config = filepath.Join(home, ".claude-cage", "client", "config.json")
+		config = filepath.Join(home, ".ccbox", "client", "config.json")
 	}
 	config, err := filepath.Abs(config)
 	if err != nil {

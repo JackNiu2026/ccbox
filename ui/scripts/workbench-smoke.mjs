@@ -51,7 +51,7 @@ try {
     await page.getByLabel("新项目文件夹", { exact: true }).inputValue(),
     state.chosenFolder,
   );
-  assert.ok(state.settings.workspace.endsWith(".claude-cage-workspace"));
+  assert.ok(state.settings.workspace.endsWith(".ccbox-workspace"));
   state.failJob = false;
   await page
     .getByRole("dialog")

@@ -35,7 +35,7 @@ async function start() {
   service = spawn(path.join(root, "_output/bin/cage"), ["serve"], {
     env: {
       ...process.env,
-      CLAUDE_CAGE_CONFIG: path.join(profile, "config.json"),
+      CCBOX_CONFIG: path.join(profile, "config.json"),
     },
     stdio: "ignore",
   });

@@ -30,7 +30,7 @@ func TestEntryDropsInheritedUnsafeSwitchesBeforeDispatch(t *testing.T) {
 	for _, name := range unsafe {
 		t.Setenv(name, "1")
 	}
-	t.Setenv("CLAUDE_CAGE_CONFIG", "/not-accessed-by-help/config.json")
+	t.Setenv("CCBOX_CONFIG", "/not-accessed-by-help/config.json")
 	previous := os.Args
 	os.Args = []string{"cage", "help"}
 	t.Cleanup(func() { os.Args = previous })
@@ -42,7 +42,7 @@ func TestEntryDropsInheritedUnsafeSwitchesBeforeDispatch(t *testing.T) {
 			t.Errorf("%s survived the Cage entry point", name)
 		}
 	}
-	if got := os.Getenv("CLAUDE_CAGE_CONFIG"); got != "/not-accessed-by-help/config.json" {
+	if got := os.Getenv("CCBOX_CONFIG"); got != "/not-accessed-by-help/config.json" {
 		t.Errorf("profile selection changed: %q", got)
 	}
 }
@@ -123,7 +123,7 @@ func TestStatelessCommandsNeedNoProfile(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			profileDir := filepath.Join(t.TempDir(), "profile")
 			home := t.TempDir()
-			t.Setenv("CLAUDE_CAGE_CONFIG", filepath.Join(profileDir, "config.json"))
+			t.Setenv("CCBOX_CONFIG", filepath.Join(profileDir, "config.json"))
 			t.Setenv("HOME", home)
 
 			previous := os.Args
@@ -146,7 +146,7 @@ func TestStatelessCommandsNeedNoProfile(t *testing.T) {
 			if _, err := os.Stat(profileDir); !errors.Is(err, os.ErrNotExist) {
 				t.Errorf("profile directory was created: %v", err)
 			}
-			if _, err := os.Stat(filepath.Join(home, ".claude-cage")); !errors.Is(err, os.ErrNotExist) {
+			if _, err := os.Stat(filepath.Join(home, ".ccbox")); !errors.Is(err, os.ErrNotExist) {
 				t.Errorf("home profile was created")
 			}
 		})

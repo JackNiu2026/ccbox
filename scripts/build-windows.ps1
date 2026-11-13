@@ -168,7 +168,7 @@ try {
     Copy-Item -LiteralPath 'packaging/windows/dependencies.json' -Destination (Join-Path $resources 'dependencies.json')
     Copy-Item -LiteralPath 'packaging/windows/README.txt' -Destination (Join-Path $app 'README.txt')
     Copy-Item -LiteralPath 'LICENSE' -Destination (Join-Path $app 'LICENSE.txt')
-    [IO.File]::WriteAllText((Join-Path $app 'Cage.install-id'), 'io.github.lee-xeo.claude-cage')
+    [IO.File]::WriteAllText((Join-Path $app 'ccBox.install-id'), 'org.ccbox.desktop')
     [IO.File]::WriteAllText((Join-Path $app 'version.txt'), $version)
     if ($signed) {
         $signTool = Get-SigningTool
@@ -179,8 +179,8 @@ try {
     Assert-WindowsWorkbench $app
     $previousOutput = $null
     if (Test-Path -LiteralPath $OutputDirectory) {
-        $marker = Join-Path $OutputDirectory 'Cage.install-id'
-        if (-not (Test-Path -LiteralPath $marker) -or (Get-Content -LiteralPath $marker -Raw) -ne 'io.github.lee-xeo.claude-cage') {
+        $marker = Join-Path $OutputDirectory 'ccBox.install-id'
+        if (-not (Test-Path -LiteralPath $marker) -or (Get-Content -LiteralPath $marker -Raw) -ne 'org.ccbox.desktop') {
             throw 'Output directory exists and is not a Cage build.'
         }
         $previousOutput = $OutputDirectory + '.previous-' + [guid]::NewGuid().ToString('N')

@@ -93,7 +93,7 @@ static void diagnostic_sent(GObject *source, GAsyncResult *result, gpointer data
 static void diagnostic_event(const char *message) {
     if (!app.backend || !app.profile) return;
     GSubprocessLauncher *launcher = g_subprocess_launcher_new(G_SUBPROCESS_FLAGS_STDIN_PIPE | G_SUBPROCESS_FLAGS_STDOUT_SILENCE | G_SUBPROCESS_FLAGS_STDERR_SILENCE);
-    g_subprocess_launcher_setenv(launcher, "CLAUDE_CAGE_CONFIG", app.profile, TRUE);
+    g_subprocess_launcher_setenv(launcher, "CCBOX_CONFIG", app.profile, TRUE);
     GSubprocess *process = g_subprocess_launcher_spawn(launcher, NULL, app.backend, "diagnostic-event", NULL);
     g_object_unref(launcher);
     if (!process) return;
@@ -180,7 +180,7 @@ static void command_finished(GObject *source, GAsyncResult *result, gpointer dat
 static void backend_arguments_limited(const char *const *args, guint seconds, gsize output_limit, BackendCallback callback, gpointer data) {
     GError *error = NULL;
     GSubprocessLauncher *launcher = g_subprocess_launcher_new(G_SUBPROCESS_FLAGS_STDOUT_PIPE | G_SUBPROCESS_FLAGS_STDERR_SILENCE);
-    g_subprocess_launcher_setenv(launcher, "CLAUDE_CAGE_CONFIG", app.profile, TRUE);
+    g_subprocess_launcher_setenv(launcher, "CCBOX_CONFIG", app.profile, TRUE);
     if (g_strcmp0(args[1], "desktop") == 0) {
         char owner[32];
         g_snprintf(owner, sizeof(owner), "%ld", (long)getpid());
@@ -1135,7 +1135,7 @@ static void create_window(void) {
     gtk_window_set_title(GTK_WINDOW(app.window), "ccBox");
     gtk_window_set_default_size(GTK_WINDOW(app.window), 1280, 850);
     gtk_widget_set_size_request(app.window, 820, 580);
-    gtk_window_set_icon_name(GTK_WINDOW(app.window), "io.github.lee_xeo.Cage");
+    gtk_window_set_icon_name(GTK_WINDOW(app.window), "org.ccbox.desktop");
     g_signal_connect(app.window, "delete-event", G_CALLBACK(close_window), NULL);
     g_signal_connect(app.window, "window-state-event", G_CALLBACK(visibility_changed), NULL);
     g_signal_connect(app.window, "map-event", G_CALLBACK(visibility_changed), NULL);
@@ -1262,14 +1262,14 @@ static int self_test(void) {
 int main(int argc, char **argv) {
     if (argc == 2 && !strcmp(argv[1], "--self-test")) return self_test();
     if (argc == 2 && !strcmp(argv[1], "--version")) { g_print("ccBox %s\n", CAGE_VERSION); return 0; }
-    if (argc == 3 && !strcmp(argv[1], "--smoke-test") && g_path_is_absolute(argv[2]) && g_getenv("CLAUDE_CAGE_CONFIG")) {
+    if (argc == 3 && !strcmp(argv[1], "--smoke-test") && g_path_is_absolute(argv[2]) && g_getenv("CCBOX_CONFIG")) {
         app.smoke_output = g_strdup(argv[2]); app.result = 1;
         app.storage_phase = g_getenv("CAGE_SMOKE_STORAGE_PHASE");
         app.storage_marker = g_getenv("CAGE_SMOKE_STORAGE_MARKER");
         if (app.storage_phase && (g_strcmp0(app.storage_phase, "seed") && g_strcmp0(app.storage_phase, "verify"))) return 2;
         if (app.storage_phase && (!app.storage_marker || !*app.storage_marker || strlen(app.storage_marker) > 128)) return 2;
     } else if (argc != 1) {
-        g_printerr("Usage: cage-desktop [--version | --self-test | --smoke-test /absolute/report.json]\nSmoke tests require an isolated CLAUDE_CAGE_CONFIG with an unlocked test account.\n");
+        g_printerr("Usage: cage-desktop [--version | --self-test | --smoke-test /absolute/report.json]\nSmoke tests require an isolated CCBOX_CONFIG with an unlocked test account.\n");
         return 2;
     }
     if (geteuid() == 0) { g_printerr("ccBox 桌面需要以普通用户运行，请勿使用 sudo 启动。\n"); return 1; }
@@ -1279,11 +1279,11 @@ int main(int argc, char **argv) {
     app.backend = g_build_filename(directory, "cage", NULL);
     g_free(directory); g_free(executable);
     if (!g_file_test(app.backend, G_FILE_TEST_IS_EXECUTABLE)) { g_printerr("安装目录缺少 ccBox 后台，请重新安装。\n"); return 1; }
-    const char *configured = g_getenv("CLAUDE_CAGE_CONFIG");
+    const char *configured = g_getenv("CCBOX_CONFIG");
     app.profile = configured && *configured ? g_canonicalize_filename(configured, NULL)
-        : CAGE_CLIENT_ONLY ? g_build_filename(g_get_home_dir(), ".claude-cage", "client", "config.json", NULL)
-        : g_build_filename(g_get_home_dir(), ".claude-cage", "config.json", NULL);
-    g_setenv("CLAUDE_CAGE_CONFIG", app.profile, TRUE);
+        : CAGE_CLIENT_ONLY ? g_build_filename(g_get_home_dir(), ".ccbox", "client", "config.json", NULL)
+        : g_build_filename(g_get_home_dir(), ".ccbox", "config.json", NULL);
+    g_setenv("CCBOX_CONFIG", app.profile, TRUE);
     g_log_set_default_handler(diagnostic_glib, NULL);
     if (!prepare_web_storage()) {
         g_printerr("无法创建 ccBox 私有界面数据目录，请检查配置目录的所有者、权限或符号链接。\n");

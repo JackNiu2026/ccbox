@@ -5,7 +5,7 @@ import { lstat, readdir, realpath, rm } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-const bundleID = "io.github.lee-xeo.claude-cage";
+const bundleID = "org.ccbox.desktop";
 function isCage(bundle) {
   try {
     return (

@@ -126,7 +126,7 @@ func Running(ctx context.Context, profile string, s Store) bool {
 }
 func label(profile string) string {
 	h := sha256.Sum256([]byte(profile))
-	return fmt.Sprintf("local.claude-cage.managed-proxy.%x", h[:8])
+	return fmt.Sprintf("org.ccbox.managed-proxy.%x", h[:8])
 }
 func servicePath(profile string) string { return filepath.Join(Dir(profile), "managed-service.plist") }
 func Stop(profile string) error {
@@ -208,12 +208,12 @@ func Start(ctx context.Context, profile string, s Store) error {
 	if err != nil {
 		return err
 	}
-	configPath := os.Getenv("CLAUDE_CAGE_CONFIG")
+	configPath := os.Getenv("CCBOX_CONFIG")
 	if configPath == "" {
 		configPath = filepath.Join(profile, "config.json")
 	}
 	escape := func(s string) string { var b bytes.Buffer; _ = xml.EscapeText(&b, []byte(s)); return b.String() }
-	plist := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>Label</key><string>%s</string><key>ProgramArguments</key><array><string>%s</string><string>log-relay</string><string>proxy</string></array><key>EnvironmentVariables</key><dict><key>HOME</key><string>%s</string><key>PATH</key><string>/usr/bin:/bin</string><key>CLAUDE_CAGE_CONFIG</key><string>%s</string></dict><key>RunAtLoad</key><true/></dict></plist>`, escape(label(profile)), escape(executable), escape(Dir(profile)), escape(configPath))
+	plist := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>Label</key><string>%s</string><key>ProgramArguments</key><array><string>%s</string><string>log-relay</string><string>proxy</string></array><key>EnvironmentVariables</key><dict><key>HOME</key><string>%s</string><key>PATH</key><string>/usr/bin:/bin</string><key>CCBOX_CONFIG</key><string>%s</string></dict><key>RunAtLoad</key><true/></dict></plist>`, escape(label(profile)), escape(executable), escape(Dir(profile)), escape(configPath))
 
 	if err = Write(servicePath(profile), []byte(plist)); err != nil {
 		return err

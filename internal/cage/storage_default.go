@@ -28,8 +28,8 @@ func windowsApplicationDataDirectory(app, platform string) string {
 	if platform != "windows" {
 		return ""
 	}
-	marker, err := os.ReadFile(filepath.Join(app, "Cage.install-id"))
-	if err != nil || string(marker) != "io.github.lee-xeo.claude-cage" {
+	marker, err := os.ReadFile(filepath.Join(app, "ccBox.install-id"))
+	if err != nil || string(marker) != "org.ccbox.desktop" {
 		return ""
 	}
 	if info, err := os.Stat(filepath.Join(app, "Cage.exe")); err != nil || !info.Mode().IsRegular() {
