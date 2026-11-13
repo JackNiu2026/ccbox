@@ -138,8 +138,8 @@ export function versionFiles(root, version) {
 
 function main(args) {
   const [command, platform, output] = args;
-  if (args.length !== 3 || command !== 'metadata' || !['macos', 'windows', 'linux'].includes(platform)) {
-    throw new Error('Usage: node scripts/release-version.mjs metadata <macos|windows|linux> <output>');
+  if (args.length !== 3 || command !== 'metadata' || !['macos', 'windows', 'linux', 'android'].includes(platform)) {
+    throw new Error('Usage: node scripts/release-version.mjs metadata <macos|windows|linux|android> <output>');
   }
   const root = fileURLToPath(new URL('../', import.meta.url));
   const version = readFileSync(resolve(root, 'VERSION'), 'utf8').trim();

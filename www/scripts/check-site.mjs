@@ -1,6 +1,7 @@
 // Check emitted pages, not just the locale configuration: catch missing routes,
 // broken project subpaths and languages drifting away from the README menu.
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -45,6 +46,34 @@ for (const file of htmlFiles) {
   }
 }
 const published = await readSiteRelease(path.join(root, 'www'));
+const version = fs.readFileSync(path.join(root, 'VERSION'), 'utf8').trim();
+assert.equal(published.version, version, 'Website release version must match VERSION');
+const downloadNames = {
+  downloadURL: `ccBox-${version}-macos-arm64.dmg`,
+  windowsDownloadURL: `ccBox-${version}-windows-amd64-setup.exe`,
+  linuxDownloadURL: `ccBox-${version}-linux-amd64.deb`,
+  androidDownloadURL: `ccBox-${version}-android-arm64.apk`,
+};
+for (const [field, name] of Object.entries(downloadNames)) {
+  if (published[field]) assert.equal(published[field], `/downloads/${version}/${name}`);
+}
+const expectedDownloads = Object.entries(downloadNames).filter(([field]) => published[field]).map(([, name]) => name);
+if (expectedDownloads.length) {
+  const folder = path.join(dist, 'downloads', version);
+  const entries = new Set();
+  for (const line of fs.readFileSync(path.join(folder, 'SHA256SUMS'), 'utf8').trim().split('\n')) {
+    const match = /^([a-f0-9]{64})  ([A-Za-z0-9][A-Za-z0-9._-]*)$/.exec(line.trimEnd());
+    assert.ok(match && !entries.has(match[2]), 'Malformed or duplicate website checksum entry');
+    const [, expectedHash, name] = match;
+    const hash = createHash('sha256');
+    for await (const chunk of fs.createReadStream(path.join(folder, name))) hash.update(chunk);
+    assert.equal(hash.digest('hex'), expectedHash, `Website download checksum mismatch: ${name}`);
+    entries.add(name);
+  }
+  for (const name of expectedDownloads) assert.ok(entries.has(name), `Website checksum missing: ${name}`);
+  const availableInstallers = [...entries].filter(name => /\.(dmg|exe|deb|apk)$/i.test(name)).sort();
+  assert.deepEqual(availableInstallers, expectedDownloads.sort(), 'Website contains an unmapped or unofficial installer');
+}
 if (published.releaseURL) {
   const releaseNotes = fs.readFileSync(path.join(dist, published.releaseURL.slice(1)), 'utf8');
   assert.doesNotMatch(releaseNotes, upstreamReleaseURL, 'Published release notes link to an upstream service');

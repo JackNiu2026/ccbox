@@ -1,13 +1,20 @@
 name: ccBox Windows and mobile test packages
 on:
   workflow_dispatch:
-  push:
-    branches: ['codex/release/mobile-test-packages']
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: true
+      release:
+        type: boolean
+        default: false
 permissions:
   contents: read
 
 jobs:
   windows:
+    if: ${{ !inputs.release }}
     uses: ./.github/workflows/windows-build.yml
     with:
       ref: ${{ github.sha }}
@@ -17,9 +24,11 @@ jobs:
   android:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    environment: ${{ inputs.release && 'cage-release' || '' }}
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.ref || github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
@@ -44,6 +53,7 @@ jobs:
           test -x "$sdkmanager"
           "$sdkmanager" --sdk_root="$ANDROID_HOME" 'platforms;android-35' 'build-tools;35.0.0' 'ndk;27.2.12479018'
       - name: Build and verify the Android test APK
+        if: ${{ !inputs.release }}
         run: |
           set -euo pipefail
           npm ci --prefix ui --no-audit --no-fund
@@ -65,13 +75,62 @@ jobs:
           cp "$apk" "_output/ci-android/$artifact"
           (cd _output/ci-android && sha256sum "$artifact" > SHA256SUMS && sha256sum -c SHA256SUMS)
       - uses: actions/upload-artifact@v4
+        if: ${{ !inputs.release }}
         with:
           name: ccbox-android-arm64-debug
           path: _output/ci-android/
           if-no-files-found: error
           retention-days: 14
+      - name: Build and verify the signed Android release
+        if: ${{ inputs.release }}
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.CCBOX_ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_PASSWORD: ${{ secrets.CCBOX_ANDROID_KEYSTORE_PASSWORD }}
+          CAGE_ANDROID_KEY_ALIAS: ${{ vars.CCBOX_ANDROID_KEY_ALIAS }}
+          CAGE_ANDROID_VERSION_CODE: ${{ vars.CCBOX_ANDROID_VERSION_CODE }}
+          ANDROID_CERT_SHA256: ${{ vars.CCBOX_ANDROID_CERT_SHA256 }}
+          BUILD_REF: ${{ inputs.ref }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_EVENT_NAME" == workflow_dispatch && "$(git rev-parse HEAD)" == "$BUILD_REF" ]]
+          : "${ANDROID_KEYSTORE_BASE64:?Set CCBOX_ANDROID_KEYSTORE_BASE64}"
+          : "${ANDROID_PASSWORD:?Set CCBOX_ANDROID_KEYSTORE_PASSWORD}"
+          [[ "$ANDROID_CERT_SHA256" =~ ^[0-9a-fA-F]{64}$ ]]
+          npm ci --prefix ui --no-audit --no-fund
+          umask 077
+          signing=$(mktemp -d "$RUNNER_TEMP/ccbox-android-signing.XXXXXX")
+          trap 'rm -rf -- "$signing"' EXIT
+          export CAGE_ANDROID_KEYSTORE="$signing/keystore"
+          export CAGE_ANDROID_PASSWORD_FILE="$signing/password"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$CAGE_ANDROID_KEYSTORE"
+          printf '%s\n' "$ANDROID_PASSWORD" > "$CAGE_ANDROID_PASSWORD_FILE"
+          unset ANDROID_KEYSTORE_BASE64 ANDROID_PASSWORD
+          bash mobile/build.sh android-release
+          version=$(tr -d '\r\n' < VERSION)
+          name="ccBox-$version-android-arm64.apk"
+          apk="mobile/.build/android/$name"
+          tools="$ANDROID_HOME/build-tools/35.0.0"
+          "$tools/apksigner" verify --print-certs "$apk" > "$RUNNER_TEMP/ccbox-android-certs.txt"
+          grep -Fxi "Signer #1 certificate SHA-256 digest: $ANDROID_CERT_SHA256" "$RUNNER_TEMP/ccbox-android-certs.txt"
+          "$tools/zipalign" -c -P 16 4 "$apk"
+          "$tools/aapt2" dump badging "$apk" > "$RUNNER_TEMP/ccbox-android-badging.txt"
+          grep -Fx "application-label:'ccBox'" "$RUNNER_TEMP/ccbox-android-badging.txt"
+          grep -Fx "native-code: 'arm64-v8a'" "$RUNNER_TEMP/ccbox-android-badging.txt"
+          grep -F "versionCode='$CAGE_ANDROID_VERSION_CODE' versionName='$version'" "$RUNNER_TEMP/ccbox-android-badging.txt"
+          mkdir -p _output/ci-android-release
+          cp "$apk" _output/ci-android-release/
+          (cd _output/ci-android-release && sha256sum "$name" > SHA256SUMS && sha256sum -c SHA256SUMS)
+          node scripts/release-version.mjs metadata android _output/ci-android-release/build-metadata.json
+      - uses: actions/upload-artifact@v4
+        if: ${{ inputs.release }}
+        with:
+          name: release-android
+          path: _output/ci-android-release/
+          if-no-files-found: error
+          retention-days: 14
 
   ios:
+    if: ${{ !inputs.release }}
     runs-on: macos-15
     timeout-minutes: 35
     steps:

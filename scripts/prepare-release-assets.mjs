@@ -29,6 +29,7 @@ async function releaseNames() {
     mac: `ccBox-${version}-macos-arm64.dmg`,
     windows: `ccBox-${version}-windows-amd64-setup.exe`,
     linux: `ccBox-${version}-linux-amd64.deb`,
+    android: `ccBox-${version}-android-arm64.apk`,
     linuxSource: linuxDependencies.mihomoSource.file,
     macSource: `mihomo-${macCore}-source.tar.gz`,
     macGuestSource: `cage-macos-guest-${version}-source.tar.gz`,
@@ -110,11 +111,15 @@ export async function prepareReleaseAssets({ inputs, output }) {
     if (files.some(name => /^ccBox-.*-windows-.*-unsigned\.exe$/i.test(name) || name === 'DEVELOPMENT-BUILD.txt')) {
       throw new Error(`Unsigned Windows development build cannot be prepared for release: ${directory}`);
     }
+    if (files.some(name => /(?:-debug|cage-mobile-debug)\.apk$/i.test(name))) {
+      throw new Error(`Android development build cannot be prepared for release: ${directory}`);
+    }
     const entries = await readManifest(directory);
     const mac = entries.has(names.mac);
     const windows = entries.has(names.windows);
     const linux = entries.has(names.linux);
-    if (!mac && !windows && !linux) throw new Error(`No supported package name for VERSION ${names.version}: ${directory}`);
+    const android = entries.has(names.android);
+    if (!mac && !windows && !linux && !android) throw new Error(`No supported package name for VERSION ${names.version}: ${directory}`);
     if (linux && !entries.has(names.linuxSource)) throw new Error(`Missing Linux Mihomo source in SHA256SUMS: ${directory}`);
     if (mac && !entries.has(names.macSource)) throw new Error(`Missing macOS Mihomo source in SHA256SUMS: ${directory}`);
     if (mac && !entries.has(names.macGuestSource)) throw new Error(`Missing macOS guest corresponding source in SHA256SUMS: ${directory}`);
@@ -122,7 +127,7 @@ export async function prepareReleaseAssets({ inputs, output }) {
       throw new Error(`Windows release requires its Mihomo and complete QEMU source archives in the same SHA256SUMS: ${directory}`);
     }
     for (const [name, digest] of entries) {
-      const installer = name === names.mac || name === names.windows || name === names.linux;
+      const installer = name === names.mac || name === names.windows || name === names.linux || name === names.android;
       if (!installer && ![names.macSource, names.macGuestSource, names.windowsSource, names.linuxSource, names.qemuSource, names.qemuKeymap, names.qemuChanges].includes(name) && !isQemuArchive(name, names)) {
         throw new Error(`Unsupported asset or version in SHA256SUMS: ${name}`);
       }

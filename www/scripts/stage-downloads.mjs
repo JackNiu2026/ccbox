@@ -40,6 +40,7 @@ export async function stageDownloads({ inputs, notes, siteDirectory = site }) {
       downloadURL: `ccBox-${version}-macos-arm64.dmg`,
       windowsDownloadURL: `ccBox-${version}-windows-amd64-setup.exe`,
       linuxDownloadURL: `ccBox-${version}-linux-amd64.deb`,
+      androidDownloadURL: `ccBox-${version}-android-arm64.apk`,
     };
     for (const [key, name] of Object.entries(installers)) {
       if (result.assets.includes(name)) metadata[key] = base + name;

@@ -1,0 +1,64 @@
+name: ccBox macOS test DMG
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Successful three-platform build containing the macOS test app
+        required: true
+        type: string
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  dmg:
+    runs-on: macos-15
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SOURCE_RUN: ${{ inputs.run_id }}
+    steps:
+      - name: Retrieve the verified macOS test build
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_RUN" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN/jobs" \
+            --jq '.jobs[] | select(.name == "macos / checks") | .conclusion' | grep -Fx success
+          mkdir -p "$RUNNER_TEMP/ccbox-app"
+          gh run download "$SOURCE_RUN" --repo "$GITHUB_REPOSITORY" \
+            --name ccbox-macos-arm64-test --dir "$RUNNER_TEMP/ccbox-app"
+          (cd "$RUNNER_TEMP/ccbox-app" && shasum -a 256 -c SHA256SUMS)
+      - name: Create and validate the test disk image
+        run: |
+          set -euo pipefail
+          source="$RUNNER_TEMP/ccbox-app"
+          stage=$(mktemp -d "$RUNNER_TEMP/ccbox-dmg.XXXXXX")
+          mount=$(mktemp -d "$RUNNER_TEMP/ccbox-mount.XXXXXX")
+          trap 'hdiutil detach "$mount" >/dev/null 2>&1 || true' EXIT
+          archives=("$source"/ccBox-*-macos-arm64-test.tar.gz)
+          [[ ${#archives[@]} == 1 && -f "${archives[0]}" ]]
+          tar -xzf "${archives[0]}" -C "$stage"
+          app="$stage/ccBox.app"
+          version=$(/usr/libexec/PlistBuddy -c 'Print CageVersion' "$app/Contents/Info.plist")
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]
+          [[ "$(/usr/libexec/PlistBuddy -c 'Print CFBundleDisplayName' "$app/Contents/Info.plist")" == ccBox ]]
+          [[ "$(lipo -archs "$app/Contents/MacOS/Cage")" == arm64 ]]
+          test -s "$app/Contents/Resources/Cage.icns"
+          codesign --verify --deep --strict "$app"
+          ln -s /Applications "$stage/Applications"
+          mkdir -p _output/ci-macos-dmg
+          output="$PWD/_output/ci-macos-dmg"
+          artifact="ccBox-$version-macos-arm64-test.dmg"
+          hdiutil create -volname 'ccBox Test' -srcfolder "$stage" -format UDZO "$output/$artifact"
+          hdiutil verify "$output/$artifact"
+          hdiutil attach -readonly -nobrowse -mountpoint "$mount" "$output/$artifact"
+          codesign --verify --deep --strict "$mount/ccBox.app"
+          hdiutil detach "$mount"
+          (cd "$output" && shasum -a 256 "$artifact" > SHA256SUMS && shasum -a 256 -c SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ccbox-macos-arm64-test-dmg
+          path: _output/ci-macos-dmg/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14

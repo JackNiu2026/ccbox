@@ -57,3 +57,23 @@ test('rejects release notes that direct users to the upstream project', async t 
   assert.deepEqual(await readSiteRelease(f.site, { version }), { version });
   await assert.rejects(lstat(join(f.site, 'public', 'downloads', version)), { code: 'ENOENT' });
 });
+
+test('stages the current Android release APK as a same-origin download', async t => {
+  const f = await fixture(t);
+  const apk = `ccBox-${version}-android-arm64.apk`;
+  const contents = 'verified release APK fixture';
+  await writeFile(join(f.input, apk), contents);
+  await writeFile(join(f.input, 'SHA256SUMS'), `${digest(contents)}  ${apk}\n`);
+  await stageDownloads({ inputs: [f.input], siteDirectory: f.site, notes: f.notes });
+  const base = `/downloads/${version}/`;
+  assert.deepEqual(await readSiteRelease(f.site, { version }), {
+    version, androidDownloadURL: base + apk, releaseURL: base + 'release-notes.txt',
+  });
+});
+
+test('rejects an Android development APK even if the same directory includes a valid release', async t => {
+  const f = await fixture(t);
+  await writeFile(join(f.input, `ccBox-${version}-android-arm64-debug.apk`), 'development APK');
+  await assert.rejects(stageDownloads({ inputs: [f.input], siteDirectory: f.site, notes: f.notes }), /Android development build/);
+  assert.deepEqual(await readSiteRelease(f.site, { version }), { version });
+});

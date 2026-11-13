@@ -24,6 +24,8 @@
 
 ## 准备独立下载发布
 
+GitHub 私有仓库内的 [上线准备说明](launch-readiness.md)列出当前测试产物、正式签名配置、官网构建流程和上线验收条件。
+
 先使用对应平台的打包脚本生成 ccBox 正式包、`SHA256SUMS` 和对应源码。Windows 正式包由打包流程验证 Authenticode 签名，macOS 正式包须完成 Developer ID 签名与公证。Linux 发行者在打包时将 `CCBOX_DEB_MAINTAINER` 设为真实的维护者名称和邮箱。
 
 为实际提供的平台准备发行说明，再从仓库根目录运行以下命令。示例只发布 Windows，也可传入 Linux 或 macOS 的正式包输出目录。

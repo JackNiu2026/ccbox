@@ -1,0 +1,88 @@
+name: Assemble ccBox website with verified release downloads
+on:
+  workflow_dispatch:
+    inputs:
+      release_runs:
+        description: Successful release candidate run IDs, separated by spaces
+        required: true
+        type: string
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  assemble:
+    if: github.repository == 'JackNiu2026/ccbox' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_RUNS: ${{ inputs.release_runs }}
+      SITE_URL: ${{ vars.SITE_URL }}
+      PUBLIC_GA_MEASUREMENT_ID: ${{ vars.GA_MEASUREMENT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: www/package-lock.json
+      - name: Retrieve only successful ccBox release artifacts
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_RUNS" =~ ^[0-9]+([[:blank:]]+[0-9]+){0,3}$ ]]
+          node --input-type=module -e '
+            const url = new URL(process.env.SITE_URL);
+            if (url.protocol !== "https:" || url.username || url.password || url.href !== url.origin + "/")
+              throw Error("Set SITE_URL to the ccBox HTTPS origin");
+          '
+          read -ra runs <<< "$RELEASE_RUNS"
+          for run in "${runs[@]}"; do
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" \
+              --jq '[.event,.head_branch,.path,.conclusion] | @tsv' |
+              grep -Fx $'workflow_dispatch\tmain\t.github/workflows/release-platforms.yml\tsuccess'
+            gh run download "$run" --repo "$GITHUB_REPOSITORY" --pattern 'release-*' --dir "$RUNNER_TEMP/ccbox-release/$run"
+          done
+      - name: Verify package identities and build the website
+        run: |
+          set -euo pipefail
+          node --test www/scripts/stage-downloads.test.mjs
+          version=$(tr -d '\r\n' < VERSION)
+          source=
+          packages=()
+          for platform in windows macos linux android; do
+            shopt -s nullglob
+            artifacts=("$RUNNER_TEMP"/ccbox-release/*/release-"$platform")
+            (( ${#artifacts[@]} )) || continue
+            [[ ${#artifacts[@]} == 1 ]] || { echo "Duplicate release artifact for $platform." >&2; exit 1; }
+            metadata=$(find "${artifacts[0]}" -name build-metadata.json -type f -print)
+            test -f "$metadata"
+            commit=$(node --input-type=module -e '
+              import { readFileSync } from "node:fs";
+              const [file, platform, version] = process.argv.slice(1);
+              const data = JSON.parse(readFileSync(file, "utf8"));
+              if (data.schema !== 1 || data.platform !== platform || data.version !== version ||
+                  !/^[a-f0-9]{40}$/.test(data.commitSha)) throw Error("Release metadata mismatch");
+              console.log(data.commitSha);
+            ' "$metadata" "$platform" "$version")
+            if [[ -n "$source" && "$source" != "$commit" ]]; then echo 'Release candidates use different source commits.' >&2; exit 1; fi
+            source="$commit"
+            packages+=("$(dirname "$metadata")")
+          done
+          [[ ${#packages[@]} -gt 0 ]]
+          notes="$RUNNER_TEMP/ccbox-release-notes.md"
+          printf '# ccBox %s\n\n此版本仅列出已通过发布构建的安装包。安装前请核对 SHA-256。\n' "$version" > "$notes"
+          node www/scripts/stage-downloads.mjs --notes "$notes" "${packages[@]}"
+          npm ci --prefix www --no-audit --no-fund
+          npm run --prefix www check
+          npm run --prefix www build
+          node www/scripts/check-site.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ccbox-website-release
+          path: www/dist/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14

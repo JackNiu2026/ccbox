@@ -8,9 +8,11 @@ const origin = process.env.CAGE_SITE_URL || 'http://127.0.0.1:4833/';
 const output = process.env.CAGE_SITE_REPORT || '_output/platform-publication/site';
 const release = await readSiteRelease();
 const expected = {
-  macOS: release.downloadURL,
-  Windows: release.windowsDownloadURL || release.windowsPreview?.downloadURL,
-  Linux: release.linuxDownloadURL,
+  macOS: release.downloadURL || '/docs/installation/',
+  Windows: release.windowsDownloadURL || release.windowsPreview?.downloadURL || '/docs/installation/',
+  Linux: release.linuxDownloadURL || '/docs/installation/',
+  Android: release.androidDownloadURL || '/docs/mobile/',
+  iOS: '/docs/mobile/',
 };
 await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CAGE_TEST_BROWSER_PATH });
@@ -23,12 +25,13 @@ try {
     await page.locator('[data-download-open]').first().click();
     const dialog = page.getByRole('dialog');
     await dialog.waitFor({ state: 'visible' });
-    for (const [platform, url] of Object.entries(expected)) {
+    for (const [platform, target] of Object.entries(expected)) {
       const option = dialog.locator(`[data-platform="${platform}"]`);
       await option.getByRole('heading', { name: platform, exact: true }).waitFor();
-      const target = url || '/docs/installation/';
       assert.equal(await option.locator('a.button').getAttribute('href'), target);
       assert.doesNotMatch(target, /github\.com|github\.io/i);
+      const response = await page.request.head(new URL(target, origin).href);
+      assert.equal(response.status(), 200, `${platform} destination is unavailable`);
     }
     if (!release.windowsDownloadURL && release.windowsPreview?.downloadURL) {
       const status = await dialog.locator('[data-platform="Windows"] .platform-status').textContent();
@@ -49,7 +52,7 @@ try {
   }
   const context = await browser.newContext({ javaScriptEnabled: false });
   const page = await context.newPage(); await page.goto(origin);
-  for (const url of new Set(Object.values(expected).map(url => url || '/docs/installation/'))) await page.locator(`noscript a[href="${url}"]`).first().waitFor({ state: 'visible' });
+  for (const url of new Set(Object.values(expected))) await page.locator(`noscript a[href="${url}"]`).first().waitFor({ state: 'visible' });
   await context.close();
   console.log('PASS: configured packages or local installation guides, desktop/mobile/RTL layout, modal open/close, deep link and no-JavaScript downloads');
 } finally { await browser.close(); }

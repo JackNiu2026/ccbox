@@ -1,11 +1,17 @@
-name: Build signed release platforms for local macOS assembly
+name: Build ccBox release candidates
 on:
   workflow_dispatch:
     inputs:
       ref:
-        description: Exact versioned source commit SHA (same as the locally notarized macOS build)
+        description: Exact 40-character source commit SHA on main
         required: true
         type: string
+      platform:
+        description: Platform to build
+        type: choice
+        required: true
+        default: all
+        options: [all, windows, macos, linux, android]
 permissions:
   contents: read
 concurrency:
@@ -23,14 +29,31 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.ref }}
+          fetch-depth: 0
           persist-credentials: false
+      - name: Verify the exact main-branch source
+        env:
+          BUILD_REF: ${{ inputs.ref }}
+          MAINTAINER: ${{ vars.CCBOX_DEB_MAINTAINER }}
+          PLATFORM: ${{ inputs.platform }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$BUILD_REF"
+          git merge-base --is-ancestor "$BUILD_REF" origin/main
+          if grep -Fq 'https://43.142.88.90' internal/mobilelink/link.go; then
+            echo 'Replace the inherited default relay with the verified ccBox HTTPS relay before building public candidates.' >&2
+            exit 1
+          fi
+          if [[ "$PLATFORM" == all || "$PLATFORM" == linux ]]; then
+            [[ -n "$MAINTAINER" && "$MAINTAINER" != *'@localhost'* && "$MAINTAINER" != *'@github.com'* ]] ||
+              { echo 'Set CCBOX_DEB_MAINTAINER to a real release contact.' >&2; exit 1; }
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: 24
       - run: node scripts/check-version.mjs
   windows:
     needs: validate
-    if: github.repository == 'JackNiu2026/ccbox' && github.ref == 'refs/heads/main'
+    if: inputs.platform == 'all' || inputs.platform == 'windows'
     uses: ./.github/workflows/windows-build.yml
     secrets: inherit
     with:
@@ -39,9 +62,26 @@ jobs:
       artifact_name: release-windows
   linux:
     needs: validate
-    if: github.repository == 'JackNiu2026/ccbox' && github.ref == 'refs/heads/main'
+    if: inputs.platform == 'all' || inputs.platform == 'linux'
     uses: ./.github/workflows/linux-build.yml
     with:
       ref: ${{ inputs.ref }}
       release: true
       artifact_name: release-linux
+  macos:
+    needs: validate
+    if: inputs.platform == 'all' || inputs.platform == 'macos'
+    uses: ./.github/workflows/macos-build.yml
+    secrets: inherit
+    with:
+      ref: ${{ inputs.ref }}
+      release: true
+      artifact_name: release-macos
+  android:
+    needs: validate
+    if: inputs.platform == 'all' || inputs.platform == 'android'
+    uses: ./.github/workflows/mobile-build.yml
+    secrets: inherit
+    with:
+      ref: ${{ inputs.ref }}
+      release: true

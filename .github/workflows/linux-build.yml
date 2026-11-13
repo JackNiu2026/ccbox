@@ -77,6 +77,8 @@ jobs:
           cache-dependency-path: ui/package-lock.json
       - uses: astral-sh/setup-uv@v10.3.3
       - name: Build Linux application and package
+        env:
+          CCBOX_DEB_MAINTAINER: ${{ vars.CCBOX_DEB_MAINTAINER }}
         run: |
           node scripts/check-version.mjs
           bash scripts/build-linux.sh
