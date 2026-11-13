@@ -15,6 +15,7 @@ const codes = [...menu.matchAll(/\]\(README(?:\.([\w-]+))?\.md\)/g)].map(m => m[
 assert.equal(codes[0], 'zh');
 assert.ok(!codes.includes('en'));
 const dist = path.join(root,'www/dist');
+const site = process.env.SITE_URL?.trim();
 const measurementId = process.env.PUBLIC_GA_MEASUREMENT_ID?.trim();
 const brandMark = fs.readFileSync(path.join(dist, 'ccbox-icon.svg'), 'utf8');
 assert.match(brandMark, /<path\b/, 'Published logo must contain vector geometry');
@@ -29,8 +30,8 @@ for (const file of htmlFiles) {
   assert.ok(!/(?:src|href)="\/Claude-Cage(?:\/|")/.test(html), `${file}: old project base remains`);
   if (file !== '404.html') {
     const route = file.replaceAll(path.sep, '/').replace(/index\.html$/, '');
-    if (process.env.SITE_URL) {
-      assert.ok(html.includes(`rel="canonical" href="${new URL(route, process.env.SITE_URL + '/')}"`), file + ": incorrect canonical URL");
+    if (site) {
+      assert.ok(html.includes(`rel="canonical" href="${new URL(route, site + '/')}"`), file + ": incorrect canonical URL");
     } else {
       assert.ok(!html.includes('rel="canonical"'), file + ": no canonical origin is configured");
     }
