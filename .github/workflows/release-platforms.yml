@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: Exact 40-character source commit SHA on main
+        description: Exact 40-character SHA of the ccbox-vVERSION tag on main
         required: true
         type: string
       platform:
@@ -31,13 +31,17 @@ jobs:
           ref: ${{ inputs.ref }}
           fetch-depth: 0
           persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - name: Verify the exact main-branch source
         env:
           BUILD_REF: ${{ inputs.ref }}
           MAINTAINER: ${{ vars.CCBOX_DEB_MAINTAINER }}
           PLATFORM: ${{ inputs.platform }}
         run: |
-          test "$(git rev-parse HEAD)" = "$BUILD_REF"
+          set -euo pipefail
+          node scripts/release-version.mjs source "$BUILD_REF"
           git merge-base --is-ancestor "$BUILD_REF" origin/main
           if grep -Fq 'https://43.142.88.90' internal/mobilelink/link.go; then
             echo 'Replace the inherited default relay with the verified ccBox HTTPS relay before building public candidates.' >&2
@@ -47,9 +51,6 @@ jobs:
             [[ -n "$MAINTAINER" && "$MAINTAINER" != *'@localhost'* && "$MAINTAINER" != *'@github.com'* ]] ||
               { echo 'Set CCBOX_DEB_MAINTAINER to a real release contact.' >&2; exit 1; }
           fi
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
       - run: node scripts/check-version.mjs
   windows:
     needs: validate

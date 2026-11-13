@@ -64,6 +64,7 @@ jobs:
           "$tools/apksigner" verify --verbose "$apk"
           "$tools/zipalign" -c -P 16 4 "$apk"
           "$tools/aapt2" dump badging "$apk" > "$RUNNER_TEMP/apk-badging.txt"
+          grep -F "package: name='org.ccbox.android'" "$RUNNER_TEMP/apk-badging.txt"
           grep -Fx "application-label:'ccBox'" "$RUNNER_TEMP/apk-badging.txt"
           grep -Fx "native-code: 'arm64-v8a'" "$RUNNER_TEMP/apk-badging.txt"
           grep -F "versionName='$version'" "$RUNNER_TEMP/apk-badging.txt"
@@ -114,6 +115,7 @@ jobs:
           grep -Fxi "Signer #1 certificate SHA-256 digest: $ANDROID_CERT_SHA256" "$RUNNER_TEMP/ccbox-android-certs.txt"
           "$tools/zipalign" -c -P 16 4 "$apk"
           "$tools/aapt2" dump badging "$apk" > "$RUNNER_TEMP/ccbox-android-badging.txt"
+          grep -F "package: name='org.ccbox.android'" "$RUNNER_TEMP/ccbox-android-badging.txt"
           grep -Fx "application-label:'ccBox'" "$RUNNER_TEMP/ccbox-android-badging.txt"
           grep -Fx "native-code: 'arm64-v8a'" "$RUNNER_TEMP/ccbox-android-badging.txt"
           grep -F "versionCode='$CAGE_ANDROID_VERSION_CODE' versionName='$version'" "$RUNNER_TEMP/ccbox-android-badging.txt"
@@ -158,12 +160,14 @@ jobs:
           mkdir -p "$output"
           for target in CageMobile CageMobileBasic; do
             variant=
-            if [[ "$target" == CageMobileBasic ]]; then variant=-basic; fi
+            bundle_id=org.ccbox.ios
+            if [[ "$target" == CageMobileBasic ]]; then variant=-basic; bundle_id=org.ccbox.ios.basic; fi
             xcodebuild -project mobile/ios/CageMobile.xcodeproj -target "$target" \
               -sdk iphonesimulator -configuration Debug ARCHS=arm64 ONLY_ACTIVE_ARCH=YES \
               CODE_SIGNING_ALLOWED=NO MARKETING_VERSION="$short_version" SYMROOT="$products" build
             app="$products/Debug-iphonesimulator/$target.app"
             [[ "$(/usr/libexec/PlistBuddy -c 'Print CFBundleDisplayName' "$app/Info.plist")" == ccBox ]]
+            [[ "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$app/Info.plist")" == "$bundle_id" ]]
             [[ "$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$app/Info.plist")" == "$short_version" ]]
             [[ "$(lipo -archs "$app/$target")" == arm64 ]]
             vtool -show-build "$app/$target" | grep -E 'platform[[:space:]]+IOSSIMULATOR'

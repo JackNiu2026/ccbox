@@ -5,7 +5,40 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { compareVersions, nextVersion, parseVersion, versionFiles } from './release-version.mjs';
+import { compareVersions, nextVersion, parseVersion, selectReleasePackages, verifyReleaseSource, versionFiles } from './release-version.mjs';
+
+test('locks the checked-out commit to the ccBox tag for VERSION', t => {
+  const root = fixture(t);
+  const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8' }).trim();
+  git('init', '-q');
+  git('add', 'VERSION');
+  git('-c', 'user.name=ccBox test', '-c', 'user.email=test@example.invalid', 'commit', '-qm', 'release');
+  const ref = git('rev-parse', 'HEAD');
+  assert.throws(() => verifyReleaseSource(root, ref), /ccbox-v1\.2\.3-alpha\.9/);
+  git('-c', 'user.name=ccBox test', '-c', 'user.email=test@example.invalid', 'tag', '-am', 'ccBox release', 'ccbox-v1.2.3-alpha.9');
+  assert.deepEqual(verifyReleaseSource(root, ref), { version: '1.2.3-alpha.9', ref });
+  assert.throws(() => verifyReleaseSource(root, 'a'.repeat(40)), /checkout/i);
+  assert.throws(() => verifyReleaseSource(root, 'main'), /SHA/i);
+  git('-c', 'user.name=ccBox test', '-c', 'user.email=test@example.invalid', 'commit', '--allow-empty', '-qm', 'drift');
+  const nextRef = git('rev-parse', 'HEAD');
+  assert.throws(() => verifyReleaseSource(root, nextRef), /tag/i);
+  git('tag', 'ccbox-v1.2.3-alpha.9-build.1');
+  assert.deepEqual(verifyReleaseSource(root, nextRef), { version: '1.2.3-alpha.9', ref: nextRef });
+});
+
+test('requires exactly the selected platforms and the website commit for every package', () => {
+  const source = { version: '0.1.7', ref: '1'.repeat(40) };
+  const linux = { schema: 1, platform: 'linux', version: source.version, commitSha: source.ref };
+  const android = { ...linux, platform: 'android' };
+  assert.doesNotThrow(() => selectReleasePackages('linux android', [android, linux], source));
+  assert.throws(() => selectReleasePackages('linux android', [linux], source), /missing.*android/i);
+  assert.throws(() => selectReleasePackages('linux', [android, linux], source), /unexpected.*android/i);
+  assert.throws(() => selectReleasePackages('linux', [linux, linux], source), /duplicate.*linux/i);
+  assert.throws(() => selectReleasePackages('linux linux', [linux], source), /duplicate.*linux/i);
+  assert.throws(() => selectReleasePackages('ios', [], source), /platform/i);
+  assert.throws(() => selectReleasePackages('linux', [{ ...linux, commitSha: '2'.repeat(40) }], source), /metadata.*linux/i);
+  assert.throws(() => selectReleasePackages('linux', [{ ...linux, version: '0.1.8' }], source), /metadata.*linux/i);
+});
 
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'cage-release-version-'));

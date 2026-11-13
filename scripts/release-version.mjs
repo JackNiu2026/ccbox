@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const numeric = /^(?:0|[1-9][0-9]*)$/;
 const syntax = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
+const releasePlatforms = ['macos', 'windows', 'linux', 'android'];
 
 export function parseVersion(version) {
   if (typeof version !== 'string' || version !== version.trim()) throw new Error('Expected a canonical SemVer without build metadata');
@@ -136,15 +137,69 @@ export function versionFiles(root, version) {
   return result;
 }
 
-function main(args) {
-  const [command, platform, output] = args;
-  if (args.length !== 3 || command !== 'metadata' || !['macos', 'windows', 'linux', 'android'].includes(platform)) {
-    throw new Error('Usage: node scripts/release-version.mjs metadata <macos|windows|linux|android> <output>');
-  }
-  const root = fileURLToPath(new URL('../', import.meta.url));
+function sourceVersion(root) {
   const version = readFileSync(resolve(root, 'VERSION'), 'utf8').trim();
   parseVersion(version);
-  const commitSha = execFileSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  return version;
+}
+
+function resolveCommit(root, revision) {
+  return execFileSync('git', ['-C', root, 'rev-parse', '--verify', `${revision}^{commit}`], {
+    encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim();
+}
+
+export function verifyReleaseSource(root, ref) {
+  if (!/^[a-f0-9]{40}$/.test(ref)) throw new Error('Release ref must be a complete lowercase commit SHA');
+  if (resolveCommit(root, 'HEAD') !== ref) throw new Error('Release checkout does not match the requested commit');
+  const version = sourceVersion(root);
+  const tag = `ccbox-v${version}`;
+  const tags = execFileSync('git', ['-C', root, 'tag', '--points-at', ref], { encoding: 'utf8' }).trim().split(/\r?\n/);
+  if (!tags.some(name => name === tag || (name.startsWith(`${tag}-build.`) && /^[1-9][0-9]*$/.test(name.slice(tag.length + 7))))) {
+    throw new Error(`Release tag ${tag} (or its numbered build tag) does not match the requested commit`);
+  }
+  return { version, ref };
+}
+
+export function selectReleasePackages(platforms, packages, { version, ref }) {
+  const expected = new Set();
+  for (const platform of platforms.trim().split(/\s+/)) {
+    if (!releasePlatforms.includes(platform)) throw new Error(`Invalid release platform: ${platform}`);
+    if (expected.has(platform)) throw new Error(`Duplicate selected platform: ${platform}`);
+    expected.add(platform);
+  }
+  const found = new Set();
+  for (const { schema, platform, version: packageVersion, commitSha } of packages) {
+    if (!expected.has(platform)) throw new Error(`Unexpected package for ${platform}`);
+    if (found.has(platform)) throw new Error(`Duplicate package for ${platform}`);
+    if (schema !== 1 || packageVersion !== version || commitSha !== ref) throw new Error(`Release metadata mismatch for ${platform}`);
+    found.add(platform);
+  }
+  for (const platform of expected) {
+    if (!found.has(platform)) throw new Error(`Missing package for ${platform}`);
+  }
+}
+
+function main([command, ...args]) {
+  const root = fileURLToPath(new URL('../', import.meta.url));
+  if (command === 'source' && args.length === 1) {
+    const { version, ref } = verifyReleaseSource(root, args[0]);
+    console.log(`ccBox ${version}: ${ref}`);
+    return;
+  }
+  if (command === 'verify-packages' && args.length >= 3) {
+    const [ref, platforms, ...paths] = args;
+    const source = verifyReleaseSource(root, ref);
+    selectReleasePackages(platforms, paths.map(path => JSON.parse(readFileSync(path, 'utf8'))), source);
+    console.log(`Verified ccBox ${source.version} packages (${platforms}) at ${ref}`);
+    return;
+  }
+  const [platform, output] = args;
+  if (command !== 'metadata' || args.length !== 2 || !releasePlatforms.includes(platform)) {
+    throw new Error('Usage: release-version.mjs source SHA | verify-packages SHA PLATFORMS METADATA... | metadata PLATFORM OUTPUT');
+  }
+  const version = sourceVersion(root);
+  const commitSha = resolveCommit(root, 'HEAD');
   if (!/^[0-9a-f]{40}$/.test(commitSha)) throw new Error('Release metadata requires a 40-character Git commit SHA');
   const destination = resolve(output);
   mkdirSync(dirname(destination), { recursive: true });

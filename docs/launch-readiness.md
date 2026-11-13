@@ -6,8 +6,8 @@
 
 1. 在仓库的 Actions 变量中设置 `SITE_URL`，值为 ccBox 的 HTTPS 网站根地址。网站统计默认关闭。需要统计时填写自己的 `GA_MEASUREMENT_ID`。
 2. 运行 **ccBox website checks** 可下载 `ccbox-website` 静态工件。缺少正式安装包时，官网的平台入口指向对应的安装指南。
-3. 在 `main` 手动运行 **Build ccBox release candidates**，传入完整提交 SHA 和目标平台。该流程只生成私有工件。
-4. 在 `main` 运行 **Assemble ccBox website with verified release downloads**，传入成功的正式构建运行 ID，可用空格分隔多个 ID。它会核对每个平台的版本、构建提交、文件名和 SHA-256，并生成 `ccbox-website-release`。选择相同提交构建本次发行的各个平台。
+3. 将选定的 `main` 提交打上 `ccbox-v<VERSION>` 标签。ccBox 0.1.7 使用 `ccbox-v0.1.7`。在 `main` 手动运行 **Build ccBox release candidates**，传入该标签所指向的完整提交 SHA 和目标平台。该流程只生成私有工件。同批重跑使用相同提交。若发布前必须改源码并保留应用版本号，在修订后的提交上新建 `ccbox-v0.1.7-build.1` 等顺序标签，并从该提交重建本批全部平台。
+4. 在 `main` 运行 **Assemble ccBox website with verified release downloads**，传入同一个完整提交 SHA、本次上架的平台清单（如 `windows macos linux android`），以及成功的正式构建运行 ID。多个平台或运行 ID 用空格分隔。该流程从此提交构建官网，逐项核对平台、版本、构建提交、文件名和 SHA-256，缺包、多包或混用提交都会中止。通过后生成 `ccbox-website-release`。
 5. 将工件解压后的内容部署到所选站点根目录。上线后逐项访问下载链接，核对文件名、状态码和实际下载文件的 SHA-256。公开下载不应要求 GitHub 登录。
 
 ## 必须由发布者配置
@@ -22,6 +22,8 @@
 | iPhone | Apple Developer 团队、团队拥有的 Bundle ID、签名证书及对应分发描述文件。标准版和 Basic 版的当前仓库工件仅用于模拟器。真机开发包见[移动端构建说明](../mobile/README.md)。App Store 和 TestFlight 还需要 App Store Connect 配置。 |
 | 手机中继 | 现有源码仍含继承的默认中继地址。提供已部署并验证的 ccBox HTTPS 中继，或明确发布版本采用用户自建中继。官网与软件下载之前需核对该项。 [中继部署说明](../deploy/relay/README.md) |
 | 支持与品牌 | 确认对外安全反馈邮箱、品牌名使用权和发行主体。MIT 版权及第三方许可继续随包提供。兼容旧安装的包标识和数据路径需要按迁移方案单独调整。 |
+
+对外显示名为 `ccBox`，下载与项目主页为 `https://ccbox.org/`。Windows 安装器和 Linux 软件包均声明该主页。桌面旧包标识和数据路径用于已有安装的兼容。Android 正式应用标识为 `org.ccbox.android`，iOS 标准版和 Basic 分别使用 `org.ccbox.ios` 和 `org.ccbox.ios.basic`。移动端预览用户需单独安装新应用并重新配对。
 
 证书、密码和私钥应通过 GitHub Secrets 配置，勿写入源码、Issue 或聊天。
 

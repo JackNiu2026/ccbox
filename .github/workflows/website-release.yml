@@ -2,6 +2,15 @@ name: Assemble ccBox website with verified release downloads
 on:
   workflow_dispatch:
     inputs:
+      ref:
+        description: Exact 40-character SHA of the ccbox-vVERSION tag on main
+        required: true
+        type: string
+      platforms:
+        description: Exact platforms to publish, separated by spaces (windows macos linux android)
+        required: true
+        default: windows macos linux android
+        type: string
       release_runs:
         description: Successful release candidate run IDs, separated by spaces
         required: true
@@ -17,12 +26,18 @@ jobs:
     timeout-minutes: 30
     env:
       GH_TOKEN: ${{ github.token }}
+      BUILD_REF: ${{ inputs.ref }}
+      RELEASE_PLATFORMS: ${{ inputs.platforms }}
       RELEASE_RUNS: ${{ inputs.release_runs }}
       SITE_URL: ${{ vars.SITE_URL }}
       PUBLIC_GA_MEASUREMENT_ID: ${{ vars.GA_MEASUREMENT_ID }}
     steps:
+      - name: Require an immutable build source
+        run: '[[ "$BUILD_REF" =~ ^[0-9a-f]{40}$ ]]'
       - uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
@@ -32,11 +47,12 @@ jobs:
       - name: Retrieve only successful ccBox release artifacts
         run: |
           set -euo pipefail
+          node scripts/release-version.mjs source "$BUILD_REF"
+          git merge-base --is-ancestor "$BUILD_REF" origin/main
           [[ "$RELEASE_RUNS" =~ ^[0-9]+([[:blank:]]+[0-9]+){0,3}$ ]]
           node --input-type=module -e '
             const url = new URL(process.env.SITE_URL);
-            if (url.protocol !== "https:" || url.username || url.password || url.href !== url.origin + "/")
-              throw Error("Set SITE_URL to the ccBox HTTPS origin");
+            if (url.href !== "https://ccbox.org/") throw Error("Set SITE_URL to https://ccbox.org");
           '
           read -ra runs <<< "$RELEASE_RUNS"
           for run in "${runs[@]}"; do
@@ -50,31 +66,30 @@ jobs:
           set -euo pipefail
           node --test www/scripts/stage-downloads.test.mjs
           version=$(tr -d '\r\n' < VERSION)
-          source=
           packages=()
-          for platform in windows macos linux android; do
-            shopt -s nullglob
-            artifacts=("$RUNNER_TEMP"/ccbox-release/*/release-"$platform")
-            (( ${#artifacts[@]} )) || continue
-            [[ ${#artifacts[@]} == 1 ]] || { echo "Duplicate release artifact for $platform." >&2; exit 1; }
-            metadata=$(find "${artifacts[0]}" -name build-metadata.json -type f -print)
-            test -f "$metadata"
-            commit=$(node --input-type=module -e '
-              import { readFileSync } from "node:fs";
-              const [file, platform, version] = process.argv.slice(1);
-              const data = JSON.parse(readFileSync(file, "utf8"));
-              if (data.schema !== 1 || data.platform !== platform || data.version !== version ||
-                  !/^[a-f0-9]{40}$/.test(data.commitSha)) throw Error("Release metadata mismatch");
-              console.log(data.commitSha);
-            ' "$metadata" "$platform" "$version")
-            if [[ -n "$source" && "$source" != "$commit" ]]; then echo 'Release candidates use different source commits.' >&2; exit 1; fi
-            source="$commit"
-            packages+=("$(dirname "$metadata")")
+          metadata_files=()
+          shopt -s nullglob
+          for artifact in "$RUNNER_TEMP"/ccbox-release/*/release-*; do
+            mapfile -t metadata < <(find "$artifact" -type f -name build-metadata.json)
+            [[ ${#metadata[@]} == 1 ]] || { echo "Expected one build-metadata.json in $artifact." >&2; exit 1; }
+            expected_platform="${artifact##*/release-}"
+            node -e 'const [file, platform] = process.argv.slice(1); if (JSON.parse(require("node:fs").readFileSync(file, "utf8")).platform !== platform) throw Error("Artifact name and metadata platform differ");' "${metadata[0]}" "$expected_platform"
+            metadata_files+=("${metadata[0]}")
+            packages+=("$(dirname "${metadata[0]}")")
           done
-          [[ ${#packages[@]} -gt 0 ]]
+          node scripts/release-version.mjs verify-packages "$BUILD_REF" "$RELEASE_PLATFORMS" "${metadata_files[@]}"
           notes="$RUNNER_TEMP/ccbox-release-notes.md"
-          printf '# ccBox %s\n\n此版本仅列出已通过发布构建的安装包。安装前请核对 SHA-256。\n' "$version" > "$notes"
+          printf '# ccBox %s\n\n源码提交 / Source commit: %s\n\n安装前请核对 SHA-256。\n' "$version" "$BUILD_REF" > "$notes"
           node www/scripts/stage-downloads.mjs --notes "$notes" "${packages[@]}"
+          node --input-type=module -e '
+            import { readSiteRelease } from "./www/scripts/stage-downloads.mjs";
+            const release = await readSiteRelease();
+            const platforms = {windows:"windowsDownloadURL", macos:"downloadURL", linux:"linuxDownloadURL", android:"androidDownloadURL"};
+            const expected = new Set(process.env.RELEASE_PLATFORMS.trim().split(/\s+/));
+            for (const [platform, field] of Object.entries(platforms)) {
+              if (Boolean(release[field]) !== expected.has(platform)) throw Error(`Staged installer does not match the selected platforms: ${platform}`);
+            }
+          '
           npm ci --prefix www --no-audit --no-fund
           npm run --prefix www check
           npm run --prefix www build

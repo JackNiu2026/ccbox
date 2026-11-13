@@ -42,6 +42,7 @@ Section: devel
 Priority: optional
 Architecture: amd64
 Maintainer: $maintainer
+Homepage: https://ccbox.org/
 Depends: $dependencies, libwebkit2gtk-4.1-0 (>= 2.40), libglib2.0-bin, ca-certificates, systemd
 Suggests: qemu-system-x86, qemu-utils, ovmf, openssh-client, iproute2, git (>= 2.38)
 Recommends: dbus-user-session, fonts-noto-cjk, libnotify-bin, zenity | kdialog

@@ -4,6 +4,8 @@
 
 Android arm64 APK 支持 Android 8.0+，可从安装包提供方获取或从源码构建。iOS 17+ 设备版由用户通过 Xcode 在本地构建并签名安装。
 
+Android 应用标识为 `org.ccbox.android`。iOS 标准版使用 `org.ccbox.ios`，Basic 使用 `org.ccbox.ios.basic`。从旧标识的预览包迁移时，单独安装新应用并重新配对。
+
 ## iOS 本地构建
 
 在 Mac 安装完整 Xcode 与 iOS SDK，并完成 Xcode 首次启动设置。安装 Node.js 24 和符合 `bindings/go.mod` 的 Go 后，在仓库根目录执行。

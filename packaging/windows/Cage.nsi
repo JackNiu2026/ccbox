@@ -40,6 +40,7 @@ VIAddVersionKey /LANG=1033 "ProductName" "ccBox"
 VIAddVersionKey /LANG=1033 "ProductVersion" "${VERSION}"
 VIAddVersionKey /LANG=1033 "FileVersion" "${VERSION}"
 VIAddVersionKey /LANG=1033 "FileDescription" "ccBox Windows Installer"
+VIAddVersionKey /LANG=1033 "CompanyName" "ccBox"
 VIAddVersionKey /LANG=1033 "LegalCopyright" "Cage contributors"
 
 !ifdef SIGN_SCRIPT
@@ -202,12 +203,10 @@ Function LoadShortcutOptions
     StrCpy $DesktopShortcut 0
     StrCpy $StartMenuShortcuts 0
     ${If} ${FileExists} "$DESKTOP\Cage.lnk"
-    ${OrIf} ${FileExists} "$DESKTOP\GetToken.lnk"
     ${OrIf} ${FileExists} "$DESKTOP\ccBox.lnk"
       StrCpy $DesktopShortcut 1
     ${EndIf}
     ${If} ${FileExists} "$SMPROGRAMS\Cage\Cage.lnk"
-    ${OrIf} ${FileExists} "$SMPROGRAMS\GetToken\GetToken.lnk"
     ${OrIf} ${FileExists} "$SMPROGRAMS\ccBox\ccBox.lnk"
       StrCpy $StartMenuShortcuts 1
     ${EndIf}
@@ -544,6 +543,7 @@ Section "ccBox" Main
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayName" "ccBox"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayVersion" "${VERSION}"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "Publisher" "ccBox"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "URLInfoAbout" "https://ccbox.org/"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "UninstallString" '$\"$INSTDIR\Uninstall.exe$\"'
   WriteRegStr HKCU "${UNINSTALL_KEY}" "QuietUninstallString" '$\"$INSTDIR\Uninstall.exe$\" /S'
@@ -555,10 +555,6 @@ Section "ccBox" Main
   Delete "$SMPROGRAMS\Cage\Cage.lnk"
   Delete "$SMPROGRAMS\Cage\Uninstall Cage.lnk"
   RMDir "$SMPROGRAMS\Cage"
-  Delete "$DESKTOP\GetToken.lnk"
-  Delete "$SMPROGRAMS\GetToken\GetToken.lnk"
-  Delete "$SMPROGRAMS\GetToken\Uninstall GetToken.lnk"
-  RMDir "$SMPROGRAMS\GetToken"
   ${If} $DesktopShortcut == 1
     CreateShortcut "$DESKTOP\ccBox.lnk" "$INSTDIR\Cage.exe"
   ${Else}

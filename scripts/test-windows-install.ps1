@@ -38,8 +38,20 @@ function Run-Installer {
 }
 $desktopShortcut = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'ccBox.lnk'
 $startMenuDirectory = Join-Path ([Environment]::GetFolderPath('Programs')) 'ccBox'
+$otherDesktop = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'GetToken.lnk'
+$otherMenu = Join-Path ([Environment]::GetFolderPath('Programs')) 'GetToken'
+if ((Test-Path -LiteralPath $otherDesktop) -or (Test-Path -LiteralPath $otherMenu)) { throw 'The GetToken shortcut fixture requires a disposable user.' }
+New-Item -ItemType Directory -Path $otherMenu | Out-Null
+$otherShortcuts = @($otherDesktop, (Join-Path $otherMenu 'GetToken.lnk'), (Join-Path $otherMenu 'Uninstall GetToken.lnk'))
+foreach ($path in $otherShortcuts) { Set-Content -LiteralPath $path -Value 'Independent GetToken shortcut fixture' -Encoding utf8NoBOM }
+$otherHashes = @($otherShortcuts | Get-FileHash -Algorithm SHA256)
 function Assert-Shortcuts {
     param([bool]$Desktop, [bool]$StartMenu)
+    foreach ($file in $otherHashes) {
+        if (!(Test-Path -LiteralPath $file.Path -PathType Leaf) -or (Get-FileHash -LiteralPath $file.Path -Algorithm SHA256).Hash -ne $file.Hash) {
+            throw 'ccBox changed a GetToken shortcut.'
+        }
+    }
     if ((Test-Path -LiteralPath $desktopShortcut) -ne $Desktop) { throw 'Desktop shortcut differs from the installer selection.' }
     foreach ($name in @('ccBox.lnk', 'Uninstall ccBox.lnk')) {
         if ((Test-Path -LiteralPath (Join-Path $startMenuDirectory $name)) -ne $StartMenu) { throw "Start menu shortcut differs from the installer selection: $name" }
@@ -54,6 +66,8 @@ New-Item -ItemType Directory -Path $target | Out-Null
 Run-Installer
 Assert-PersonalData
 Assert-Shortcuts $true $true
+$registration = Get-ItemProperty -LiteralPath $savedKey
+if ($registration.Publisher -ne 'ccBox' -or $registration.URLInfoAbout -ne 'https://ccbox.org/') { throw 'Incorrect ccBox publisher or homepage.' }
 if (-not (Test-Path -LiteralPath (Join-Path $target 'Cage.exe'))) { throw 'Installer did not create Cage.exe.' }
 foreach ($file in @('new-windows-guest.ps1', 'windows-guest-media.ps1', 'install-guest-powershell.cmd', 'publish-windows-component-manifest.ps1')) {
     if (!(Test-Path -LiteralPath (Join-Path $target "resources/guest-os/$file") -PathType Leaf)) {
@@ -112,4 +126,6 @@ if (Test-Path -LiteralPath $target) { throw 'Uninstall left packaged files or di
 if (Test-Path $savedKey) { throw 'Uninstall left the Cage registration behind.' }
 Assert-PersonalData
 Assert-Shortcuts $false $false
+foreach ($path in $otherShortcuts) { Remove-Item -LiteralPath $path }
+Remove-Item -LiteralPath $otherMenu
 Write-Host 'Install, WebView2 workbench, reinstall, uninstall and user-data preservation passed. VM startup was not tested.'
