@@ -208,7 +208,7 @@ const canonical = site && new URL(pathFor(locale), site);
         {c.docs.map(doc => <li><a href={docHref(doc.slug)}>{doc.label}<span aria-hidden="true">↗</span></a><p>{doc.title}</p></li>)}
       </ul>
     </section>
-    <section class="license wrap section-split"><h2>{c.licenseTitle}</h2><p>{c.licenseText}</p></section>
+    <section class="license wrap section-split"><h2><a class="text-link" href={`${base}LICENSE.txt`}>{c.licenseTitle}</a></h2><p>{c.licenseText}</p></section>
   </main>
   <SiteFooter homeHref={pathFor(locale)} guideLabel={guideLabel} privacyLabel={locale === 'zh' || locale === 'zh-TW' ? '统计与隐私' : 'Privacy'} note={c.independent} />
   <dialog class="download-dialog" aria-labelledby="platform-title">

@@ -2,9 +2,9 @@ name: ccBox website checks
 on:
   push:
     branches: [main]
-    paths: ['www/**', 'assets/**', 'README*.md', 'docs/guide/**', 'scripts/prepare-release-assets.mjs', 'packaging/**', 'VERSION', '.github/workflows/www.yml']
+    paths: ['www/**', 'assets/**', 'README*.md', 'docs/guide/**', 'scripts/prepare-release-assets.mjs', 'packaging/**', 'LICENSE', 'VERSION', '.github/workflows/www.yml']
   pull_request:
-    paths: ['www/**', 'assets/**', 'README*.md', 'docs/guide/**', 'scripts/prepare-release-assets.mjs', 'packaging/**', 'VERSION', '.github/workflows/www.yml']
+    paths: ['www/**', 'assets/**', 'README*.md', 'docs/guide/**', 'scripts/prepare-release-assets.mjs', 'packaging/**', 'LICENSE', 'VERSION', '.github/workflows/www.yml']
   workflow_dispatch:
 permissions:
   contents: read

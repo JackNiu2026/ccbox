@@ -27,6 +27,10 @@ for (const file of htmlFiles) {
   assert.match(html, /<header class="site-header">[\s\S]*?<img\b[^>]*\bsrc="\/ccbox-icon\.svg"/, `${file}: header logo is missing`);
   assert.doesNotMatch(html, /<img\b[^>]*\bsrc="\/ccbox-icon\.png"/, `${file}: visible logo should use SVG`);
   assert.doesNotMatch(html, upstreamReleaseURL, file + ": public page links to an upstream service");
+  assert.ok(!/\b(?:Claude Cage|Lee-xeo|GetToken)\b/i.test(html), `${file}: legacy brand appears in a public page`);
+  if (codes.some(code => file === (code === 'zh' ? 'index.html' : path.join(code, 'index.html')))) {
+    assert.ok(html.includes('href="/LICENSE.txt"'), `${file}: local MIT license link is missing`);
+  }
   assert.ok(!/(?:src|href)="\/Claude-Cage(?:\/|")/.test(html), `${file}: old project base remains`);
   if (file !== '404.html') {
     const route = file.replaceAll(path.sep, '/').replace(/index\.html$/, '');
@@ -46,6 +50,7 @@ for (const file of htmlFiles) {
     assert.ok(/\sasync(?:\s|>)/.test(tags[0][0]), `${file}: analytics must not block page rendering`);
   }
 }
+assert.equal(fs.readFileSync(path.join(dist, 'LICENSE.txt'), 'utf8'), fs.readFileSync(path.join(root, 'LICENSE'), 'utf8'), 'Public MIT license must preserve the original copyright notice');
 const published = await readSiteRelease(path.join(root, 'www'));
 const version = fs.readFileSync(path.join(root, 'VERSION'), 'utf8').trim();
 assert.equal(published.version, version, 'Website release version must match VERSION');
