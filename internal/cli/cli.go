@@ -93,7 +93,7 @@ func (e *app) main(ctx context.Context, args []string) int {
 		fmt.Fprint(io.Stdout, helpText)
 		return 0
 	case "version", "--version", "-V":
-		return versionCmd(args, io)
+		return versionCmd(args, io, "agent-vm", updateCommand)
 	case "licenses":
 		return licensesCmd(args, io)
 	case "name":
@@ -138,7 +138,7 @@ var versionRe = regexp.MustCompile(`^[0-9]+(\.[0-9]+)*(-[A-Za-z0-9.]+)?$`)
 
 // `version [--min X.Y.Z]`: silent and 0 when this agent-vm is at least
 // X.Y.Z, an error and 1 when older, 2 when the call itself is wrong.
-func versionCmd(args []string, io IO) int {
+func versionCmd(args []string, io IO, product string, updateHint func() string) int {
 	if len(args) == 0 {
 		fmt.Fprintln(io.Stdout, version.Version)
 		return 0
@@ -166,9 +166,16 @@ func versionCmd(args []string, io IO) int {
 	if version.AtLeast(version.Version, want) {
 		return 0
 	}
-	fmt.Fprintf(io.Stderr, "Error: agent-vm %s is older than the required %s.\n", version.Version, want)
-	fmt.Fprintf(io.Stderr, "  Update it:  %s\n", updateCommand())
+	fmt.Fprintf(io.Stderr, "Error: %s %s is older than the required %s.\n", product, version.Version, want)
+	fmt.Fprintf(io.Stderr, "  Update it:  %s\n", updateHint())
 	return 1
+}
+
+// CCBoxVersion reports the installed version and its own distribution channel.
+func CCBoxVersion(args []string, io IO) int {
+	return versionCmd(args, io, "ccBox", func() string {
+		return "get the latest installer from your ccBox distributor"
+	})
 }
 
 // updateCommand is how this copy of agent-vm is updated: by what installed

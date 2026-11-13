@@ -104,7 +104,10 @@ func run() int {
 	}
 	// These read only this build's own metadata. Answering them before the
 	// profile is opened keeps `cage version --min` usable on a fresh install.
-	if args[0] == "version" || args[0] == "--version" || args[0] == "-V" || args[0] == "licenses" {
+	if args[0] == "version" || args[0] == "--version" || args[0] == "-V" {
+		return cli.CCBoxVersion(args[1:], cli.Stdio())
+	}
+	if args[0] == "licenses" {
 		return cli.Main(args, cli.Stdio())
 	}
 	if args[0] == "agent" {

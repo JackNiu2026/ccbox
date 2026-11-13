@@ -116,7 +116,7 @@ func TestStatelessCommandsNeedNoProfile(t *testing.T) {
 		{name: "long version", args: []string{"--version"}, wantStdout: version.Version},
 		{name: "short version", args: []string{"-V"}, wantStdout: version.Version},
 		{name: "version gate met", args: []string{"version", "--min", "0.0.0"}},
-		{name: "version gate missed", args: []string{"version", "--min", "99.0.0"}, wantCode: 1, wantStderr: "older than"},
+		{name: "version gate missed", args: []string{"version", "--min", "99.0.0"}, wantCode: 1, wantStderr: "ccBox " + version.Version + " is older than"},
 		{name: "licenses", args: []string{"licenses"}, wantStdout: "MIT License"},
 	}
 	for _, tc := range cases {
@@ -139,6 +139,9 @@ func TestStatelessCommandsNeedNoProfile(t *testing.T) {
 			}
 			if tc.wantStderr != "" && !strings.Contains(stderr, tc.wantStderr) {
 				t.Errorf("stderr %q does not contain %q", stderr, tc.wantStderr)
+			}
+			if strings.Contains(stderr, "agent-vm") || strings.Contains(stderr, "github.com") {
+				t.Errorf("stderr contains an upstream update instruction: %q", stderr)
 			}
 			if _, err := os.Stat(profileDir); !errors.Is(err, os.ErrNotExist) {
 				t.Errorf("profile directory was created: %v", err)
