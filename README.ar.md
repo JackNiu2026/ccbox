@@ -51,7 +51,7 @@
 
 ## التنزيل والتثبيت
 
-يدعم CCBox أنظمة macOS وWindows وLinux: أجهزة Apple Silicon مع macOS 14+، وWindows 10 22H2 / 11 x64، وDebian 12 / Ubuntu 22.04 / 24.04 x86_64. Intel Mac أو Windows ARM64 أو Linux ARM64. [macOS](docs/getting-started.md) · [Windows](docs/windows.md) · [Linux](docs/linux.md).
+يدعم CCBox أنظمة macOS وWindows وLinux: أجهزة Apple Silicon مع macOS 14+، وWindows 10 22H2 / 11 x64، وDebian 12 / Ubuntu 22.04 / 24.04 x86_64. لا تُدعم بعدُ أجهزة Intel Mac أو Windows ARM64 أو Linux ARM64. [macOS](docs/getting-started.md) · [Windows](docs/windows.md) · [Linux](docs/linux.md).
 
 1. تنزيل التطبيق: [macOS / Windows / Linux](docs/guide/installation.md).
 2. macOS: افتح حزمة التثبيت واسحب **CCBox** في **التطبيقات**; ثم قم بتشغيله من التطبيقات. Windows: [دليل التثبيت](docs/windows.md#安装并开始工作) · Linux: [دليل التثبيت](docs/linux.md#安装并开始工作).

@@ -3,7 +3,7 @@
 .skip-link {
   position: fixed;
   inset: 12px auto auto 12px;
-  z-index: 10;
+  z-index: 40;
   padding: 12px 20px;
   background: var(--surface);
   border: 2px solid var(--accent);
@@ -22,8 +22,8 @@
 
 .guide-sidebar {
   position: sticky;
-  top: 24px;
-  max-height: calc(100dvh - 48px);
+  top: 92px;
+  max-height: calc(100dvh - 116px);
   overflow: auto;
   padding: 4px 18px 14px 4px;
   border-inline-end: 1px solid var(--line);

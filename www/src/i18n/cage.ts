@@ -20,6 +20,12 @@ function pair(text: string): [string, string] {
   const bold = text.match(/^\*\*(.+?)\*\*\s*(.*)$/);
   return bold ? [plain(bold[1]), plain(bold[2])] : ['', plain(text)];
 }
+// A trailing "[macOS](…) · [Windows](…) · [Linux](…)" list reads as noise once
+// the links are flattened; the website offers the same guides elsewhere.
+function withoutLinkLists(text: string) {
+  return text.replace(/\s*\[[^\]]+\]\([^)]+\)(?:\s*·\s*\[[^\]]+\]\([^)]+\))+\s*[。.]?/g, '');
+}
+const guideLink = /\s*\[([^\]]+)\]\((?:\.\/)?docs\/guide\/([a-z-]+)\.md\)\s*[。.]?\s*$/;
 function readCopy(language: typeof languages[number]) {
   const file = language.code === 'zh' ? 'README.md' : `README.${language.code}.md`;
   const source = readmes[`../../../${file}`];
@@ -32,12 +38,16 @@ function readCopy(language: typeof languages[number]) {
   }));
   const [reason, uses, quick, installation, steps, boundaries, contribution, license] = sections;
   const reasonParagraphs = paragraphs(reason.body);
-  const installParagraphs = paragraphs(installation.body);
+  const installParagraphs = paragraphs(withoutLinkLists(installation.body));
   const stepHeadings = [...steps.body.matchAll(/^### \d+\. (.+)$/gm)];
   if (stepHeadings.length !== 3 || bullets(reason.body).length !== 4 || bullets(boundaries.body).length !== 4) {
     throw new Error(`${file}: README feature, setup or boundary structure has changed`);
   }
-  const setup = stepHeadings.map((heading, i): [string,string] => [heading[1], plain(steps.body.slice(heading.index! + heading[0].length, stepHeadings[i+1]?.index ?? steps.body.length))]);
+  const setup = stepHeadings.map((heading, i) => {
+    const body = steps.body.slice(heading.index! + heading[0].length, stepHeadings[i + 1]?.index ?? steps.body.length).trim();
+    const link = body.match(guideLink);
+    return { title: heading[1], text: plain(link ? body.slice(0, link.index) : body), guide: link ? { label: link[1], slug: link[2] } : undefined };
+  });
   const docs = [...contribution.body.matchAll(/^\|\s*([^|]+)\s*\|\s*\[([^\]]+)\]\((?:\.\/)?docs\/guide\/([a-z-]+)\.md\)\s*\|/gm)]
     .map(match => ({ title: plain(match[1]), label: match[2], slug: match[3] }));
   const features = bullets(uses.body).map(feature => {

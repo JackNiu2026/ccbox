@@ -79,3 +79,23 @@ export const homeHero: Record<CageLocale, HeroCopy> = {
     description: 'Utilisez Claude dans un environnement virtuel isolé qui réunit terminal, navigateur et éditeur dans une même fenêtre.',
   },
 };
+
+type HomeUi = { copy: string; copied: string };
+
+export const homeUi: Record<CageLocale, HomeUi> = {
+  zh: { copy: '复制', copied: '已复制' },
+  'zh-TW': { copy: '複製', copied: '已複製' },
+  ru: { copy: 'Копировать', copied: 'Скопировано' },
+  ar: { copy: 'نسخ', copied: 'تم النسخ' },
+  fa: { copy: 'کپی', copied: 'کپی شد' },
+  ko: { copy: '복사', copied: '복사됨' },
+  es: { copy: 'Copiar', copied: 'Copiado' },
+  my: { copy: 'ကူးယူရန်', copied: 'ကူးယူပြီး' },
+  be: { copy: 'Скапіяваць', copied: 'Скапіявана' },
+  ps: { copy: 'کاپي', copied: 'کاپي شو' },
+  prs: { copy: 'کاپی', copied: 'کاپی شد' },
+  am: { copy: 'ቅዳ', copied: 'ተቀድቷል' },
+  so: { copy: 'Koobiyee', copied: 'Waa la koobiyeeyay' },
+  ti: { copy: 'ቅዳሕ', copied: 'ተቐዲሑ' },
+  fr: { copy: 'Copier', copied: 'Copié' },
+};
