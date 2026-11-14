@@ -52,6 +52,7 @@ const ICONS = {
   inbox: ["M22 12h-6l-2 3h-4l-2-3H2", "M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.7 4H7.3a2 2 0 0 0-1.8 1.1z"],
   close: ["M18 6 6 18", "m6 6 12 12"],
   lock: ["M5 11h14v10H5z", "M8 11V7a4 4 0 0 1 8 0v4"],
+  eye: ["M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z", "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"],
 };
 
 function icon(name) {
@@ -202,39 +203,68 @@ const stamp = () => new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
 
 // ---------------------------------------------------------------------- Login
 
+const LOGIN_RULES = [
+  ["SESSION", "闲置 45 分钟或登录 8 小时后失效"],
+  ["LIMIT", "同一来源 15 分钟内失败 8 次暂停登录"],
+  ["ORIGIN", "所有写操作校验浏览器来源"],
+  ["AUDIT", "登录与每次写操作写入操作日志"],
+];
+
 function renderLogin(message = "") {
   closeDialogs();
-  const error = h("p", { class: "form-error", role: "alert", hidden: !message }, message);
-  const input = h("input", { id: "password", type: "password", autocomplete: "current-password", required: true, minlength: 1 });
+  const error = h("p", { class: "form-error", id: "password-error", role: "alert" }, message);
+  const input = h("input", { id: "password", type: "password", autocomplete: "current-password", required: true, minlength: 1, "aria-describedby": "password-error" });
+  const reveal = h("button", { class: "reveal", type: "button", "aria-label": "显示密码", "aria-pressed": "false", onclick: () => {
+    const shown = input.type === "password";
+    input.type = shown ? "text" : "password";
+    reveal.setAttribute("aria-label", shown ? "隐藏密码" : "显示密码");
+    reveal.setAttribute("aria-pressed", String(shown));
+    input.focus();
+  } }, icon("eye"));
+  const field = h("div", { class: "password-field" }, input, reveal);
   const button = h("button", { class: "btn primary", type: "submit" }, "登录");
-  const form = h("form", { class: "login-card", onsubmit: async event => {
+  const fail = text => {
+    error.textContent = text;
+    field.classList.add("invalid");
+    input.setAttribute("aria-invalid", "true");
+    input.select();
+  };
+  input.addEventListener("input", () => {
+    error.textContent = "";
+    field.classList.remove("invalid");
+    input.removeAttribute("aria-invalid");
+  });
+  const form = h("form", { class: "login-form", "aria-labelledby": "login-title", novalidate: true, onsubmit: async event => {
     event.preventDefault();
+    if (!input.value) return fail("请输入管理员密码");
     button.disabled = true;
     button.textContent = "正在验证…";
-    error.hidden = true;
+    error.textContent = "";
     try {
       await api("login", { password: input.value });
       input.value = "";
       await boot();
     } catch (failure) {
-      error.textContent = failure.message;
-      error.hidden = false;
-      input.select();
+      fail(failure.message);
     } finally {
       button.disabled = false;
       button.textContent = "登录";
     }
   } },
-    h("img", { class: "logo", src: "assets/icon.svg", alt: "" }),
-    h("h1", {}, "CCBox ", h("em", {}, "授权管理")),
-    h("p", {}, "使用服务器配置的管理员密码登录。"),
-    h("div", { class: "field" }, h("label", { for: "password" }, "管理员密码"), input),
-    error,
-    h("div", { style: "height:8px" }),
+    h("div", {}, h("h2", { id: "login-title" }, "登录"), h("p", { class: "login-sub" }, "使用服务器配置的管理员密码。")),
+    h("div", { class: "field" }, h("label", { for: "password" }, "管理员密码"), field, error),
     button,
-    h("p", { class: "login-foot" }, "会话在闲置 45 分钟或 8 小时后失效。"),
+    h("p", { class: "login-foot" }, "管理路由仅在设置 ", h("code", {}, "CCBOX_LICENSE_ADMIN_PASSWORD_FILE"),
+      " 后开启。建议在代理入口限制管理员来源或使用管理 VPN。"),
   );
-  app.replaceChildren(h("main", { class: "login" }, form));
+  const brand = h("section", { class: "login-brand", "aria-label": "CCBox 授权服务" },
+    h("div", { class: "login-mark" }, h("img", { src: "assets/icon.svg", alt: "" }), h("strong", {}, "CCBox"), h("span", { class: "login-tag" }, "LICENSE CONSOLE")),
+    h("div", { class: "login-pitch" },
+      h("h1", {}, "授权管理", h("em", {}, "后台")),
+      h("p", {}, "发放激活码、查询兑换、为设备续期和换机。服务端只保存激活码哈希，签名私钥不离开服务器。"),
+      h("ul", { class: "login-rules" }, LOGIN_RULES.map(([tag, text]) => h("li", {}, h("span", {}, tag), text)))),
+    h("p", { class: "login-path" }, "ccbox-license · /admin/license/"));
+  app.replaceChildren(h("main", { class: "login" }, brand, h("div", { class: "login-side" }, form)));
   input.focus();
 }
 
@@ -920,7 +950,7 @@ async function boot() {
     config = { ...config, ...current };
     renderShell();
   } catch (error) {
-    app.replaceChildren(h("main", { class: "login" }, h("div", { class: "login-card" },
+    app.replaceChildren(h("main", { class: "login-solo" }, h("div", { class: "login-card" },
       h("h1", {}, "无法连接授权服务"), h("p", {}, error.message),
       h("button", { class: "btn primary", type: "button", onclick: boot }, "重试"))));
   }
