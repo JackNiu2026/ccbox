@@ -81,8 +81,11 @@ func run(args []string) error {
 			if len(password) < 24 {
 				return errors.New("administrator password must have at least 24 characters")
 			}
-			mux.HandleFunc("GET /admin/license/{$}", adminHandler(store, password))
-			mux.HandleFunc("POST /admin/license/{$}", adminHandler(store, password))
+			origins, err := parseOrigins(os.Getenv("CCBOX_LICENSE_ADMIN_ORIGINS"))
+			if err != nil {
+				return err
+			}
+			newAdminServer(store, args[1], password, origins).register(mux)
 		}
 		address := "127.0.0.1:8791"
 		if os.Getenv("CCBOX_LICENSE_CONTAINER") == "1" {
