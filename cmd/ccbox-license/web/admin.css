@@ -121,6 +121,7 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .login-form h2 { font-size: 26px; }
 .login-sub { margin: 6px 0 0; color: var(--muted); }
 .login-form .field { gap: 8px; }
+.login-fields { display: grid; gap: 16px; }
 .password-field {
   display: flex;
   align-items: center;
@@ -185,7 +186,11 @@ code, .mono { font-family: var(--mono); font-size: 0.92em; }
 .nav a[aria-current="page"] { color: #fff; background: rgb(244 124 71 / 14%); box-shadow: inset 3px 0 0 var(--brand); }
 .nav a[aria-current="page"] svg { color: #ffb48a; }
 .side-foot { margin-top: auto; padding: 12px; color: var(--side-muted); font-size: 12px; border-top: 1px solid var(--side-line); }
-.side-foot button { margin-top: 8px; padding: 0; color: var(--side-ink); background: none; border: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.side-user { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.side-user > i { display: grid; place-items: center; width: 30px; height: 30px; flex: none; color: #1a1209; background: var(--action); border-radius: 50%; font: 700 13px/1 inherit; font-style: normal; }
+.side-user > span { display: grid; min-width: 0; }
+.side-user strong { overflow: hidden; color: var(--side-ink); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.side-foot button { margin-top: 0; padding: 0; color: var(--side-ink); background: none; border: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 
 .main { min-width: 0; padding: 28px clamp(16px, 3vw, 40px) 60px; }
 .page-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px; margin-bottom: 22px; }
@@ -391,7 +396,7 @@ dialog[open] { animation: pop 0.16s ease-out; }
   .nav a[aria-current="page"] span { display: inline; }
   .nav a[aria-current="page"] { box-shadow: inset 0 -2px 0 var(--brand); }
   .side-foot { margin: 0 0 0 auto; padding: 0; border: 0; white-space: nowrap; }
-  .side-foot .session-text { display: none; }
+  .side-foot .session-text, .side-user { display: none; }
   .side-foot button { margin: 0; }
   .main { padding-top: 20px; }
   .row-2 { grid-template-columns: minmax(0, 1fr); }

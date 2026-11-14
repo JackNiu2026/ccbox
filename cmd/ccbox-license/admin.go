@@ -44,11 +44,16 @@ const (
 
 var defaultAdminOrigins = []string{"http://127.0.0.1:8791", "http://localhost:8791", "https://ccbox.org"}
 
-type session struct{ created, seen time.Time }
+type session struct {
+	created, seen time.Time
+	user          string
+}
 
 type adminServer struct {
 	store    *license.Store
+	username [32]byte
 	password [32]byte
+	user     string
 	origins  []string
 	audit    *auditLog
 	now      func() time.Time
@@ -58,12 +63,25 @@ type adminServer struct {
 	failures map[string][]time.Time
 }
 
-func newAdminServer(store *license.Store, stateDir, password string, origins []string) *adminServer {
+// validUsername accepts 1–64 printable characters without spaces.
+func validUsername(name string) bool {
+	if name == "" || len(name) > 64 {
+		return false
+	}
+	for _, r := range name {
+		if r <= ' ' || r == 0x7f {
+			return false
+		}
+	}
+	return true
+}
+
+func newAdminServer(store *license.Store, stateDir, username, password string, origins []string) *adminServer {
 	if len(origins) == 0 {
 		origins = defaultAdminOrigins
 	}
 	return &adminServer{
-		store: store, password: sha256.Sum256([]byte(password)), origins: origins,
+		store: store, username: sha256.Sum256([]byte(username)), password: sha256.Sum256([]byte(password)), user: username, origins: origins,
 		audit: &auditLog{dir: stateDir}, now: time.Now,
 		sessions: map[string]*session{}, failures: map[string][]time.Time{},
 	}
@@ -270,9 +288,10 @@ func (a *adminServer) sessionInfo(r *http.Request, token string) (any, error) {
 		return map[string]any{"authenticated": false}, nil
 	}
 	a.mu.Lock()
-	expires := a.sessions[token].created.Add(sessionLifetime).Unix()
+	current := a.sessions[token]
+	expires, user := current.created.Add(sessionLifetime).Unix(), current.user
 	a.mu.Unlock()
-	return map[string]any{"authenticated": true, "expires": expires, "idle": int(sessionIdle / time.Second),
+	return map[string]any{"authenticated": true, "expires": expires, "user": user, "idle": int(sessionIdle / time.Second),
 		"duration_days": int(license.Duration / (24 * time.Hour)), "max_batch": license.MaxIssueBatch, "max_note": license.MaxNoteLength}, nil
 }
 
@@ -295,20 +314,25 @@ func (a *adminServer) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var input struct {
+		Username string `json:"username"`
 		Password string `json:"password"`
 	}
 	if err := decodeBody(r, &input); err != nil {
 		writeError(w, err)
 		return
 	}
-	digest := sha256.Sum256([]byte(input.Password))
-	if subtle.ConstantTimeCompare(digest[:], a.password[:]) != 1 {
+	// Compare both digests every time so timing reveals neither field.
+	userDigest := sha256.Sum256([]byte(input.Username))
+	passwordDigest := sha256.Sum256([]byte(input.Password))
+	userOK := subtle.ConstantTimeCompare(userDigest[:], a.username[:])
+	passwordOK := subtle.ConstantTimeCompare(passwordDigest[:], a.password[:])
+	if userOK&passwordOK != 1 {
 		a.mu.Lock()
 		a.failures[address] = append(a.failures[address], now)
 		a.mu.Unlock()
 		a.audit.record(now, "login.failed", "", address)
 		time.Sleep(400 * time.Millisecond)
-		writeError(w, apiError{http.StatusUnauthorized, "密码不正确"})
+		writeError(w, apiError{http.StatusUnauthorized, "账号或密码不正确"})
 		return
 	}
 	var raw [32]byte
@@ -334,19 +358,23 @@ func (a *adminServer) login(w http.ResponseWriter, r *http.Request) {
 		}
 		delete(a.sessions, oldest)
 	}
-	a.sessions[token] = &session{created: now, seen: now}
+	a.sessions[token] = &session{created: now, seen: now, user: a.user}
 	a.mu.Unlock()
 	http.SetCookie(w, &http.Cookie{Name: adminCookie, Value: token, Path: adminPrefix, HttpOnly: true,
 		Secure: secure, SameSite: http.SameSiteStrictMode, MaxAge: int(sessionLifetime / time.Second)})
-	a.audit.record(now, "login", "", address)
+	a.audit.record(now, "login", a.user, address)
 	writeJSON(w, http.StatusOK, map[string]any{"authenticated": true})
 }
 
 func (a *adminServer) logout(r *http.Request, token string) (any, error) {
 	a.mu.Lock()
+	user := ""
+	if current := a.sessions[token]; current != nil {
+		user = current.user
+	}
 	delete(a.sessions, token)
 	a.mu.Unlock()
-	a.audit.record(a.now(), "logout", "", clientAddress(r))
+	a.audit.record(a.now(), "logout", user, clientAddress(r))
 	return map[string]bool{"ok": true}, nil
 }
 

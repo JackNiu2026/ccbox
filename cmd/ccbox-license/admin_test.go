@@ -15,6 +15,8 @@ import (
 
 const testOrigin = "http://127.0.0.1:8791"
 
+var goodLogin = map[string]string{"username": "operator", "password": strings.Repeat("p", 32)}
+
 type adminClient struct {
 	t      *testing.T
 	mux    *http.ServeMux
@@ -58,7 +60,7 @@ func newTestAdmin(t *testing.T) (*adminClient, *license.Store, *adminServer) {
 	_, key, _ := ed25519.GenerateKey(nil)
 	dir := t.TempDir()
 	store := license.NewStore(dir, key)
-	server := newAdminServer(store, dir, strings.Repeat("p", 32), nil)
+	server := newAdminServer(store, dir, "operator", strings.Repeat("p", 32), nil)
 	mux := http.NewServeMux()
 	server.register(mux)
 	return &adminClient{t: t, mux: mux}, store, server
@@ -84,13 +86,20 @@ func TestAdminAuthentication(t *testing.T) {
 	if got := decode[map[string]any](t, client.do("GET", "api/session", "", nil)); got["authenticated"] != false {
 		t.Fatalf("anonymous session: %v", got)
 	}
-	if got := client.do("POST", "api/login", "https://evil.example", map[string]string{"password": strings.Repeat("p", 32)}); got.Code != 403 {
+	if got := client.do("POST", "api/login", "https://evil.example", goodLogin); got.Code != 403 {
 		t.Fatalf("cross-origin login: %d", got.Code)
 	}
-	if got := client.do("POST", "api/login", testOrigin, map[string]string{"password": "wrong"}); got.Code != 401 {
-		t.Fatalf("wrong password: %d", got.Code)
+	for _, attempt := range []map[string]string{
+		{"username": "operator", "password": "wrong"},
+		{"username": "admin", "password": strings.Repeat("p", 32)},
+		{"password": strings.Repeat("p", 32)},
+	} {
+		got := client.do("POST", "api/login", testOrigin, attempt)
+		if got.Code != 401 || !strings.Contains(got.Body.String(), "账号或密码不正确") {
+			t.Fatalf("login %v: %d %s", attempt, got.Code, got.Body)
+		}
 	}
-	login := client.do("POST", "api/login", testOrigin, map[string]string{"password": strings.Repeat("p", 32)})
+	login := client.do("POST", "api/login", testOrigin, goodLogin)
 	if login.Code != 200 {
 		t.Fatalf("login: %d %s", login.Code, login.Body)
 	}
@@ -100,7 +109,7 @@ func TestAdminAuthentication(t *testing.T) {
 	}
 	client.cookie = cookie
 	session := decode[map[string]any](t, client.do("GET", "api/session", "", nil))
-	if session["authenticated"] != true || session["max_batch"] != float64(license.MaxIssueBatch) {
+	if session["authenticated"] != true || session["user"] != "operator" || session["max_batch"] != float64(license.MaxIssueBatch) {
 		t.Fatalf("session: %v", session)
 	}
 	if got := client.do("POST", "api/codes", "", map[string]int{"count": 1}); got.Code != 403 {
@@ -112,7 +121,7 @@ func TestAdminAuthentication(t *testing.T) {
 	}
 	server.now = time.Now
 	client.cookie = nil
-	client.cookie = client.do("POST", "api/login", testOrigin, map[string]string{"password": strings.Repeat("p", 32)}).Result().Cookies()[0]
+	client.cookie = client.do("POST", "api/login", testOrigin, goodLogin).Result().Cookies()[0]
 	if got := client.do("POST", "api/logout", testOrigin, map[string]any{}); got.Code != 200 {
 		t.Fatalf("logout: %d", got.Code)
 	}
@@ -124,16 +133,16 @@ func TestAdminAuthentication(t *testing.T) {
 func TestAdminLoginRateLimit(t *testing.T) {
 	client, _, _ := newTestAdmin(t)
 	for range maxLoginFailures {
-		client.do("POST", "api/login", testOrigin, map[string]string{"password": "wrong"})
+		client.do("POST", "api/login", testOrigin, map[string]string{"username": "operator", "password": "wrong"})
 	}
-	if got := client.do("POST", "api/login", testOrigin, map[string]string{"password": strings.Repeat("p", 32)}); got.Code != http.StatusTooManyRequests {
+	if got := client.do("POST", "api/login", testOrigin, goodLogin); got.Code != http.StatusTooManyRequests {
 		t.Fatalf("rate limit not enforced: %d", got.Code)
 	}
 }
 
 func TestAdminIssueAndManage(t *testing.T) {
 	client, store, _ := newTestAdmin(t)
-	client.cookie = client.do("POST", "api/login", testOrigin, map[string]string{"password": strings.Repeat("p", 32)}).Result().Cookies()[0]
+	client.cookie = client.do("POST", "api/login", testOrigin, goodLogin).Result().Cookies()[0]
 	for _, body := range []any{map[string]int{"count": 0}, map[string]int{"count": license.MaxIssueBatch + 1},
 		map[string]any{"count": 1, "note": strings.Repeat("x", license.MaxNoteLength+1)}, map[string]any{"count": 1, "extra": true}} {
 		if got := client.do("POST", "api/codes", testOrigin, body); got.Code != 400 {
@@ -247,6 +256,14 @@ func TestAdminIssueAndManage(t *testing.T) {
 	for _, code := range issued.Codes {
 		if strings.Contains(client.do("GET", "api/audit", "", nil).Body.String(), code) {
 			t.Fatal("audit log contains an activation code")
+		}
+	}
+}
+
+func TestValidUsername(t *testing.T) {
+	for name, want := range map[string]bool{"admin": true, "运营-01": true, "": false, "two words": false, "tab\tname": false, strings.Repeat("a", 65): false} {
+		if validUsername(name) != want {
+			t.Fatalf("validUsername(%q) != %v", name, want)
 		}
 	}
 }

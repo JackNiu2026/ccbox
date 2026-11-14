@@ -213,6 +213,7 @@ const LOGIN_RULES = [
 function renderLogin(message = "") {
   closeDialogs();
   const error = h("p", { class: "form-error", id: "password-error", role: "alert" }, message);
+  const account = h("input", { id: "username", type: "text", autocomplete: "username", autocapitalize: "none", spellcheck: "false", required: true, maxlength: 64, "aria-describedby": "password-error" });
   const input = h("input", { id: "password", type: "password", autocomplete: "current-password", required: true, minlength: 1, "aria-describedby": "password-error" });
   const reveal = h("button", { class: "reveal", type: "button", "aria-label": "显示密码", "aria-pressed": "false", onclick: () => {
     const shown = input.type === "password";
@@ -223,25 +224,30 @@ function renderLogin(message = "") {
   } }, icon("eye"));
   const field = h("div", { class: "password-field" }, input, reveal);
   const button = h("button", { class: "btn primary", type: "submit" }, "登录");
-  const fail = text => {
+  const accountField = h("div", { class: "password-field" }, account);
+  const fail = (text, target = input) => {
     error.textContent = text;
-    field.classList.add("invalid");
-    input.setAttribute("aria-invalid", "true");
-    input.select();
+    const box = target === account ? accountField : field;
+    box.classList.add("invalid");
+    target.setAttribute("aria-invalid", "true");
+    target.select();
   };
-  input.addEventListener("input", () => {
+  const clear = () => {
     error.textContent = "";
-    field.classList.remove("invalid");
-    input.removeAttribute("aria-invalid");
-  });
+    for (const box of [accountField, field]) box.classList.remove("invalid");
+    for (const target of [account, input]) target.removeAttribute("aria-invalid");
+  };
+  account.addEventListener("input", clear);
+  input.addEventListener("input", clear);
   const form = h("form", { class: "login-form", "aria-labelledby": "login-title", novalidate: true, onsubmit: async event => {
     event.preventDefault();
+    if (!account.value.trim()) return fail("请输入管理员账号", account);
     if (!input.value) return fail("请输入管理员密码");
     button.disabled = true;
     button.textContent = "正在验证…";
     error.textContent = "";
     try {
-      await api("login", { password: input.value });
+      await api("login", { username: account.value.trim(), password: input.value });
       input.value = "";
       await boot();
     } catch (failure) {
@@ -251,8 +257,10 @@ function renderLogin(message = "") {
       button.textContent = "登录";
     }
   } },
-    h("div", {}, h("h2", { id: "login-title" }, "登录"), h("p", { class: "login-sub" }, "使用服务器配置的管理员密码。")),
-    h("div", { class: "field" }, h("label", { for: "password" }, "管理员密码"), field, error),
+    h("div", {}, h("h2", { id: "login-title" }, "登录"), h("p", { class: "login-sub" }, "使用服务器配置的管理员账号和密码。")),
+    h("div", { class: "login-fields" },
+      h("div", { class: "field" }, h("label", { for: "username" }, "账号"), accountField),
+      h("div", { class: "field" }, h("label", { for: "password" }, "密码"), field, error)),
     button,
     h("p", { class: "login-foot" }, "管理路由仅在设置 ", h("code", {}, "CCBOX_LICENSE_ADMIN_PASSWORD_FILE"),
       " 后开启。建议在代理入口限制管理员来源或使用管理 VPN。"),
@@ -265,7 +273,7 @@ function renderLogin(message = "") {
       h("ul", { class: "login-rules" }, LOGIN_RULES.map(([tag, text]) => h("li", {}, h("span", {}, tag), text)))),
     h("p", { class: "login-path" }, "ccbox-license · /admin/license/"));
   app.replaceChildren(h("main", { class: "login" }, brand, h("div", { class: "login-side" }, form)));
-  input.focus();
+  account.focus();
 }
 
 // ---------------------------------------------------------------------- Shell
@@ -299,7 +307,8 @@ function renderShell() {
     h("a", { class: "brand", href: "#/overview" }, h("img", { src: "assets/icon.svg", alt: "" }),
       h("div", {}, h("strong", {}, "CCBox"), h("small", {}, "授权管理后台"))),
     nav,
-    h("div", { class: "side-foot" }, h("span", { class: "session-text" }, expiry), h("br", { class: "session-text" }),
+    h("div", { class: "side-foot" },
+      h("span", { class: "side-user" }, h("i", { "aria-hidden": "true" }, (session?.user || "?").slice(0, 1).toUpperCase()), h("span", {}, h("strong", {}, session?.user || ""), h("span", { class: "session-text" }, expiry))),
       h("button", { type: "button", onclick: logout }, "退出登录")),
   );
   shellMain = h("main", { class: "main", id: "main", tabindex: "-1" });

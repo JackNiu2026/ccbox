@@ -81,11 +81,18 @@ func run(args []string) error {
 			if len(password) < 24 {
 				return errors.New("administrator password must have at least 24 characters")
 			}
+			username := strings.TrimSpace(os.Getenv("CCBOX_LICENSE_ADMIN_USER"))
+			if username == "" {
+				username = "admin"
+			}
+			if !validUsername(username) {
+				return errors.New("administrator username must be 1-64 printable characters without spaces")
+			}
 			origins, err := parseOrigins(os.Getenv("CCBOX_LICENSE_ADMIN_ORIGINS"))
 			if err != nil {
 				return err
 			}
-			newAdminServer(store, args[1], password, origins).register(mux)
+			newAdminServer(store, args[1], username, password, origins).register(mux)
 		}
 		address := "127.0.0.1:8791"
 		if os.Getenv("CCBOX_LICENSE_CONTAINER") == "1" {
