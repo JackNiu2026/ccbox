@@ -161,7 +161,7 @@ if [[ "${CLAUDE_CAGE:-}" == 1 ]]; then
   if ! timeout 15 getent ahostsv4 mirrors.nju.edu.cn >/dev/null &&
      ! timeout 15 getent ahostsv4 mirrors.ustc.edu.cn >/dev/null &&
      ! timeout 15 getent ahostsv4 "$package_host" >/dev/null; then
-    echo 'Guest DNS could not resolve the system download sources. Check ccBox Network & Proxy / DNS settings, apply and retry.' >&2
+    echo 'Guest DNS could not resolve the system download sources. Check CCBox Network & Proxy / DNS settings, apply and retry.' >&2
     exit 1
   fi
 fi

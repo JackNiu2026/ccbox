@@ -76,8 +76,8 @@ function Commit([string]$Old, [string]$Stage, [string]$Receipt) {
 function Test-InstallerTransaction {
     if (!$windows -or $PSVersionTable.PSVersion.Major -lt 7) { throw 'The optional NSIS fixture requires PowerShell 7 on a disposable Windows user.' }
     $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\ccBox'
-    $desktop = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'ccBox.lnk'
-    $menu = Join-Path ([Environment]::GetFolderPath('Programs')) 'ccBox'
+    $desktop = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'CCBox.lnk'
+    $menu = Join-Path ([Environment]::GetFolderPath('Programs')) 'CCBox'
     if ((Test-Path $key) -or (Test-Path -LiteralPath $desktop) -or (Test-Path -LiteralPath $menu)) { throw 'The NSIS fixture refuses an existing Cage registration or shortcuts.' }
     $runtime = $false
     foreach ($hive in @([Microsoft.Win32.RegistryHive]::LocalMachine, [Microsoft.Win32.RegistryHive]::CurrentUser)) {
@@ -115,7 +115,7 @@ function Test-InstallerTransaction {
         $foreignReport = $report + '.foreign.json'
         Run-Fixture $setup @('/S', "/DIAGNOSTICS=`"$foreignReport`"", "/D=$foreign") 2
         Check ((Get-Content (Join-Path $foreign 'program.txt') -Raw) -eq 'foreign application') 'NSIS changed a foreign installation.'
-        Check (!(Test-Path -LiteralPath $key)) 'NSIS registered a foreign installation as ccBox.'
+        Check (!(Test-Path -LiteralPath $key)) 'NSIS registered a foreign installation as CCBox.'
         [IO.Directory]::CreateDirectory($target) | Out-Null
         Run-Fixture $setup @('/S','/DESKTOPSHORTCUT=0','/STARTMENUSHORTCUT=0',"/DIAGNOSTICS=`"$report`"","/D=$target")
         Check ((Get-Content (Join-Path $target 'program.txt') -Raw) -eq 'fixture') 'NSIS did not publish its text payload.'

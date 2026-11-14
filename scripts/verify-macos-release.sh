@@ -14,12 +14,12 @@ validate_ticket() {
   done
 }
 shopt -s nullglob
-archives=("$directory"/ccBox-*-macos-arm64.dmg)
-if [[ ${#archives[@]} != 1 ]]; then echo 'Expected exactly one ccBox DMG.' >&2; exit 1; fi
+archives=("$directory"/CCBox-*-macos-arm64.dmg)
+if [[ ${#archives[@]} != 1 ]]; then echo 'Expected exactly one CCBox DMG.' >&2; exit 1; fi
 sources=("$directory"/mihomo-v*-source.tar.gz)
 if [[ ${#sources[@]} != 1 ]]; then echo 'Expected exactly one Mihomo source archive.' >&2; exit 1; fi
 archive="${archives[0]}"
-version="${archive##*/ccBox-}"
+version="${archive##*/CCBox-}"
 version="${version%-macos-arm64.dmg}"
 guest_source="$directory/cage-macos-guest-$version-source.tar.gz"
 [[ -f "$guest_source" ]] || { echo 'Expected the matching macOS guest corresponding source archive.' >&2; exit 1; }
@@ -53,4 +53,4 @@ cmp "$guest_source" "$bundle/Contents/Resources/guest-os/sources/${guest_source#
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 node "$script_dir/guest-os/collect-macos-sshfs-sources.mjs" verify "$guest_source" \
   "$bundle/Contents/Resources/guest-os/project/cage-sshfs" "$version"
-echo "Verified Developer ID, notarization, Gatekeeper, version and corresponding source: ccBox $version"
+echo "Verified Developer ID, notarization, Gatekeeper, version and corresponding source: CCBox $version"

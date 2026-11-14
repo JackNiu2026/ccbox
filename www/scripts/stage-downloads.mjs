@@ -21,7 +21,7 @@ export async function readSiteRelease(siteDirectory = site, baseline) {
 export async function stageDownloads({ inputs, notes, siteDirectory = site }) {
   const version = (await readFile(new URL('../../VERSION', import.meta.url), 'utf8')).trim();
   if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) throw new Error('Invalid repository VERSION');
-  if (!notes) throw new Error('Provide the ccBox release notes with --notes');
+  if (!notes) throw new Error('Provide the CCBox release notes with --notes');
   const releaseNotes = (await readFile(notes, 'utf8')).trim();
   if (!releaseNotes) throw new Error('Release notes must not be empty');
   if (upstreamReleaseURL.test(releaseNotes)) throw new Error('Release notes contain an upstream URL');
@@ -37,10 +37,10 @@ export async function stageDownloads({ inputs, notes, siteDirectory = site }) {
     const sums = await readFile(join(output, 'SHA256SUMS'), 'utf8');
     const metadata = { version, releaseURL: base + notesName };
     const installers = {
-      downloadURL: `ccBox-${version}-macos-arm64.dmg`,
-      windowsDownloadURL: `ccBox-${version}-windows-amd64-setup.exe`,
-      linuxDownloadURL: `ccBox-${version}-linux-amd64.deb`,
-      androidDownloadURL: `ccBox-${version}-android-arm64.apk`,
+      downloadURL: `CCBox-${version}-macos-arm64.dmg`,
+      windowsDownloadURL: `CCBox-${version}-windows-amd64-setup.exe`,
+      linuxDownloadURL: `CCBox-${version}-linux-amd64.deb`,
+      androidDownloadURL: `CCBox-${version}-android-arm64.apk`,
     };
     for (const [key, name] of Object.entries(installers)) {
       if (result.assets.includes(name)) metadata[key] = base + name;
@@ -67,7 +67,7 @@ async function main() {
     return;
   }
   const result = await stageDownloads({ inputs: positionals, notes: values.notes });
-  console.log(`Staged ccBox ${result.version} downloads in ${result.directory}`);
+  console.log(`Staged CCBox ${result.version} downloads in ${result.directory}`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

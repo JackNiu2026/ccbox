@@ -1,10 +1,10 @@
 <div align="center">
 
-<h1>ccBox</h1>
+<h1>CCBox</h1>
 
 **Gardez Miss Claude dans une cage pour que nous puissions mieux protéger notre temps ensemble**
 
-<img src="assets/ccbox-logo.png" alt="ccBox" width="320" />
+<img src="assets/ccbox-logo.png" alt="CCBox" width="320" />
 
 [MIT](LICENSE)
 
@@ -16,48 +16,48 @@
 
 ## Assez d’Anthropic
 
-En tant qu'utilisateurs ordinaires qui souhaitent simplement parler et collaborer avec Claude, nous en avons assez de configurer des instances VPS, des profils d'empreintes digitales de navigateur et des contrôles d'environnement, tout en nous inquiétant des interdictions de compte et des pertes financières. Nous présentons **ccBox** — **une application de bureau prête à l'emploi : configurez votre propre proxy réseau et gérez votre environnement isolé, votre fuseau horaire, votre langue et vos contrôles d'environnement en un seul endroit.**
+En tant qu'utilisateurs ordinaires qui souhaitent simplement parler et collaborer avec Claude, nous en avons assez de configurer des instances VPS, des profils d'empreintes digitales de navigateur et des contrôles d'environnement, tout en nous inquiétant des interdictions de compte et des pertes financières. Nous présentons **CCBox** — **une application de bureau prête à l'emploi : configurez votre propre proxy réseau et gérez votre environnement isolé, votre fuseau horaire, votre langue et vos contrôles d'environnement en un seul endroit.**
 
-ccBox réunit terminal, navigateur, éditeur et Claude Desktop officiel dans un même espace de travail isolé. Utilisez une machine virtuelle macOS sur Mac, Windows sur un PC compatible, ou un environnement Linux léger. Partagez les projets de votre choix, gérez le réseau séparément, connectez votre serveur par SSH et poursuivez vos tâches depuis votre téléphone. Ses principales fonctions :
+CCBox réunit terminal, navigateur, éditeur et Claude Desktop officiel dans un même espace de travail isolé. Utilisez une machine virtuelle macOS sur Mac, Windows sur un PC compatible, ou un environnement Linux léger. Partagez les projets de votre choix, gérez le réseau séparément, connectez votre serveur par SSH et poursuivez vos tâches depuis votre téléphone. Ses principales fonctions :
 
-- Paramètres réseau isolés de l'hôte ; ccBox achemine tout le trafic réseau à l'intérieur de son environnement via son propre proxy réseau
+- Paramètres réseau isolés de l'hôte ; CCBox achemine tout le trafic réseau à l'intérieur de son environnement via son propre proxy réseau
 - Paramètres d'empreinte digitale du navigateur isolés de l'hôte, y compris le fuseau horaire et la langue, avec synchronisation automatique avec l'emplacement IP du proxy réseau
 - Intégration tout au long du flux de travail Claude : connexion au navigateur, autorisation de compte et processus Claude Code
 - Les contrôles de réseau et d'isolement intégrés interrompent l'accès à Internet lorsque les contrôles critiques échouent ou que les preuves sont incomplètes ; les contrôles communautaires et tiers fournissent des informations de référence supplémentaires
 
-**Résultats de la vérification de l'environnement avec ccBox :**
+**Résultats de la vérification de l'environnement avec CCBox :**
 
-## Ce que vous pouvez faire avec ccBox
+## Ce que vous pouvez faire avec CCBox
 
-- **Travaillez dans une seule fenêtre.** Exécutez Claude Code dans le terminal, examinez les modifications dans l'éditeur et utilisez le navigateur ccBox pour prévisualiser les services et vous connecter.
+- **Travaillez dans une seule fenêtre.** Exécutez Claude Code dans le terminal, examinez les modifications dans l'éditeur et utilisez le navigateur CCBox pour prévisualiser les services et vous connecter.
 - **Développez dans votre système habituel.** Choisissez un système invité macOS, Windows ou Linux avec ses outils, ou clonez le système hôte pour créer un environnement indépendant et propre. [Choisir le système invité](docs/guide/guest-systems.md)
 - **Contrôlez ce que vous partagez.** Seuls l'espace de travail par défaut et les dossiers de projet explicitement ouverts sont partagés. L'état de connexion Claude de l'hôte, les profils de navigateur et les clés SSH ne sont pas importés automatiquement.
 - **Consultez l'état de votre réseau.** La gestion intégrée du proxy réseau vous permet d'importer des abonnements, de sélectionner des points de terminaison et de vérifier l'adresse IP de sortie. L'environnement reste hors ligne jusqu'à ce que les vérifications critiques soient réussies. Si le proxy réseau n'est pas disponible, il n'est pas possible de recourir à une connexion directe.
 - **Continuez la prochaine fois.** Les outils, les fichiers et l'état de connexion persistent sur le disque virtuel. Les tâches en arrière-plan peuvent continuer à s'exécuter lorsque vous fermez la fenêtre.
 - **Gérez plusieurs comptes Claude Code.** Consultez les quotas, attribuez les comptes aux nouvelles sessions et, avec une autorisation explicite, changez de compte en conservant l’historique. [Claude Code](docs/guide/accounts.md)
 - **Poursuivez depuis votre téléphone.** Associez Android ou iPhone à l’ordinateur par QR code ou code d’association. Retrouvez les mêmes conversations Claude Code, envoyez des messages, approuvez les outils et utilisez le navigateur distant ou la fenêtre Claude Desktop de l’ordinateur.
-- **Exécutez ccBox dans le cloud.** Connectez-vous par SSH à ccBox déployé sur un VPS Linux x86_64 compatible, sans KVM. Les données et la sortie réseau restent sur le serveur.
-- **Connectez-vous par un réseau privé.** Connectez Tailscale dans ccBox pour accéder par SSH à l’hôte et à l’environnement dans les deux sens. [Tailscale / SSH](docs/guide/tailscale.md)
+- **Exécutez CCBox dans le cloud.** Connectez-vous par SSH à CCBox déployé sur un VPS Linux x86_64 compatible, sans KVM. Les données et la sortie réseau restent sur le serveur.
+- **Connectez-vous par un réseau privé.** Connectez Tailscale dans CCBox pour accéder par SSH à l’hôte et à l’environnement dans les deux sens. [Tailscale / SSH](docs/guide/tailscale.md)
 
 ## Démarrage rapide
 
 Envoyez cette demande à votre agent IA (codex, dsh, workbuddy — probablement pas Claude Code 😁) :
 
 ```markdown
-Aide-moi à installer ccBox et configurez le proxy réseau de ccBox pour utiliser le point de terminaison xxx dans mon installation Clash locale.
+Aide-moi à installer CCBox et configurez le proxy réseau de CCBox pour utiliser le point de terminaison xxx dans mon installation Clash locale.
 ```
 
 Tout ce dont vous avez besoin est un point de terminaison proxy réseau fiable. Ce projet ne fait la promotion d'aucun fournisseur de proxy ; vous pouvez trouver un fournisseur vous-même, par exemple en recherchant le site Web Black Error.
 
 ## Téléchargement et installation
 
-ccBox prend en charge macOS, Windows et Linux : Apple Silicon avec macOS 14+, Windows 10 22H2 / 11 x64 et Debian 12 / Ubuntu 22.04 / 24.04 x86_64. Intel Mac, Windows ARM64 et Linux ARM64 ne sont pas encore pris en charge. [macOS](docs/getting-started.md) · [Windows](docs/windows.md) · [Linux](docs/linux.md).
+CCBox prend en charge macOS, Windows et Linux : Apple Silicon avec macOS 14+, Windows 10 22H2 / 11 x64 et Debian 12 / Ubuntu 22.04 / 24.04 x86_64. Intel Mac, Windows ARM64 et Linux ARM64 ne sont pas encore pris en charge. [macOS](docs/getting-started.md) · [Windows](docs/windows.md) · [Linux](docs/linux.md).
 
 1. Télécharger l’application: [macOS / Windows / Linux](docs/guide/installation.md).
-2. macOS: Ouvrez le package d'installation et faites glisser **ccBox** dans **Applications**; puis lancez-le depuis Applications. Windows: [Guide d’installation](docs/windows.md#安装并开始工作) · Linux: [Guide d’installation](docs/linux.md#安装并开始工作).
+2. macOS: Ouvrez le package d'installation et faites glisser **CCBox** dans **Applications**; puis lancez-le depuis Applications. Windows: [Guide d’installation](docs/windows.md#安装并开始工作) · Linux: [Guide d’installation](docs/linux.md#安装并开始工作).
 3. Suivez les instructions de l'application pour configurer votre propre proxy réseau, démarrer l'environnement et ouvrir un projet.
 
-L’installateur comprend l’espace de travail et le moteur de proxy. Inutile d’installer Go, Node.js, Docker ou Clash au préalable. À la création, choisissez le système invité et son emplacement, puis préparez l’image officielle et les outils. ccBox ne fournit ni licence de système, ni service proxy, ni compte Claude.
+L’installateur comprend l’espace de travail et le moteur de proxy. Inutile d’installer Go, Node.js, Docker ou Clash au préalable. À la création, choisissez le système invité et son emplacement, puis préparez l’image officielle et les outils. CCBox ne fournit ni licence de système, ni service proxy, ni compte Claude.
 
 Le code source et les installateurs sont publics. Consultez les notes et les sommes de contrôle dans [Releases](docs/guide/installation.md).
 
@@ -73,16 +73,16 @@ Sur la page d'accueil, cliquez sur « Configurer le réseau et le proxy », pu
 
 ### 2. Démarrez l'environnement
 
-À la première création, choisissez le système invité ou le clonage du système hôte, puis le stockage. Démarrez l’environnement ccBox et suivez l’installation et les autorisations. La progression et les erreurs figurent dans les détails de l’opération. Les lancements suivants réutilisent le même environnement.
+À la première création, choisissez le système invité ou le clonage du système hôte, puis le stockage. Démarrez l’environnement CCBox et suivez l’installation et les autorisations. La progression et les erreurs figurent dans les détails de l’opération. Les lancements suivants réutilisent le même environnement.
 
 ### 3. Ouvrez un projet et exécutez Claude
 
-Cliquez sur « Ouvrir le projet » pour sélectionner un dossier sur votre ordinateur, ouvrez un nouveau terminal et entrez `claude`; puis autorisez votre propre compte dans le navigateur ccBox. Vous pouvez également commencer avec l'espace de travail par défaut sans préparer de projet. Pour les étapes complètes, voir [Commencer](docs/getting-started.md).
+Cliquez sur « Ouvrir le projet » pour sélectionner un dossier sur votre ordinateur, ouvrez un nouveau terminal et entrez `claude`; puis autorisez votre propre compte dans le navigateur CCBox. Vous pouvez également commencer avec l'espace de travail par défaut sans préparer de projet. Pour les étapes complètes, voir [Commencer](docs/getting-started.md).
 
 ## Comprendre ces limites avant utilisation
 
-- Les modifications et suppressions dans les projets partagés affectent directement les fichiers sur votre ordinateur. Utilisez le contrôle de version ou les sauvegardes. Le dossier `.git` du projet est accessible en lecture et en écriture ; vous pouvez préparer des modifications, créer des commits et changer de branche dans ccBox.
-- Tous les projets partagent un environnement ccBox, y compris ses outils, ses comptes et son système de fichiers macOS / Windows / Debian / Ubuntu 22.04. Les projets ne sont pas isolés les uns des autres.
+- Les modifications et suppressions dans les projets partagés affectent directement les fichiers sur votre ordinateur. Utilisez le contrôle de version ou les sauvegardes. Le dossier `.git` du projet est accessible en lecture et en écriture ; vous pouvez préparer des modifications, créer des commits et changer de branche dans CCBox.
+- Tous les projets partagent un environnement CCBox, y compris ses outils, ses comptes et son système de fichiers macOS / Windows / Debian / Ubuntu 22.04. Les projets ne sont pas isolés les uns des autres.
 - Par défaut, les sorties publiques prennent en charge IPv4 TCP et DNS passe par le même proxy. UDP, IPv6, ICMP publics et les accès directs à l’hôte ou au réseau local sont limités. En activant Tailscale, les accès aux appareils suivent les règles du réseau privé.
 - Les vérifications du réseau montrent la configuration actuelle et des échantillons de preuves. Ils ne peuvent pas garantir qu’un compte évitera les restrictions de la plateforme et ne remplacent pas un audit complet de sécurité de la virtualisation.
 
@@ -107,13 +107,13 @@ La cage est dérivée de agent-vm.
 
 La licence principale du projet est [MIT](LICENSE). Les composants groupés conservent leurs licences respectives. Mihomo est distribué sous forme d'exécutable distinct sous GPL-3.0. Voir aussi [NOTICE](NOTICE) · [Licences tierces](THIRD_PARTY_LICENSES) · [noVNC](ui/vendor/novnc/LICENSE.txt)。
 
-ccBox est un projet communautaire indépendant et n'est pas affilié à Anthropic.
+CCBox est un projet communautaire indépendant et n'est pas affilié à Anthropic.
 
 ## Références et remerciements
 
 Merci aux projets suivants pour leurs capacités fondamentales et leurs références de conception :
 
-- agent-vm: la fondation amont de ccBox.
+- agent-vm: la fondation amont de CCBox.
 - Lima: Gestion des machines virtuelles Linux.
 - gvisor-tap-vsock: mise en réseau de machines virtuelles.
 - sshocker et SFTP: partage de fichiers entre la machine virtuelle et l'hôte.

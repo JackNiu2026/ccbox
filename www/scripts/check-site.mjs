@@ -55,20 +55,20 @@ const published = await readSiteRelease(path.join(root, 'www'));
 const version = fs.readFileSync(path.join(root, 'VERSION'), 'utf8').trim();
 assert.equal(published.version, version, 'Website release version must match VERSION');
 const downloadNames = {
-  downloadURL: `ccBox-${version}-macos-arm64.dmg`,
-  windowsDownloadURL: `ccBox-${version}-windows-amd64-setup.exe`,
-  linuxDownloadURL: `ccBox-${version}-linux-amd64.deb`,
-  androidDownloadURL: `ccBox-${version}-android-arm64.apk`,
+  downloadURL: `CCBox-${version}-macos-arm64.dmg`,
+  windowsDownloadURL: `CCBox-${version}-windows-amd64-setup.exe`,
+  linuxDownloadURL: `CCBox-${version}-linux-amd64.deb`,
+  androidDownloadURL: `CCBox-${version}-android-arm64.apk`,
 };
 for (const [field, name] of Object.entries(downloadNames)) {
   if (published[field]) assert.equal(published[field], `/downloads/${version}/${name}`);
 }
 const expectedDownloads = Object.entries(downloadNames).filter(([field]) => published[field]).map(([, name]) => name);
 const previewNames = {
-  macosPreview: `ccBox-${version}-macos-arm64-test.dmg`,
-  windowsPreview: `ccBox-${version}-windows-amd64-setup-unsigned.exe`,
-  linuxPreview: `ccBox-${version}-linux-amd64.deb`,
-  androidPreview: `ccBox-${version}-android-arm64-debug.apk`,
+  macosPreview: `CCBox-${version}-macos-arm64-test.dmg`,
+  windowsPreview: `CCBox-${version}-windows-amd64-setup-unsigned.exe`,
+  linuxPreview: `CCBox-${version}-linux-amd64.deb`,
+  androidPreview: `CCBox-${version}-android-arm64-debug.apk`,
 };
 const previewLinks = Object.entries(previewNames).filter(([field]) => published[field]);
 for (const [field, name] of previewLinks) {
@@ -121,7 +121,7 @@ for (const code of codes) {
   assert.ok(!html.includes('/Users/'), `${code}: local developer path leaked`);
   if (published.downloadURL) assert.ok(html.includes(`href="${published.downloadURL}"`), code + ": macOS download is missing");
   const downloadSection = html.match(/<section\b[^>]*id="download"[^>]*>([\s\S]*?)<\/section>/)?.[1];
-  assert.ok(downloadSection?.includes(`ccBox · v${published.version}`), `${code}: download release label must follow published metadata`);
+  assert.ok(downloadSection?.includes(`CCBox · v${published.version}`), `${code}: download release label must follow published metadata`);
   assert.ok(!downloadSection?.includes('CLAUDE CAGE · ALPHA'), `${code}: stale release channel label`);
   assert.equal([...html.matchAll(/<a\b[^>]*\bdata-download-open(?:\s|>)/g)].length, 3, `${code}: all download entries must open the platform chooser`);
   assert.ok(html.includes('aria-labelledby="platform-title"'), `${code}: platform dialog has no accessible title`);
@@ -203,7 +203,7 @@ for (const name of ["workbench-preview.jpg", "first-launch-preview.jpg"]) {
   assert.ok(home.includes(`src="/${name}"`), name + ": homepage preview missing");
 }
 assert.ok(home.includes('class="first-look"') && home.includes('class="evidence-grid"'), "Homepage preview sections missing");
-assert.match(home, /src="[^"]*browser-checks[^"]*"/, "ccBox browser-check preview missing");
+assert.match(home, /src="[^"]*browser-checks[^"]*"/, "CCBox browser-check preview missing");
 assert.doesNotMatch(home, /community-browser-check|FuckClaude/i, "Upstream browser-check material remains");
 for (const file of ["docs/index.html", "docs/workbench/index.html"]) {
   assert.ok(fs.readFileSync(path.join(dist, file), "utf8").includes('src="/first-launch-preview.jpg"'), file + ": startup preview missing");

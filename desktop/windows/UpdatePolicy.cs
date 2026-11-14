@@ -58,7 +58,7 @@ internal static partial class UpdatePolicy
         if (!string.Equals(Path.GetDirectoryName(directory), Path.GetFullPath(updateRoot).TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase) ||
             !Path.GetFileName(directory).StartsWith("download-", StringComparison.Ordinal) ||
             !string.Equals(Path.GetFileName(path), "Cage-setup.exe", StringComparison.Ordinal))
-            throw new InvalidDataException("更新安装包不属于 ccBox 的私有下载目录");
+            throw new InvalidDataException("更新安装包不属于 CCBox 的私有下载目录");
         return path;
     }
 

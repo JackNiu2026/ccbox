@@ -1,4 +1,4 @@
-name: Build ccBox release candidates
+name: Build CCBox release candidates
 on:
   workflow_dispatch:
     inputs:
@@ -44,7 +44,7 @@ jobs:
           node scripts/release-version.mjs source "$BUILD_REF"
           git merge-base --is-ancestor "$BUILD_REF" origin/main
           if grep -Fq 'https://43.142.88.90' internal/mobilelink/link.go; then
-            echo 'Replace the inherited default relay with the verified ccBox HTTPS relay before building public candidates.' >&2
+            echo 'Replace the inherited default relay with the verified CCBox HTTPS relay before building public candidates.' >&2
             exit 1
           fi
           if [[ "$PLATFORM" == all || "$PLATFORM" == linux ]]; then

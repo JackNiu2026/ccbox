@@ -4,10 +4,10 @@ cd "$(dirname "$0")/.."
 if [[ "$(uname -s)" != Darwin ]]; then echo 'ccBox.app must be built on macOS.' >&2; exit 1; fi
 case "${1:-}" in ''|--install|--macos-trial|--install-macos-trial) ;; *) echo 'Usage: scripts/build-app.sh [--install|--macos-trial|--install-macos-trial]' >&2; exit 2 ;; esac
 bundle_id=org.ccbox.desktop
-app_name=ccBox
+app_name=CCBox
 if [[ "${1:-}" == *macos-trial ]]; then
   bundle_id+=.macos-trial
-  app_name='ccBox macOS'
+  app_name='CCBox macOS'
 fi
 installed_app="$HOME/Applications/$app_name.app"
 app_destination="${CAGE_BUILD_OUTPUT:-$PWD/_output/$app_name.app}"
@@ -16,16 +16,16 @@ check_destination() {
   local target="$1"
   [[ ! -e "$target" ]] && return 0
   if [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$target/Contents/Info.plist" 2>/dev/null)" != "$bundle_id" ]]; then
-    echo 'Build destination is not a ccBox application.' >&2; exit 1
+    echo 'Build destination is not a CCBox application.' >&2; exit 1
   fi
   if ! codesign --verify --deep --strict "$target"; then
-    echo '现有 ccBox 应用包含修改内容或无法验证完整性，已保留。请将个人文件移出应用包，或选择新的构建目录后重试。' >&2
+    echo '现有 CCBox 应用包含修改内容或无法验证完整性，已保留。请将个人文件移出应用包，或选择新的构建目录后重试。' >&2
     exit 1
   fi
   local running_pids
   running_pids="$(/usr/sbin/lsof -t "$target/Contents/MacOS/Cage" "$target/Contents/Resources/cage" 2>/dev/null || true)"
   if [[ -n "$running_pids" ]]; then
-    echo 'ccBox is running from this destination. Quit it before replacing the App.' >&2; exit 1
+    echo 'CCBox is running from this destination. Quit it before replacing the App.' >&2; exit 1
   fi
 }
 check_destination "$app_destination"

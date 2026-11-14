@@ -26,10 +26,10 @@ async function releaseNames() {
   }
   return {
     version,
-    mac: `ccBox-${version}-macos-arm64.dmg`,
-    windows: `ccBox-${version}-windows-amd64-setup.exe`,
-    linux: `ccBox-${version}-linux-amd64.deb`,
-    android: `ccBox-${version}-android-arm64.apk`,
+    mac: `CCBox-${version}-macos-arm64.dmg`,
+    windows: `CCBox-${version}-windows-amd64-setup.exe`,
+    linux: `CCBox-${version}-linux-amd64.deb`,
+    android: `CCBox-${version}-android-arm64.apk`,
     linuxSource: linuxDependencies.mihomoSource.file,
     macSource: `mihomo-${macCore}-source.tar.gz`,
     macGuestSource: `cage-macos-guest-${version}-source.tar.gz`,
@@ -108,7 +108,7 @@ export async function prepareReleaseAssets({ inputs, output }) {
     const info = await lstat(directory);
     if (!info.isDirectory() || info.isSymbolicLink()) throw new Error(`Expected a platform release directory: ${directory}`);
     const files = await readdir(directory);
-    if (files.some(name => /^ccBox-.*-windows-.*-unsigned\.exe$/i.test(name) || name === 'DEVELOPMENT-BUILD.txt')) {
+    if (files.some(name => /^CCBox-.*-windows-.*-unsigned\.exe$/i.test(name) || name === 'DEVELOPMENT-BUILD.txt')) {
       throw new Error(`Unsigned Windows development build cannot be prepared for release: ${directory}`);
     }
     if (files.some(name => /(?:-debug|cage-mobile-debug)\.apk$/i.test(name))) {
@@ -181,7 +181,7 @@ async function main() {
     return;
   }
   const result = await prepareReleaseAssets({ inputs: positionals, output: values.output });
-  console.log(`Prepared ccBox ${result.version}: ${result.assets.length} verified assets and one SHA256SUMS in ${result.directory}`);
+  console.log(`Prepared CCBox ${result.version}: ${result.assets.length} verified assets and one SHA256SUMS in ${result.directory}`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

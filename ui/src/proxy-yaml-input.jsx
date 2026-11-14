@@ -203,7 +203,7 @@ export function ProxyYAMLInput({
         />
       </label>
       <p className="field-help">
-        只导入节点和明确的代理链，ccBox 自行管理 DNS、监听端口及出站规则。
+        只导入节点和明确的代理链，CCBox 自行管理 DNS、监听端口及出站规则。
       </p>
     </div>
   );

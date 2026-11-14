@@ -8,7 +8,7 @@ import { readSiteRelease, stageDownloads } from './stage-downloads.mjs';
 
 const version = (await readFile(new URL('../../VERSION', import.meta.url), 'utf8')).trim();
 const dependencies = JSON.parse(await readFile(new URL('../../packaging/linux/dependencies.json', import.meta.url), 'utf8'));
-const installer = `ccBox-${version}-linux-amd64.deb`;
+const installer = `CCBox-${version}-linux-amd64.deb`;
 const source = dependencies.mihomoSource.file;
 const digest = data => createHash('sha256').update(data).digest('hex');
 
@@ -19,7 +19,7 @@ async function fixture(t) {
   const site = join(root, 'site');
   const notes = join(root, 'notes.md');
   await mkdir(input);
-  await writeFile(notes, '# ccBox\n\nLinux release fixture.\n');
+  await writeFile(notes, '# CCBox\n\nLinux release fixture.\n');
   const assets = { [installer]: 'installer fixture', [source]: 'source fixture' };
   for (const [name, data] of Object.entries(assets)) await writeFile(join(input, name), data);
   await writeFile(join(input, 'SHA256SUMS'), Object.entries(assets).map(([name, data]) => `${digest(data)}  ${name}\n`).join(''));
@@ -60,7 +60,7 @@ test('rejects release notes that direct users to the upstream project', async t 
 
 test('stages the current Android release APK as a same-origin download', async t => {
   const f = await fixture(t);
-  const apk = `ccBox-${version}-android-arm64.apk`;
+  const apk = `CCBox-${version}-android-arm64.apk`;
   const contents = 'verified release APK fixture';
   await writeFile(join(f.input, apk), contents);
   await writeFile(join(f.input, 'SHA256SUMS'), `${digest(contents)}  ${apk}\n`);
@@ -73,7 +73,7 @@ test('stages the current Android release APK as a same-origin download', async t
 
 test('rejects an Android development APK even if the same directory includes a valid release', async t => {
   const f = await fixture(t);
-  await writeFile(join(f.input, `ccBox-${version}-android-arm64-debug.apk`), 'development APK');
+  await writeFile(join(f.input, `CCBox-${version}-android-arm64-debug.apk`), 'development APK');
   await assert.rejects(stageDownloads({ inputs: [f.input], siteDirectory: f.site, notes: f.notes }), /Android development build/);
   assert.deepEqual(await readSiteRelease(f.site, { version }), { version });
 });

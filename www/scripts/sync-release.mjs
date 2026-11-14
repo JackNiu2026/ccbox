@@ -23,7 +23,7 @@ export async function request(url, timeout = 180_000, { fetchImpl = fetch } = {}
   const metadata = target.origin === 'https://api.github.com' &&
     (target.pathname === `/repos/${repository}/releases` || target.pathname.startsWith(`/repos/${repository}/releases/`));
   const options = {
-    headers: { 'User-Agent': 'ccBox-Release-Verification', Accept: metadata ? 'application/vnd.github+json' : 'application/octet-stream' },
+    headers: { 'User-Agent': 'CCBox-Release-Verification', Accept: metadata ? 'application/vnd.github+json' : 'application/octet-stream' },
     signal: AbortSignal.timeout(timeout),
   };
   let response = await fetchImpl(url, options);
@@ -54,14 +54,14 @@ export async function publicManifestRelease(tag, fetchImpl = fetch) {
   }
   const version = tag.slice(1);
   const allowed = name => [
-    `ccBox-${version}-macos-arm64.dmg`, `ccBox-${version}-windows-amd64-setup.exe`,
-    `ccBox-${version}-windows-amd64-setup-unsigned.exe`, `ccBox-${version}-linux-amd64.deb`,
-    `ccBox-${version}-android-arm64.apk`,
+    `CCBox-${version}-macos-arm64.dmg`, `CCBox-${version}-windows-amd64-setup.exe`,
+    `CCBox-${version}-windows-amd64-setup-unsigned.exe`, `CCBox-${version}-linux-amd64.deb`,
+    `CCBox-${version}-android-arm64.apk`,
   ].includes(name) || sourceArchive(name);
   if ([...names.keys()].some(name => !allowed(name))) throw new Error('Unexpected public release asset');
   const assets = [{ name: 'SHA256SUMS', state: 'uploaded', size: Buffer.byteLength(text), browser_download_url: `${base}SHA256SUMS` }];
   for (const [name, digest] of names) {
-    const response = await fetchImpl(`${base}${name}`, { method: 'HEAD', headers: { 'User-Agent': 'ccBox-Release-Verification' }, signal: AbortSignal.timeout(180_000) });
+    const response = await fetchImpl(`${base}${name}`, { method: 'HEAD', headers: { 'User-Agent': 'CCBox-Release-Verification' }, signal: AbortSignal.timeout(180_000) });
     const size = Number(response.headers.get('content-length'));
     const maximum = (sourceArchive(name) ? 2048 : 512) * 1024 * 1024;
     if (!response.ok || !Number.isSafeInteger(size) || size <= 0 || size > maximum) throw new Error(`Missing or incomplete public asset: ${name}`);
@@ -74,10 +74,10 @@ export async function publicManifestRelease(tag, fetchImpl = fetch) {
 
 export function releaseAssets(release) {
   if (release.draft || !/^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(release.tag_name)) {
-    throw new Error('Expected a published ccBox version tag');
+    throw new Error('Expected a published CCBox version tag');
   }
   const version = release.tag_name.slice(1);
-  const names = [`ccBox-${version}-macos-arm64.dmg`, 'SHA256SUMS'];
+  const names = [`CCBox-${version}-macos-arm64.dmg`, 'SHA256SUMS'];
   const assets = names.map(name => release.assets.find(asset => asset.name === name));
   const source = release.assets.find(asset => /^mihomo-v[\d.]+-source\.tar\.gz$/.test(asset.name));
   assets.push(source);
@@ -90,9 +90,9 @@ export function releaseAssets(release) {
     }
   }
   if (assets[1].size > 64 * 1024) throw new Error('Checksum file is too large');
-  const windows = optionalAsset(release, `ccBox-${version}-windows-amd64-setup.exe`);
-  const linux = optionalAsset(release, `ccBox-${version}-linux-amd64.deb`);
-  const android = optionalAsset(release, `ccBox-${version}-android-arm64.apk`);
+  const windows = optionalAsset(release, `CCBox-${version}-windows-amd64-setup.exe`);
+  const linux = optionalAsset(release, `CCBox-${version}-linux-amd64.deb`);
+  const android = optionalAsset(release, `CCBox-${version}-android-arm64.apk`);
   const guestSource = optionalAsset(release, `cage-macos-guest-${version}-source.tar.gz`);
   return { version, archive: assets[0], checksums: assets[1], source, windows, linux, android, guestSource };
 }
@@ -130,7 +130,7 @@ export function releaseMetadata(release, text) {
     }
   }
   if (!metadata.windowsDownloadURL && release.prerelease) {
-    const unsigned = optionalAsset(release, `ccBox-${version}-windows-amd64-setup-unsigned.exe`);
+    const unsigned = optionalAsset(release, `CCBox-${version}-windows-amd64-setup-unsigned.exe`);
     const qemu = release.assets.find(asset => /^qemu-[0-9a-f]{40}-source\.tar\.gz$/.test(asset.name));
     if (unsigned && qemu && optionalAsset(release, qemu.name)) {
       try {

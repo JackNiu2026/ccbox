@@ -48,7 +48,7 @@ function readCopy(language: typeof languages[number]) {
   const limit = plain(bullets(boundaries.body).at(-1)!);
   return {
     ...language,
-    home: 'ccBox', start: quick.title, boundary: boundaries.title,
+    home: 'CCBox', start: quick.title, boundary: boundaries.title,
     uiPreviewLabel: language.code === 'zh' ? '界面预览' : language.code === 'zh-TW' ? '介面預覽' : 'UI preview',
     why: reason.title, whyText: reasonParagraphs[0], whyNote: limit,
     keyFeatures: bullets(reason.body).map(plain),

@@ -184,14 +184,14 @@ function main([command, ...args]) {
   const root = fileURLToPath(new URL('../', import.meta.url));
   if (command === 'source' && args.length === 1) {
     const { version, ref } = verifyReleaseSource(root, args[0]);
-    console.log(`ccBox ${version}: ${ref}`);
+    console.log(`CCBox ${version}: ${ref}`);
     return;
   }
   if (command === 'verify-packages' && args.length >= 3) {
     const [ref, platforms, ...paths] = args;
     const source = verifyReleaseSource(root, ref);
     selectReleasePackages(platforms, paths.map(path => JSON.parse(readFileSync(path, 'utf8'))), source);
-    console.log(`Verified ccBox ${source.version} packages (${platforms}) at ${ref}`);
+    console.log(`Verified CCBox ${source.version} packages (${platforms}) at ${ref}`);
     return;
   }
   const [platform, output] = args;

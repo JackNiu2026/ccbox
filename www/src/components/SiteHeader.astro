@@ -3,13 +3,13 @@ import '@fontsource-variable/inter';
 import '../styles/site-header.css';
 interface Props { homeHref?: string; homeLabel?: string }
 const base = import.meta.env.BASE_URL;
-const { homeHref = base, homeLabel = 'ccBox' } = Astro.props;
+const { homeHref = base, homeLabel = 'CCBox' } = Astro.props;
 ---
 <header class="site-header">
   <div class="home-nav wrap">
     <a class="brand" href={homeHref} aria-label={homeLabel}>
       <img src={base + 'ccbox-icon.svg'} width="36" height="36" alt="" />
-      <span>ccBox</span>
+      <span>CCBox</span>
     </a>
     <nav class="home-nav-links">
       <slot name="links">

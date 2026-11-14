@@ -20,7 +20,7 @@ func macOSFileFailure(reason string) error {
 	case "requires_gui_login":
 		return errors.New("请先登录并解锁虚拟 Mac 的普通账户")
 	case "accessibility_permission":
-		return errors.New("请在虚拟 Mac 中允许 ccBox Guest Window 使用辅助功能，再重新传递文件")
+		return errors.New("请在虚拟 Mac 中允许 CCBox Guest Window 使用辅助功能，再重新传递文件")
 	case "window_changed", "file_dialog_changed", "gui_session_changed", "attachment_cancelled":
 		return errors.New("接收文件的 Claude 窗口已变化，请回到原窗口重新选择文件")
 	case "file_dialog_navigation_failed", "file_dialog_still_open", "file_dialog_selection_mismatch":

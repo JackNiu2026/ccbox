@@ -1,4 +1,4 @@
-name: Assemble ccBox website with verified release downloads
+name: Assemble CCBox website with verified release downloads
 on:
   workflow_dispatch:
     inputs:
@@ -44,7 +44,7 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: www/package-lock.json
-      - name: Retrieve only successful ccBox release artifacts
+      - name: Retrieve only successful CCBox release artifacts
         run: |
           set -euo pipefail
           node scripts/release-version.mjs source "$BUILD_REF"
@@ -79,7 +79,7 @@ jobs:
           done
           node scripts/release-version.mjs verify-packages "$BUILD_REF" "$RELEASE_PLATFORMS" "${metadata_files[@]}"
           notes="$RUNNER_TEMP/ccbox-release-notes.md"
-          printf '# ccBox %s\n\n源码提交 / Source commit: %s\n\n安装前请核对 SHA-256。\n' "$version" "$BUILD_REF" > "$notes"
+          printf '# CCBox %s\n\n源码提交 / Source commit: %s\n\n安装前请核对 SHA-256。\n' "$version" "$BUILD_REF" > "$notes"
           node www/scripts/stage-downloads.mjs --notes "$notes" "${packages[@]}"
           node --input-type=module -e '
             import { readSiteRelease } from "./www/scripts/stage-downloads.mjs";

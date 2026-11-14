@@ -82,7 +82,7 @@ func (b *Browser) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/link-bootstrap":
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			_, _ = w.Write([]byte(`<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>ccBox</title><body>正在连接 ccBox…<script src="/link-bootstrap.js"></script></body></html>`))
+			_, _ = w.Write([]byte(`<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>CCBox</title><body>正在连接 CCBox…<script src="/link-bootstrap.js"></script></body></html>`))
 			return
 		case "/link-bootstrap.js":
 			w.Header().Set("Content-Type", "text/javascript; charset=utf-8")

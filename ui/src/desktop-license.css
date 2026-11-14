@@ -1,0 +1,33 @@
+.desktop-license-form {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  max-width: 460px;
+  color: var(--ink);
+}
+.desktop-license-state {
+  width: 100%;
+  padding-block: 14px;
+  margin-bottom: 8px;
+  border-block: 1px solid var(--line);
+}
+.desktop-license-state strong { color: var(--strong); }
+.desktop-license-form p { margin: 4px 0; }
+.desktop-license-state p, .desktop-license-form details { color: var(--muted); font-size: 14px; }
+.desktop-license-form label { font-weight: 550; }
+.desktop-license-form input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--input);
+  color: var(--ink);
+  font: inherit;
+}
+.desktop-license-form input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.desktop-license-form button { min-height: 40px; }
+.desktop-license-form details { max-width: 100%; margin-top: 8px; }
+.desktop-license-form summary { cursor: pointer; }
+.desktop-license-form code { overflow-wrap: anywhere; user-select: all; }

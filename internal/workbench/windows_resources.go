@@ -142,6 +142,9 @@ func (s *Server) applyWindowsResources(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.launch(w, "resources", func() error {
+		if err := s.requireLicense(); err != nil {
+			return err
+		}
 		memory, cpus, err := s.configuredWindowsResources()
 		if err != nil {
 			return err

@@ -77,6 +77,13 @@ try {
     $env:GOOS = 'windows'
     $tags = 'external_hcs,external_wsl2,yq_noxml,yq_nolua,yq_noini,yq_nohcl,yq_notoml,yq_noprops,yq_nocsv,yq_nouri,yq_nobase64,yq_nosh,yq_noshell'
     $ldflags = "-s -w -X github.com/sylvinus/agent-vm/internal/version.Version=$version -X github.com/lima-vm/lima/v2/pkg/version.Version=$limaVersion"
+    if ($env:CCBOX_LICENSE_PUBLIC_KEY) {
+        if ($env:CCBOX_LICENSE_PUBLIC_KEY -cnotmatch '^[A-Za-z0-9_-]{43}$') { throw 'Invalid CCBox license public key.' }
+        $ldflags += " -X github.com/sylvinus/agent-vm/internal/workbench.licensePublicKey=$env:CCBOX_LICENSE_PUBLIC_KEY"
+    }
+    if ($env:CCBOX_LICENSE_LOCAL_TEST -eq '1') {
+        $ldflags += ' -X github.com/sylvinus/agent-vm/internal/workbench.licenseEndpoint=http://127.0.0.1:8791/v1/redeem'
+    }
     Invoke-BuildTool $go @('build', '-trimpath', '-tags', $tags, '-ldflags', $ldflags, '-o', (Join-Path $resources 'cage.exe'), './cmd/cage')
     Invoke-BuildTool (Join-Path $resources 'cage.exe') @('verify-vm-assets')
     Invoke-BuildTool (Join-Path $resources 'cage.exe') @('verify-web-assets')

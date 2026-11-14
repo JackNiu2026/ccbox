@@ -16,7 +16,7 @@ $ProgressPreference='SilentlyContinue'
 # result file. The ordinary parent reports the same stage to the workbench.
 $maintenanceFailures=@{
     1=@('FAILED','Windows 维护未完成。请从 Cage 重新发起原操作，仍失败时导出诊断包。')
-    41=@('VALIDATION','Windows 环境绑定或组件清单未通过校验。请重新发起原操作，组件包仍无法核验时重新安装完整 ccBox 应用。')
+    41=@('VALIDATION','Windows 环境绑定或组件清单未通过校验。请重新发起原操作，组件包仍无法核验时重新安装完整 CCBox 应用。')
     42=@('HOST_MANAGER','Windows 系统管理助手安装未完成。请重试修复系统助手，仍失败时检查系统服务或安全软件记录并导出诊断包。')
     43=@('GUEST_CONNECTION','Windows 客机连接未完成。请启动并登录已绑定客机，使用该客机的管理员账户重试。')
     44=@('GUEST_COMPONENTS','Windows 客机组件安装未完成。请保持原客机运行，重试同步环境组件，仍失败时导出诊断包。')
@@ -100,7 +100,7 @@ $kit=[IO.Path]::GetFullPath($PSScriptRoot).TrimEnd('\')+'\'
 foreach ($entry in $manifest.files) {
     $source=[IO.Path]::GetFullPath((Join-Path $kit $entry.source))
     if (!$source.StartsWith($kit,[StringComparison]::OrdinalIgnoreCase) -or (Get-Item -LiteralPath $source -Force).Attributes -band [IO.FileAttributes]::ReparsePoint -or
-        (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash -ne $entry.sha256) { throw '应用组件包已变化，请重新安装完整 ccBox 应用。' }
+        (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash -ne $entry.sha256) { throw '应用组件包已变化，请重新安装完整 CCBox 应用。' }
 }
 # The native host helper is part of the same checked component package. Update
 # its fixed-VM service during the existing administrator-authorized maintenance.

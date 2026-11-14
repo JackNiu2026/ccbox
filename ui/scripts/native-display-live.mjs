@@ -83,7 +83,7 @@ try {
 
   await point(120, 65);
   const typed = performance.now();
-  await page.keyboard.type("ccBox live 123", { delay: 30 });
+  await page.keyboard.type("CCBox live 123", { delay: 30 });
   await page.waitForFunction(() => [...document.querySelectorAll(".remote-canvas canvas")].some(element => {
     if (element.getBoundingClientRect().width < 100 || element.width < 320) return false;
     const pixel = element.getContext("2d").getImageData(20, 20, 1, 1).data;

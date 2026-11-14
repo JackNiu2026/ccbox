@@ -337,7 +337,7 @@ final class CageAppUpdater {
             try CageUpdateFiles.privateDirectory(root)
             try CageUpdateFiles.write(data, to: root.appendingPathComponent("launch-\(token).json"))
             launchAcknowledged = true
-            change(["phase": "current", "message": "ccBox 已更新至 \(state["currentVersion"] as? String ?? "")"])
+            change(["phase": "current", "message": "CCBox 已更新至 \(state["currentVersion"] as? String ?? "")"])
         } catch { failure("更新已安装，但启动确认未能保存") }
     }
     private func change(_ values: [String: Any]) {
@@ -428,7 +428,7 @@ final class CageAppUpdater {
                 DispatchQueue.main.async { if self.validationTask === task { self.validationTask = nil } }
             }
             do {
-                guard !self.bundleURL.path.hasPrefix("/Volumes/"), self.bundleURL.pathExtension == "app" else { throw CageUpdateError("请先将 ccBox 安装到应用程序目录，再自动更新") }
+                guard !self.bundleURL.path.hasPrefix("/Volumes/"), self.bundleURL.pathExtension == "app" else { throw CageUpdateError("请先将 CCBox 安装到应用程序目录，再自动更新") }
                 try CageUpdateFiles.verifyApp(prepared.app, version: prepared.version, team: prepared.team, validation: task)
                 let helper = prepared.directory.appendingPathComponent("CageUpdateInstaller")
                 let originalHelper = self.bundleURL.appendingPathComponent("Contents/Resources/CageUpdateInstaller")
@@ -496,7 +496,7 @@ final class CageAppUpdater {
                             try self.installerInput?.fileHandleForWriting.write(contentsOf: Data("COMMIT\n".utf8))
                             try self.installerInput?.fileHandleForWriting.close()
                             self.installationCommitted = true
-                            self.change(["phase": "installing", "message": "正在安装并重启 ccBox"])
+                            self.change(["phase": "installing", "message": "正在安装并重启 CCBox"])
                             self.quit()
                         } catch { self.abortInstaller(); self.failure("无法开始安装，原应用已保留"); self.reconnect() }
                     case "stop_required" where !stop:

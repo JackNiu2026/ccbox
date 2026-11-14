@@ -1,4 +1,4 @@
-name: ccBox macOS test DMG
+name: CCBox macOS test DMG
 on:
   workflow_dispatch:
     inputs:
@@ -35,21 +35,21 @@ jobs:
           stage=$(mktemp -d "$RUNNER_TEMP/ccbox-dmg.XXXXXX")
           mount=$(mktemp -d "$RUNNER_TEMP/ccbox-mount.XXXXXX")
           trap 'hdiutil detach "$mount" >/dev/null 2>&1 || true' EXIT
-          archives=("$source"/ccBox-*-macos-arm64-test.tar.gz)
+          archives=("$source"/CCBox-*-macos-arm64-test.tar.gz)
           [[ ${#archives[@]} == 1 && -f "${archives[0]}" ]]
           tar -xzf "${archives[0]}" -C "$stage"
           app="$stage/ccBox.app"
           version=$(/usr/libexec/PlistBuddy -c 'Print CageVersion' "$app/Contents/Info.plist")
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]
-          [[ "$(/usr/libexec/PlistBuddy -c 'Print CFBundleDisplayName' "$app/Contents/Info.plist")" == ccBox ]]
+          [[ "$(/usr/libexec/PlistBuddy -c 'Print CFBundleDisplayName' "$app/Contents/Info.plist")" == CCBox ]]
           [[ "$(lipo -archs "$app/Contents/MacOS/Cage")" == arm64 ]]
           test -s "$app/Contents/Resources/Cage.icns"
           codesign --verify --deep --strict "$app"
           ln -s /Applications "$stage/Applications"
           mkdir -p _output/ci-macos-dmg
           output="$PWD/_output/ci-macos-dmg"
-          artifact="ccBox-$version-macos-arm64-test.dmg"
-          hdiutil create -volname 'ccBox Test' -srcfolder "$stage" -format UDZO "$output/$artifact"
+          artifact="CCBox-$version-macos-arm64-test.dmg"
+          hdiutil create -volname 'CCBox Test' -srcfolder "$stage" -format UDZO "$output/$artifact"
           hdiutil verify "$output/$artifact"
           hdiutil attach -readonly -nobrowse -mountpoint "$mount" "$output/$artifact"
           codesign --verify --deep --strict "$mount/ccBox.app"

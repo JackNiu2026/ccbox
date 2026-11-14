@@ -50,15 +50,15 @@ func resolveProjectFilePath(guest string, projects []string) (string, error) {
 		}
 		relative, err := filepath.Rel(hostRoot, target)
 		if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) || filepath.IsAbs(relative) {
-			return "", errors.New("文件指向 ccBox 项目目录之外，无法打开")
+			return "", errors.New("文件指向 CCBox 项目目录之外，无法打开")
 		}
 		info, err := os.Stat(target)
 		if err != nil || (!info.Mode().IsRegular() && !info.IsDir()) {
-			return "", errors.New("请选择 ccBox 项目中的普通文件或文件夹")
+			return "", errors.New("请选择 CCBox 项目中的普通文件或文件夹")
 		}
 		return target, nil
 	}
-	return "", errors.New("只能打开 ccBox 项目目录中的文件和文件夹")
+	return "", errors.New("只能打开 CCBox 项目目录中的文件和文件夹")
 }
 
 func (s *Server) resolveDesktopProjectFile(guest string, projects []string) (string, error) {
@@ -95,7 +95,7 @@ func (s *Server) resolveDesktopProjectFile(guest string, projects []string) (str
 		mapped := strings.TrimRight(guestPath(project), "/") + guest[len(root):]
 		return resolveProjectFilePath(mapped, []string{project})
 	}
-	return "", errors.New("只能打开已授权 ccBox 项目中的文件和文件夹")
+	return "", errors.New("只能打开已授权 CCBox 项目中的文件和文件夹")
 }
 
 func (s *Server) desktopFileOpenAction(w http.ResponseWriter, r *http.Request) {

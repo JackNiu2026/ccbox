@@ -28,8 +28,8 @@ try {
   const { page, errors } = workbench;
   page.setDefaultTimeout(10000);
   workbench.state.settings.browser_home_url = controller.origin + '/ui-home';
-  await page.getByRole('button', { name: '启动 ccBox 环境', exact: true }).click();
-  await page.getByRole('heading', { name: 'ccBox 环境已就绪', exact: true }).waitFor();
+  await page.getByRole('button', { name: '启动 CCBox 环境', exact: true }).click();
+  await page.getByRole('heading', { name: 'CCBox 环境已就绪', exact: true }).waitFor();
   await page.getByRole('button', { name: '打开浏览器', exact: true }).click();
   await page.getByRole('tab', { name: 'Privacy fixture', exact: true }).waitFor();
   const menu = page.getByRole('button', { name: '浏览器菜单', exact: true });

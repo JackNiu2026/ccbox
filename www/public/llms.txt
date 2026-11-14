@@ -1,4 +1,4 @@
-# ccBox
+# CCBox
 
 - [Agent guide](./agent.md)
 - [Full agent guide](./llms-full.txt)

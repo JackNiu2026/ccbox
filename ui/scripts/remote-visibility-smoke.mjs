@@ -15,8 +15,8 @@ page.on("console", (message) => {
   if (message.type() === "error") browserErrors.push(message.text());
 });
 try {
-  await page.getByRole("button", { name: "启动 ccBox 环境", exact: true }).click();
-  await page.getByRole("heading", { name: "ccBox 环境已就绪", exact: true }).waitFor();
+  await page.getByRole("button", { name: "启动 CCBox 环境", exact: true }).click();
+  await page.getByRole("heading", { name: "CCBox 环境已就绪", exact: true }).waitFor();
   await page.getByRole("button", { name: "打开浏览器", exact: true }).click();
   await page.waitForFunction(() => Boolean(document.querySelector(".remote-canvas canvas")));
   await page.getByText("正在连接画面", { exact: true }).waitFor({ state: "hidden" });

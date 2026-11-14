@@ -44,7 +44,7 @@ try {
   await page.getByRole("button", { name: "下载文件", exact: true }).click();
   await dialog.getByText(item.path, { exact: true }).waitFor();
   assert.equal(calls.filter((call) => call.action === "saveBrowserDownload").length, 1, "history reopened a save dialog");
-  const openError = "文件打开关联未能完成，请在 ccBox 下载列表中打开文件。";
+  const openError = "文件打开关联未能完成，请在 CCBox 下载列表中打开文件。";
   downloads = [{ ...item, openError }];
   await dialog.getByText(openError, { exact: true }).waitFor();
   assert.equal(await page.getByRole("button", { name: "下载文件", exact: true }).getAttribute("title"), "有下载需要处理，点击查看");

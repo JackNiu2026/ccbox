@@ -14,7 +14,7 @@ version="$(tr -d '\r\n' < "$mobile_dir/../VERSION")"
 version_args=(--replace-version --version-name "$version")
 signing_args=()
 case "${1:-}" in
-  '') out="$build/ccBox-android-arm64-debug.apk" ;;
+  '') out="$build/CCBox-android-arm64-debug.apk" ;;
   --release)
     : "${CAGE_ANDROID_KEYSTORE:?Set the persistent Android signing keystore path}"
     : "${CAGE_ANDROID_KEY_ALIAS:?Set the signing key alias}"
@@ -26,7 +26,7 @@ case "${1:-}" in
     [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo 'Invalid application VERSION.' >&2; exit 2; }
     version_args+=(--version-code "$CAGE_ANDROID_VERSION_CODE")
     signing_args=(--ks "$CAGE_ANDROID_KEYSTORE" --ks-key-alias "$CAGE_ANDROID_KEY_ALIAS" --ks-pass "file:$CAGE_ANDROID_PASSWORD_FILE")
-    out="$build/ccBox-$version-android-arm64.apk"
+    out="$build/CCBox-$version-android-arm64.apk"
     ;;
   *) echo 'Usage: mobile/android/package.sh [--release]' >&2; exit 2 ;;
 esac
@@ -62,7 +62,7 @@ if [[ "${1:-}" != --release ]]; then
   key="$build/development.p12"
   if [[ ! -f "$key" ]]; then
     (umask 077; keytool -genkeypair -alias development -keyalg RSA -keysize 2048 -validity 3650 \
-      -keystore "$key" -storetype PKCS12 -storepass android -keypass android -dname "CN=ccBox local development")
+      -keystore "$key" -storetype PKCS12 -storepass android -keypass android -dname "CN=CCBox local development")
   fi
   signing_args=(--ks "$key" --ks-key-alias development --ks-pass pass:android)
 fi

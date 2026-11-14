@@ -36,8 +36,8 @@ function Run-Installer {
         throw "Installer returned $($process.ExitCode), expected $ExpectedExitCode"
     }
 }
-$desktopShortcut = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'ccBox.lnk'
-$startMenuDirectory = Join-Path ([Environment]::GetFolderPath('Programs')) 'ccBox'
+$desktopShortcut = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'CCBox.lnk'
+$startMenuDirectory = Join-Path ([Environment]::GetFolderPath('Programs')) 'CCBox'
 $otherDesktop = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'IndependentApp.lnk'
 $otherMenu = Join-Path ([Environment]::GetFolderPath('Programs')) 'IndependentApp'
 if ((Test-Path -LiteralPath $otherDesktop) -or (Test-Path -LiteralPath $otherMenu)) { throw 'The other product shortcut fixture requires a disposable user.' }
@@ -49,11 +49,11 @@ function Assert-Shortcuts {
     param([bool]$Desktop, [bool]$StartMenu)
     foreach ($file in $otherHashes) {
         if (!(Test-Path -LiteralPath $file.Path -PathType Leaf) -or (Get-FileHash -LiteralPath $file.Path -Algorithm SHA256).Hash -ne $file.Hash) {
-            throw 'ccBox changed a shortcut belonging to another product.'
+            throw 'CCBox changed a shortcut belonging to another product.'
         }
     }
     if ((Test-Path -LiteralPath $desktopShortcut) -ne $Desktop) { throw 'Desktop shortcut differs from the installer selection.' }
-    foreach ($name in @('ccBox.lnk', 'Uninstall ccBox.lnk')) {
+    foreach ($name in @('CCBox.lnk', 'Uninstall CCBox.lnk')) {
         if ((Test-Path -LiteralPath (Join-Path $startMenuDirectory $name)) -ne $StartMenu) { throw "Start menu shortcut differs from the installer selection: $name" }
     }
     if ($Desktop) {
@@ -67,7 +67,7 @@ Run-Installer
 Assert-PersonalData
 Assert-Shortcuts $true $true
 $registration = Get-ItemProperty -LiteralPath $savedKey
-if ($registration.Publisher -ne 'ccBox' -or $registration.URLInfoAbout -ne 'https://ccbox.org/') { throw 'Incorrect ccBox publisher or homepage.' }
+if ($registration.Publisher -ne 'CCBox' -or $registration.URLInfoAbout -ne 'https://ccbox.org/') { throw 'Incorrect CCBox publisher or homepage.' }
 if (-not (Test-Path -LiteralPath (Join-Path $target 'Cage.exe'))) { throw 'Installer did not create Cage.exe.' }
 foreach ($file in @('new-windows-guest.ps1', 'windows-guest-media.ps1', 'install-guest-powershell.cmd', 'publish-windows-component-manifest.ps1')) {
     if (!(Test-Path -LiteralPath (Join-Path $target "resources/guest-os/$file") -PathType Leaf)) {

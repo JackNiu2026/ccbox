@@ -1,4 +1,4 @@
-name: Build ccBox for Apple Silicon
+name: Build CCBox for Apple Silicon
 on:
   workflow_call:
     inputs:
@@ -101,7 +101,7 @@ jobs:
         run: |
           version=$(tr -d '\r\n' < VERSION)
           mkdir -p _output/ci-macos-test
-          archive="$PWD/_output/ci-macos-test/ccBox-$version-macos-arm64-test.tar.gz"
+          archive="$PWD/_output/ci-macos-test/CCBox-$version-macos-arm64-test.tar.gz"
           tar -czf "$archive" -C _output ccBox.app
           check=$(mktemp -d "$RUNNER_TEMP/cage-app-archive.XXXXXX")
           trap 'rm -rf "$check"' EXIT
@@ -173,7 +173,7 @@ jobs:
           release="$PWD/_output/releases/$version"
           node scripts/release-version.mjs metadata macos "$release/build-metadata.json"
           mkdir -p _output/ci-macos-release
-          cp "$release/ccBox-$version-macos-arm64.dmg" "$release/mihomo-$source_version-source.tar.gz" "$release/cage-macos-guest-$version-source.tar.gz" "$release/SHA256SUMS" "$release/build-metadata.json" _output/ci-macos-release/
+          cp "$release/CCBox-$version-macos-arm64.dmg" "$release/mihomo-$source_version-source.tar.gz" "$release/cage-macos-guest-$version-source.tar.gz" "$release/SHA256SUMS" "$release/build-metadata.json" _output/ci-macos-release/
           (cd _output/ci-macos-release && shasum -a 256 --check SHA256SUMS)
       - uses: actions/upload-artifact@v4
         with:

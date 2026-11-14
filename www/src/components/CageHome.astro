@@ -16,7 +16,7 @@ const { locale } = Astro.props;
 const c = cageCopy[locale];
 const hero = homeHero[locale];
 const titleSeparator = c.lang.startsWith('zh-') ? '' : ' ';
-const pageTitle = `ccBox — ${hero.lead}${titleSeparator}${hero.emphasis}`;
+const pageTitle = `CCBox — ${hero.lead}${titleSeparator}${hero.emphasis}`;
 type PlatformRelease = { version: string; releaseURL?: string; downloadURL?: string };
 type ReleaseMetadata = PlatformRelease & {
   windowsDownloadURL?: string; linuxDownloadURL?: string; androidDownloadURL?: string;
@@ -26,7 +26,7 @@ const stagedRelease = import.meta.glob<ReleaseMetadata>('../data/local-release.j
 const published: ReleaseMetadata = stagedRelease['../data/local-release.json'] ?? releaseData;
 const previews = [published.macosPreview, published.windowsPreview, published.linuxPreview, published.androidPreview];
 for (const url of [published.releaseURL, published.downloadURL, published.windowsDownloadURL, published.linuxDownloadURL, published.androidDownloadURL, ...previews.flatMap(preview => [preview?.downloadURL, preview?.releaseURL])]) {
-  if (url && (!/^\/downloads\/[\w./-]+$/.test(url) || url.split("/").some(part => part === "." || part === ".."))) throw new Error("ccBox release links must point to local downloads.");
+  if (url && (!/^\/downloads\/[\w./-]+$/.test(url) || url.split("/").some(part => part === "." || part === ".."))) throw new Error("CCBox release links must point to local downloads.");
 }
 const base = import.meta.env.BASE_URL;
 const guideLabels: Record<CageLocale, string> = {
@@ -76,7 +76,7 @@ const canonical = site && new URL(pathFor(locale), site);
   {site && languages.map(l => <link rel="alternate" hreflang={l.lang} href={new URL(pathFor(l.code), site)} />)}
   {site && <link rel="alternate" hreflang="x-default" href={new URL(base, site)} />}
   <SiteIcons />
-  <meta property="og:type" content="website" /><meta property="og:site_name" content="ccBox" />
+  <meta property="og:type" content="website" /><meta property="og:site_name" content="CCBox" />
   <meta property="og:title" content={pageTitle} /><meta property="og:description" content={hero.description} />
   {canonical && <meta property="og:url" content={canonical} />}<meta property="og:image" content={site ? new URL(base + 'ccbox-icon.png', site) : base + 'ccbox-icon.png'} />
 </head>
@@ -116,9 +116,9 @@ const canonical = site && new URL(pathFor(locale), site);
         </div>
         <figure class="hero-preview">
           <div class="hero-preview-stage">
-            <img src={`${base}workbench-preview.jpg`} width="1440" height="900" alt="ccBox" fetchpriority="high" />
+            <img src={`${base}workbench-preview.jpg`} width="1440" height="900" alt="CCBox" fetchpriority="high" />
           </div>
-          <figcaption>ccBox · {c.uiPreviewLabel}</figcaption>
+          <figcaption>CCBox · {c.uiPreviewLabel}</figcaption>
         </figure>
       </div>
     </section>
@@ -198,7 +198,7 @@ const canonical = site && new URL(pathFor(locale), site);
         </div>
         <div class="download-brand">
           <img src={`${base}ccbox-icon.svg`} width="84" height="84" alt="" />
-          <span dir="ltr">ccBox · v{published.version}</span>
+          <span dir="ltr">CCBox · v{published.version}</span>
         </div>
         <div class="download-details">
           <ul class="download-meta" dir="ltr" role="list">{platforms.map(platform => <li>{platform.name}</li>)}</ul>

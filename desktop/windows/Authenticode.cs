@@ -37,7 +37,7 @@ internal static class Authenticode
     public static void SamePublisher(string path, string expected)
     {
         if (!string.Equals(Publisher(path), expected, StringComparison.Ordinal))
-            throw new IOException("更新包的发布者签名与当前 ccBox 不一致");
+            throw new IOException("更新包的发布者签名与当前 CCBox 不一致");
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]

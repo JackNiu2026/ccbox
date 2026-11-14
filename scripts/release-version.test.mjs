@@ -7,19 +7,19 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { compareVersions, nextVersion, parseVersion, selectReleasePackages, verifyReleaseSource, versionFiles } from './release-version.mjs';
 
-test('locks the checked-out commit to the ccBox tag for VERSION', t => {
+test('locks the checked-out commit to the CCBox tag for VERSION', t => {
   const root = fixture(t);
   const git = (...args) => execFileSync('git', ['-C', root, ...args], { encoding: 'utf8' }).trim();
   git('init', '-q');
   git('add', 'VERSION');
-  git('-c', 'user.name=ccBox test', '-c', 'user.email=test@example.invalid', 'commit', '-qm', 'release');
+  git('-c', 'user.name=CCBox test', '-c', 'user.email=test@example.invalid', 'commit', '-qm', 'release');
   const ref = git('rev-parse', 'HEAD');
   assert.throws(() => verifyReleaseSource(root, ref), /ccbox-v1\.2\.3-alpha\.9/);
-  git('-c', 'user.name=ccBox test', '-c', 'user.email=test@example.invalid', 'tag', '-am', 'ccBox release', 'ccbox-v1.2.3-alpha.9');
+  git('-c', 'user.name=CCBox test', '-c', 'user.email=test@example.invalid', 'tag', '-am', 'CCBox release', 'ccbox-v1.2.3-alpha.9');
   assert.deepEqual(verifyReleaseSource(root, ref), { version: '1.2.3-alpha.9', ref });
   assert.throws(() => verifyReleaseSource(root, 'a'.repeat(40)), /checkout/i);
   assert.throws(() => verifyReleaseSource(root, 'main'), /SHA/i);
-  git('-c', 'user.name=ccBox test', '-c', 'user.email=test@example.invalid', 'commit', '--allow-empty', '-qm', 'drift');
+  git('-c', 'user.name=CCBox test', '-c', 'user.email=test@example.invalid', 'commit', '--allow-empty', '-qm', 'drift');
   const nextRef = git('rev-parse', 'HEAD');
   assert.throws(() => verifyReleaseSource(root, nextRef), /tag/i);
   git('tag', 'ccbox-v1.2.3-alpha.9-build.1');

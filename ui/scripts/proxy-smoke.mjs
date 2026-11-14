@@ -1,5 +1,5 @@
 // Uses the built app, real workbench APIs, real Mihomo, and local CONNECT
-// upstreams. No request reaches the user's running ccBox or Clash instances.
+// upstreams. No request reaches the user's running CCBox or Clash instances.
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import http from "node:http";
@@ -112,7 +112,7 @@ try {
   await page.getByRole("tab", { name: "诊断", exact: true }).click();
   await page.getByLabel("独立代理端口", { exact: true }).fill(String(a.port));
   await page.getByRole("button", { name: "应用端口并重启核心", exact: true }).click();
-  await page.getByRole("region", { name: "设置", exact: true }).getByRole("alert").filter({ hasText: "ccBox 代理端口已被占用，请更换独立端口" }).waitFor();
+  await page.getByRole("region", { name: "设置", exact: true }).getByRole("alert").filter({ hasText: "CCBox 代理端口已被占用，请更换独立端口" }).waitFor();
   assert.equal(a.proxy.listening, true);
   assert.equal((await state()).port, port, "port conflict replaced the saved profile");
   await page.getByRole("button", { name: "应用端口并重启核心", exact: true }).click();

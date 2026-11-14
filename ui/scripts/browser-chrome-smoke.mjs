@@ -101,10 +101,10 @@ try {
     });
   const tabs = page.getByRole("tablist", { name: "浏览器标签页" });
   await page
-    .getByRole("button", { name: "启动 ccBox 环境", exact: true })
+    .getByRole("button", { name: "启动 CCBox 环境", exact: true })
     .click();
   await page
-    .getByRole("heading", { name: "ccBox 环境已就绪", exact: true })
+    .getByRole("heading", { name: "CCBox 环境已就绪", exact: true })
     .waitFor();
   await page.getByRole("button", { name: "打开浏览器", exact: true }).click();
   await tabs.getByRole("tab").waitFor();
@@ -197,7 +197,7 @@ try {
 
   await tabs.getByRole("tab", { name: "设计文档 3", exact: true }).click();
   await page.getByRole("button", { name: "收藏此页", exact: true }).click();
-  await page.getByLabel("收藏名称", { exact: true }).fill("ccBox 设计资料");
+  await page.getByLabel("收藏名称", { exact: true }).fill("CCBox 设计资料");
   await page.getByLabel("新收藏夹名称", { exact: true }).fill("工作资料");
   await page.getByRole("button", { name: "保存", exact: true }).click();
   await page
@@ -209,7 +209,7 @@ try {
   let saved = JSON.parse(
     await fs.readFile(path.join(profile, "favorites.json"), "utf8"),
   );
-  assert.equal(saved.items[0].title, "ccBox 设计资料");
+  assert.equal(saved.items[0].title, "CCBox 设计资料");
   assert.equal(saved.folders[0].title, "工作资料");
   await page.keyboard.press("Meta+d");
   await page.getByLabel("收藏名称", { exact: true }).fill("待重试的收藏");

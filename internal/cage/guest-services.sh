@@ -57,7 +57,7 @@ if ! grep -q '/etc/profile.d/claude-cage.sh' /etc/zsh/zshenv; then
 fi
 sudo tee /etc/systemd/system/cage-display.service >/dev/null <<'UNIT'
 [Unit]
-Description=ccBox virtual browser display
+Description=CCBox virtual browser display
 Wants=cage-display-governor.service
 [Service]
 User=cage-browser
@@ -89,7 +89,7 @@ Restart=on-failure
 UNIT
 sudo tee /etc/systemd/system/cage-browser.service >/dev/null <<'UNIT'
 [Unit]
-Description=ccBox persistent browser
+Description=CCBox persistent browser
 Requires=cage-display.service cage-window-manager.service
 After=cage-display.service cage-window-manager.service
 [Service]
@@ -108,7 +108,7 @@ UNIT
 # wants it: a guest without python3-xlib keeps its full refresh rate.
 sudo tee /etc/systemd/system/cage-display-governor.service >/dev/null <<'UNIT'
 [Unit]
-Description=ccBox browser display pacing
+Description=CCBox browser display pacing
 PartOf=cage-display.service
 After=cage-display.service
 [Service]
@@ -121,7 +121,7 @@ RestartSec=5
 UNIT
 sudo tee /etc/systemd/system/cage-vnc.service >/dev/null <<'UNIT'
 [Unit]
-Description=ccBox browser screen
+Description=CCBox browser screen
 Requires=cage-display.service
 After=cage-display.service
 [Service]
@@ -133,7 +133,7 @@ RestartSec=2
 UNIT
 sudo tee /etc/systemd/system/cage-webvnc.service >/dev/null <<'UNIT'
 [Unit]
-Description=ccBox browser web access
+Description=CCBox browser web access
 Requires=cage-vnc.service
 After=cage-vnc.service
 [Service]

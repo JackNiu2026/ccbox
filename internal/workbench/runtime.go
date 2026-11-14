@@ -503,7 +503,7 @@ func (s *Server) stopEnvironment() (returned error) {
 	if s.macosGuest != nil {
 		return s.stopMacOSGuest()
 	}
-	s.setMessage("正在停止 ccBox 环境…")
+	s.setMessage("正在停止 CCBox 环境…")
 	if (explicitStop || s.jobs.snapshot().Kind == "storage") && cage.InstanceJobID(filepath.Join(s.profile, "state"), "base-building") != "" {
 		if err := s.runCage("stop", "base-building"); err != nil {
 			return err
@@ -580,6 +580,11 @@ func (s *Server) apply(v savedProfile, validate bool) error {
 		}
 	}
 	if changed {
+		if wasReady {
+			if err := s.requireLicense(); err != nil {
+				return err
+			}
+		}
 		if s.windowsGuest != nil && wasReady && (old.Timezone != v.Config.Timezone || old.Locale != v.Config.Locale) {
 			if err := s.closeProxyGate("正在应用 Windows 系统设置，外网等待重新检查"); err != nil {
 				return err

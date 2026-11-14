@@ -8,7 +8,7 @@ internal sealed class MainWindow : Form
 {
     private WebView2 web = new() { Dock = DockStyle.Fill, Visible = false };
     private readonly NativeInput nativeInput;
-    private readonly Label message = new() { AutoSize = true, MaximumSize = new Size(720, 0), Text = "正在启动 ccBox 工作台…", Margin = new Padding(12) };
+    private readonly Label message = new() { AutoSize = true, MaximumSize = new Size(720, 0), Text = "正在启动 CCBox 工作台…", Margin = new Padding(12) };
     private readonly FlowLayoutPanel status = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, Padding = new Padding(48), WrapContents = false };
     private readonly Button retry = new() { Text = "重试连接", AutoSize = true, Visible = false };
     private readonly Button existing = new() { Text = "打开现有环境保存文件", AutoSize = true, Visible = false };
@@ -26,7 +26,7 @@ internal sealed class MainWindow : Form
     {
         nativeInput = new NativeInput(value => Script("window.dispatchEvent(new CustomEvent('cage-native-input',{detail:" + JsonSerializer.Serialize(value) + "}));"));
         AutoScaleMode = AutoScaleMode.Dpi; AutoScaleDimensions = new SizeF(96, 96);
-        Text = "ccBox";
+        Text = "CCBox";
         StartPosition = FormStartPosition.CenterScreen; BackColor = Color.FromArgb(247, 247, 247);
         Icon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!) ?? SystemIcons.Application;
         status.Controls.AddRange([message, retry, existing, complete]);
@@ -40,13 +40,13 @@ internal sealed class MainWindow : Form
             if (ConfirmStop()) await Bootstrap("--complete-update");
         };
         var trayMenu = new TrayMenu();
-        trayMenu.Items.Add("打开 ccBox", null, (_, _) => RestoreWindow());
+        trayMenu.Items.Add("打开 CCBox", null, (_, _) => RestoreWindow());
         trayMenu.Items.Add("检查应用更新…", null, (_, _) => updater!.Handle("check"));
-        trayMenu.Items.Add("关于 ccBox", null, (_, _) => MessageBox.Show(this, $"ccBox {AppUpdater.Version}\n本机隔离编码工作区", "关于 ccBox"));
+        trayMenu.Items.Add("关于 CCBox", null, (_, _) => MessageBox.Show(this, $"CCBox {AppUpdater.Version}\n本机隔离编码工作区", "关于 CCBox"));
         trayMenu.Items.Add(new ToolStripSeparator());
-        trayMenu.Items.Add("退出 ccBox…", null, (_, _) => RequestQuit());
+        trayMenu.Items.Add("退出 CCBox…", null, (_, _) => RequestQuit());
         trayMenu.Opening += (_, _) => (chrome ?? new WindowChrome(BackColor, ForeColor, false)).ApplyMenu(trayMenu);
-        tray = new NotifyIcon { Icon = Icon, Text = "ccBox", Visible = true, ContextMenuStrip = trayMenu };
+        tray = new NotifyIcon { Icon = Icon, Text = "CCBox", Visible = true, ContextMenuStrip = trayMenu };
         tray.DoubleClick += (_, _) => RestoreWindow();
         updater = new AppUpdater(PublishUpdate, () => { allowQuit = true; Close(); }, () => _ = Bootstrap());
         Shown += async (_, _) => {
@@ -125,7 +125,7 @@ internal sealed class MainWindow : Form
     }
 
     private bool ConfirmStop() => MessageBox.Show(this,
-        "请先保存编辑器中的文件并结束正在运行的工作。继续后 ccBox 会停止环境、安装已验证的更新并重新启动。",
+        "请先保存编辑器中的文件并结束正在运行的工作。继续后 CCBox 会停止环境、安装已验证的更新并重新启动。",
         "保存并停止环境后安装重启", MessageBoxButtons.OKCancel, MessageBoxIcon.Information) == DialogResult.OK;
 
     public void RestoreWindow() { Show(); if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal; Activate(); PublishVisibility(); }
@@ -199,7 +199,7 @@ internal sealed class MainWindow : Form
         }
         catch (WebView2RuntimeNotFoundException)
         {
-            Error("缺少 Microsoft Edge WebView2 Runtime。请运行 ccBox 安装程序安装随附运行时后重试。");
+            Error("缺少 Microsoft Edge WebView2 Runtime。请运行 CCBox 安装程序安装随附运行时后重试。");
             webFailed = true;
         }
         catch (Exception error) { webFailed = true; Error("无法初始化工作台：" + error.Message); }
@@ -287,7 +287,7 @@ internal sealed class MainWindow : Form
     {
         if (bootstrapping || web.CoreWebView2 == null) return;
         bootstrapping = true;
-        message.Text = "正在连接 ccBox 工作台…"; status.Show(); status.BringToFront();
+        message.Text = "正在连接 CCBox 工作台…"; status.Show(); status.BringToFront();
         retry.Hide(); existing.Hide(); complete.Hide();
         try
         {
@@ -302,7 +302,7 @@ internal sealed class MainWindow : Form
             }
             var entry = UpdatePolicy.Entry(data.Text("url")); expectedPort = entry.Port;
             smokePhase = "loading_workbench";
-            Text = controllerNeedsUpdate ? "ccBox（更新待完成）" : "ccBox";
+            Text = controllerNeedsUpdate ? "CCBox（更新待完成）" : "CCBox";
             web.CoreWebView2.Navigate(entry.AbsoluteUri);
         }
         catch (OperationCanceledException) { if (!lifetime.IsCancellationRequested) Error("启动工作台失败：等待本机后台响应超时。请点击“重试连接”；仍失败时请保留此提示并反馈给维护者。"); }
@@ -368,7 +368,7 @@ internal sealed class MainWindow : Form
                     updater.MarkReady(); result = true; _ = CompleteSmoke(); break;
                 case "appUpdate": result = updater.Handle(request.Text("operation")); break;
                 case "importTheme":
-                    using (var picker = new OpenFileDialog { Filter = "ccBox 主题 (*.json)|*.json", Title = "导入主题", Multiselect = false })
+                    using (var picker = new OpenFileDialog { Filter = "CCBox 主题 (*.json)|*.json", Title = "导入主题", Multiselect = false })
                     {
                         if (picker.ShowDialog(this) != DialogResult.OK) { result = ""; break; }
                         using var stream = File.OpenRead(picker.FileName);
@@ -382,7 +382,7 @@ internal sealed class MainWindow : Form
                     if (System.Text.Encoding.UTF8.GetByteCount(themeText) > 256 * 1024) throw new InvalidDataException("主题文件不能超过 256 KB");
                     var themeDocument = JsonDocument.Parse(themeText).RootElement;
                     if (themeDocument.Text("format") != "cage-theme" || themeDocument.GetProperty("version").GetInt32() != 1) throw new InvalidDataException("主题文件格式无效");
-                    using (var picker = new SaveFileDialog { Filter = "ccBox 主题 (*.json)|*.json", Title = "导出主题", FileName = Path.GetFileName(request.Text("filename")), DefaultExt = "json", AddExtension = true })
+                    using (var picker = new SaveFileDialog { Filter = "CCBox 主题 (*.json)|*.json", Title = "导出主题", FileName = Path.GetFileName(request.Text("filename")), DefaultExt = "json", AddExtension = true })
                     {
                         if (picker.ShowDialog(this) != DialogResult.OK) { result = false; break; }
                         File.WriteAllText(picker.FileName, themeText, new System.Text.UTF8Encoding(false)); result = true;
@@ -394,7 +394,7 @@ internal sealed class MainWindow : Form
                     var accessMode = request.Text("mode");
                     if (connection.Length == 0 || accessMode is not ("read" or "write")) throw new InvalidDataException("请在云端工作台重新选择项目");
                     using var picker = new FolderBrowserDialog {
-                        Description = accessMode == "write" ? "云端 ccBox 可以读取、修改和删除所选项目中的文件。" : "云端 ccBox 可以读取所选项目中的文件。",
+                        Description = accessMode == "write" ? "云端 CCBox 可以读取、修改和删除所选项目中的文件。" : "云端 CCBox 可以读取所选项目中的文件。",
                         UseDescriptionForTitle = true, ShowNewFolderButton = false
                     };
                     if (picker.ShowDialog(this) != DialogResult.OK) { result = new { canceled = true }; break; }
@@ -403,7 +403,7 @@ internal sealed class MainWindow : Form
                     result = response.Data; break;
                 }
                 case "chooseFolder":
-                    using (var picker = new FolderBrowserDialog { Description = request.Text("purpose") == "environmentStorage" ? "请选择用于保存镜像和虚拟磁盘的空文件夹。" : "仅此文件夹会与 ccBox 共享。请选择具体项目。", UseDescriptionForTitle = true, ShowNewFolderButton = true })
+                    using (var picker = new FolderBrowserDialog { Description = request.Text("purpose") == "environmentStorage" ? "请选择用于保存镜像和虚拟磁盘的空文件夹。" : "仅此文件夹会与 CCBox 共享。请选择具体项目。", UseDescriptionForTitle = true, ShowNewFolderButton = true })
                         result = picker.ShowDialog(this) == DialogResult.OK ? picker.SelectedPath : "";
                     break;
                 case "clipboardRead": result = Clipboard.ContainsText() ? Clipboard.GetText() : ""; break;

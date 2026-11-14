@@ -90,7 +90,7 @@ export function WorkspaceSidebar({
       <div className="sidebar-top">
         <span className="sidebar-brand">
           <img className="brand-logo" src={logo} alt="" />
-          ccBox
+          CCBox
                 <GuestSystemIcon system={guestSystem} />
         </span>
         <button
@@ -123,7 +123,7 @@ export function WorkspaceSidebar({
         <button className="sidebar-link" onClick={onTailscale} aria-label="打开 Tailscale"><Network size={17} />Tailscale</button>
         {ssh && <button className="sidebar-link ssh-navigation" onClick={ssh.open} aria-label="SSH 主机"><Server size={17} />SSH</button>}
         <div className="claude-shortcuts">
-          <button className="sidebar-link" onClick={onClaudeWeb} disabled={!ready || busy} title="在 ccBox 浏览器打开 claude.ai"><MessageCircle size={17} />claude.ai</button>
+          <button className="sidebar-link" onClick={onClaudeWeb} disabled={!ready || busy} title="在 CCBox 浏览器打开 claude.ai"><MessageCircle size={17} />claude.ai</button>
           <button className={`sidebar-link ${desktopOpen ? "selected" : ""}`} onClick={onClaudeDesktop} disabled={!running || busy} title="安装或打开 Claude Desktop"><Monitor size={17} />Claude Desktop</button>
         </div>
         {downloadAction}

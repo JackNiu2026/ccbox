@@ -173,8 +173,8 @@ func versionCmd(args []string, io IO, product string, updateHint func() string) 
 
 // CCBoxVersion reports the installed version and its own distribution channel.
 func CCBoxVersion(args []string, io IO) int {
-	return versionCmd(args, io, "ccBox", func() string {
-		return "get the latest installer from your ccBox distributor"
+	return versionCmd(args, io, "CCBox", func() string {
+		return "get the latest installer from your CCBox distributor"
 	})
 }
 

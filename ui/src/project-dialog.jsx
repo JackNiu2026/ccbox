@@ -146,7 +146,7 @@ export function ProjectDialog({
           <span className="save-note">
             {busy
               ? submitting ? removeTarget ? "正在移除项目…" : "正在连接项目…" : status.job?.message
-              : adding ? "添加到 ccBox 项目列表" : "使用已授权的 ccBox 项目"}
+              : adding ? "添加到 CCBox 项目列表" : "使用已授权的 CCBox 项目"}
           </span>
           <button disabled={busy} onClick={onClose}>
             取消
@@ -172,13 +172,13 @@ export function ProjectDialog({
         className="modal-body project-form"
         onSubmit={open}
       >
-        <p>{activate ? remote ? "选择已有项目，或添加一个云端项目文件夹。" : "选择已有项目，或添加一个本机项目文件夹。" : "从 ccBox 项目列表选择工作目录。新项目由 ccBox 授权并共享。"}</p>
+        <p>{activate ? remote ? "选择已有项目，或添加一个云端项目文件夹。" : "选择已有项目，或添加一个本机项目文件夹。" : "从 CCBox 项目列表选择工作目录。新项目由 CCBox 授权并共享。"}</p>
         {canShare && <>
           <button type="button" className="quiet-button project-picker-add" onClick={() => { setSharing(!sharing); setWriteAccess(false); }} disabled={busy} aria-expanded={sharing}>
             <FolderOpen size={16} />共享本机项目…
           </button>
           {sharing && <fieldset className="project-picker-list project-permissions" disabled={busy}>
-            <legend>共享给{context.name || "当前云端 ccBox"}</legend>
+            <legend>共享给{context.name || "当前云端 CCBox"}</legend>
             <p className="field-help">云端按需读取项目。凭据、Git 元数据和链接受限。断开连接后共享结束。</p>
             <label><input type="checkbox" checked={writeAccess} onChange={(e) => setWriteAccess(e.target.checked)} />允许云端修改和删除本机项目文件</label>
             <button type="button" onClick={share}>选择本机文件夹…</button>
@@ -186,7 +186,7 @@ export function ProjectDialog({
         </>}
         {!sharing && !adding && <>
           <fieldset className="project-picker-list" disabled={busy || Boolean(removeTarget)}>
-            <legend>ccBox 项目</legend>
+            <legend>CCBox 项目</legend>
             {projectList.map((project) => <label className={`project-picker-item ${path === project ? "selected" : ""}`} key={project}>
               <input type="radio" name="project" value={project} checked={path === project} onChange={() => { setPath(project); setError(""); }} />
               <FolderOpen size={18} aria-hidden="true" />
@@ -198,7 +198,7 @@ export function ProjectDialog({
             </label>)}
           </fieldset>
           {selectedShare && <button type="button" disabled={submitting} onClick={() => revoke(selectedShare)}>停止共享本机项目（{selectedShare.readonly ? "只读" : "读写"}）</button>}
-          {activate && !selectedShare && path && path !== status.environment_directory && !removeTarget && <button type="button" className="quiet-button" disabled={busy} onClick={() => { setRemoveTarget(path); setError(""); setRecovery(""); }}>从 ccBox 移除此项目</button>}
+          {activate && !selectedShare && path && path !== status.environment_directory && !removeTarget && <button type="button" className="quiet-button" disabled={busy} onClick={() => { setRemoveTarget(path); setError(""); setRecovery(""); }}>从 CCBox 移除此项目</button>}
           {removeTarget && <section className="project-picker-list" aria-label="确认移除项目">
             <p>移除“{projectName(removeTarget)}”将解除目录共享。原文件和会话历史保留，重新添加相同目录后可继续使用历史。</p>
             <p className="field-help">请先保存文件，并关闭此项目的终端、运行中会话和编辑器。移除当前项目后会选中默认工作区。</p>
@@ -241,7 +241,7 @@ export function ProjectDialog({
           </section>}
         </>}
         <p className="field-help">
-          {remote ? "云端项目保存在服务器上。" : "这个文件夹中的改动会同步到本机。"}所有项目共用 ccBox 环境，已有终端和网页会保持运行。
+          {remote ? "云端项目保存在服务器上。" : "这个文件夹中的改动会同步到本机。"}所有项目共用 CCBox 环境，已有终端和网页会保持运行。
         </p>
         {!status.ready && <p className="field-help">环境就绪后可添加或打开项目。已有项目仍可从列表移除。</p>}
         {error && (

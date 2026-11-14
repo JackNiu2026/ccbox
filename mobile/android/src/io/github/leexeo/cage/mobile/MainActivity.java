@@ -319,7 +319,7 @@ public final class MainActivity extends Activity {
         mark.setBackground(surface(palette.panel, 18, false));
         mark.setClipToOutline(true);
         form.addView(mark, dp(120), dp(120));
-        TextView title = text("ccBox", 38, palette.ink);
+        TextView title = text("CCBox", 38, palette.ink);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
         title.setPadding(0, dp(8), 0, dp(52));
@@ -502,7 +502,7 @@ public final class MainActivity extends Activity {
         button(form, "复制手机指纹", false, v -> {
             if (fingerprint.isEmpty()) return;
             ClipboardManager clipboard = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-            clipboard.setPrimaryClip(ClipData.newPlainText("ccBox 手机指纹", fingerprint));
+            clipboard.setPrimaryClip(ClipData.newPlainText("CCBox 手机指纹", fingerprint));
             status.setText("手机指纹已复制，请在电脑上核对并信任。");
         });
         label("电脑指纹", 15);

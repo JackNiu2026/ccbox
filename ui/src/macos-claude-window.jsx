@@ -15,8 +15,8 @@ import "./macos-claude-window.css";
 
 const messages = {
   requires_gui_login: "请先登录并解锁虚拟 Mac 的图形账户。",
-  screen_recording_permission: "请在虚拟 Mac 的系统授权中，允许 ccBox Guest Window 录制屏幕。",
-  accessibility_permission: "要操作窗口，请允许虚拟 Mac 中的 ccBox Guest Window 使用辅助功能。",
+  screen_recording_permission: "请在虚拟 Mac 的系统授权中，允许 CCBox Guest Window 录制屏幕。",
+  accessibility_permission: "要操作窗口，请允许虚拟 Mac 中的 CCBox Guest Window 使用辅助功能。",
   not_running: "请打开虚拟 Mac 中的 Claude Desktop。",
   no_visible_window: "Claude 尚未显示窗口，请重新打开应用。",
   identity_error: "虚拟 Mac 中的应用未通过 Anthropic 签名检查。",

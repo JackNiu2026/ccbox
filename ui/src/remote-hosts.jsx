@@ -64,7 +64,7 @@ export function ClientRoot({ children }) {
     const value = await api("/client/context");
     if (!mounted.current || query !== serial.current) return value;
     if (!["none", "local", "remote"].includes(value.mode))
-      throw new Error("客户端未返回有效的工作环境，请更新 ccBox。");
+      throw new Error("客户端未返回有效的工作环境，请更新 CCBox。");
     const next = identity(value);
     if (currentIdentity.current && currentIdentity.current !== next) {
       // Destroy callbacks, local files in flight and input handlers from the previous generation.
@@ -117,7 +117,7 @@ export function ClientRoot({ children }) {
         !error && (
           <div className="client-loading">
             <LoaderCircle className="spin" size={18} />
-            正在连接 ccBox…
+            正在连接 CCBox…
           </div>
         )
       )}
@@ -488,7 +488,7 @@ function Environment({ context, refresh, children }) {
         ) : (
           <img className="brand-logo" src={logo} alt="" />
         )}
-        <strong>{ready ? hostName : "ccBox"}</strong>
+        <strong>{ready ? hostName : "CCBox"}</strong>
         {ready && (
           <span className="client-toolbar-hint">
             {remote ? "SSH · 云端运行" : "当前工作环境"}
@@ -736,7 +736,7 @@ function Environment({ context, refresh, children }) {
         {ready ? (
           <div className="client-workbench">{children}</div>
         ) : defaultLocal && !error && candidate?.connection?.state !== "failed" && !expanded ? (
-          <div className="client-loading" role="status">正在打开 ccBox 工作台…</div>
+          <div className="client-loading" role="status">正在打开 CCBox 工作台…</div>
         ) : (
           <main className="environment-picker">
             <div>
@@ -750,7 +750,7 @@ function Environment({ context, refresh, children }) {
               </h1>
               <p>
                 {context.client_only
-                  ? "通过 SSH 连接服务器，首次连接可自动部署 ccBox。项目、应用和网络由服务器管理。"
+                  ? "通过 SSH 连接服务器，首次连接可自动部署 CCBox。项目、应用和网络由服务器管理。"
                   : "本机和 SSH 主机使用同一个工作台。项目、应用和网络由选中的环境管理。"}
               </p>
               {!context.client_only &&
@@ -892,7 +892,7 @@ function Environment({ context, refresh, children }) {
                   (decision.pending.connection?.host_id ||
                     decision.pending.host_id),
               )?.name || "目标主机"}{" "}
-              的 SSH 与 ccBox 服务。
+              的 SSH 与 CCBox 服务。
             </p>
             <p>
               <strong>{localSummary(decision.status)}。</strong>{" "}

@@ -580,7 +580,7 @@ def main(args, *, mobile_settings_fd=None, verify_mobile=None):
         raw = sys.stdin.buffer.read((1 << 20) + 1)
         if len(raw) <= 1 << 20:
             save_usage(base, json.loads(raw), expected, lambda: subject(identity(binary, env, Path.cwd())))
-        print("ccBox · Claude")
+        print("CCBox · Claude")
         return 0
     if mode == "snapshot":
         summary = identity(binary, env, Path.home())

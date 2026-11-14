@@ -30,7 +30,7 @@ internal static class Program
         ApplicationConfiguration.Initialize();
         if (RuntimeInformation.OSArchitecture != Architecture.X64 || Environment.OSVersion.Version.Build < 19045)
         {
-            MessageBox.Show("ccBox 需要 Windows 10 22H2（19045）或 Windows 11，x64（Intel/AMD）系统。", "ccBox");
+            MessageBox.Show("CCBox 需要 Windows 10 22H2（19045）或 Windows 11，x64（Intel/AMD）系统。", "CCBox");
             return 1;
         }
         var sid = WindowsIdentity.GetCurrent().User?.Value ?? Environment.UserName;
@@ -44,8 +44,8 @@ internal static class Program
                 using var client = new NamedPipeClientStream(".", "Cage-" + key, PipeDirection.Out, PipeOptions.CurrentUserOnly);
                 client.Connect(3000); client.WriteByte(1);
             }
-            catch (IOException) { MessageBox.Show("ccBox 已在运行，但窗口暂时无法唤起。请从任务栏打开 ccBox。", "ccBox"); }
-            catch (TimeoutException) { MessageBox.Show("ccBox 正在启动，请稍候。", "ccBox"); }
+            catch (IOException) { MessageBox.Show("CCBox 已在运行，但窗口暂时无法唤起。请从任务栏打开 CCBox。", "CCBox"); }
+            catch (TimeoutException) { MessageBox.Show("CCBox 正在启动，请稍候。", "CCBox"); }
             return 0;
         }
         using var form = new MainWindow();

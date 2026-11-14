@@ -1,4 +1,4 @@
-// Package cage supplies the configuration and network boundary of ccBox.
+// Package cage supplies the configuration and network boundary of CCBox.
 package cage
 
 import (

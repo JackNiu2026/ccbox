@@ -8,8 +8,8 @@ import { Modal } from "./modal";
 import "./initialization.css";
 
 const steps = [
-  { id: "screen", label: "窗口录制", hint: "打开 ccBox Guest Window 的窗口录制开关。如果提示「退出并重新打开」，按提示操作。" },
-  { id: "input", label: "辅助功能", hint: "打开 ccBox Guest Window 的辅助功能开关，允许 ccBox 操作客机窗口。" },
+  { id: "screen", label: "窗口录制", hint: "打开 CCBox Guest Window 的窗口录制开关。如果提示「退出并重新打开」，按提示操作。" },
+  { id: "input", label: "辅助功能", hint: "打开 CCBox Guest Window 的辅助功能开关，允许 CCBox 操作客机窗口。" },
   { id: "projects", label: "文件系统扩展", hint: "打开 macFUSE 和 macFUSE (local) 两个开关，用于在客机中访问你选择的项目。" },
 ];
 
@@ -133,7 +133,7 @@ export function MacOSFirstSetup() {
     account.macos_password_pending ? "客机密码尚未同步，请重试同步后继续授权。" : !state.vm_running ? "虚拟 Mac 尚未启动，可从已有磁盘继续。" :
     !state.ready ? "虚拟 Mac 已启动，正在等待客机连接。若停在登录画面，请打开客机画面完成登录。" :
     readError ? "暂时无法确认权限状态，已显示的结果供参考。恢复连接后会继续检查。" :
-    pending ? `当前需要确认「${pending.label}」。完成后 ccBox 会自动检查并继续。` :
+    pending ? `当前需要确认「${pending.label}」。完成后 CCBox 会自动检查并继续。` :
     completionFailed ? "三项权限已验证，最后的设置收尾未完成。请重试完成设置。" : "三项权限已验证，正在保存设置；随后继续工作区授权和联网检查。";
   const controls = <button type="button" className="primary" disabled={!canOperate} onClick={() => act(pending?.id || permissionPage)}>
     {busy ? "正在处理…" : `打开${pending?.label || selected.label}`}
@@ -166,7 +166,7 @@ export function MacOSFirstSetup() {
     </section>
     {failure && <section className="initialization-notice" role="alert"><h2>这一步尚未完成</h2><p>{failure}</p><p>已有安装进度会保留。可以重新打开当前设置页，或重新检查状态后继续。</p></section>}
     <details className="mac-setup-help"><summary>管理员密码与找不到设置页时的帮助</summary>
-      <p>系统要求管理员时，用户名填 <strong>cagesetup</strong>，{account.macos_password_pending ? "密码同步完成前可能仍需原客机密码。" : account.macos_credentials_ready ? "密码与 ccBox 账户相同。" : "在客机画面中选中密码框，再点击「填写授权密码」。"}你确认授权后继续；此临时管理员在收尾时停用。</p>
+      <p>系统要求管理员时，用户名填 <strong>cagesetup</strong>，{account.macos_password_pending ? "密码同步完成前可能仍需原客机密码。" : account.macos_credentials_ready ? "密码与 CCBox 账户相同。" : "在客机画面中选中密码框，再点击「填写授权密码」。"}你确认授权后继续；此临时管理员在收尾时停用。</p>
       <p>文件系统扩展的手动入口：客机「系统设置 → 通用 → 登录项与扩展 → 按类别 → 文件系统扩展」，同时打开 macFUSE 和 macFUSE (local)。</p>
       <div className="initialization-recovery">{steps.map(({ id, label }) => <button key={id} disabled={!canOperate} onClick={() => act(id)}>重新打开{label}</button>)}</div>
     </details>

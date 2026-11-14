@@ -168,7 +168,7 @@ final class MacDesktopDownloads {
                 metadataBound.insert(records[index].id)
                 records[index].openError = nil
             } catch {
-                records[index].openError = "文件打开关联未能完成，请在 ccBox 下载列表中打开文件。"
+                records[index].openError = "文件打开关联未能完成，请在 CCBox 下载列表中打开文件。"
             }
             changed = changed || previous != records[index].openError
         }
@@ -232,7 +232,7 @@ final class MacDesktopDownloads {
                     if let metadata = MacNativeOpen.shared.openWithMetadata {
                         if openMetadata != metadata { openMetadata = metadata; metadataBound.removeAll() }
                         do { try bindOpenMetadata(metadata, fd: fd, info: info); metadataBound.insert(id) }
-                        catch { records[index].openError = "文件打开关联未能完成，请在 ccBox 下载列表中打开文件。" }
+                        catch { records[index].openError = "文件打开关联未能完成，请在 CCBox 下载列表中打开文件。" }
                     }
                     try persist(); watches.removeValue(forKey: id)?.stop(); return
                 }

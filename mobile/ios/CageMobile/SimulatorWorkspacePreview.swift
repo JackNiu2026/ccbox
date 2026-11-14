@@ -41,7 +41,7 @@ enum SimulatorWorkspacePreview {
 
     static let fixture = #"""
     (() => {
-      const projects = [{name: "ccBox", path: "/示例项目/cage"}, {name: "个人网站", path: "/示例项目/website"}];
+      const projects = [{name: "CCBox", path: "/示例项目/cage"}, {name: "个人网站", path: "/示例项目/website"}];
       let sequence = 0;
       const uuid = () => "preview-" + (++sequence);
       if (!crypto.randomUUID) crypto.randomUUID = uuid;

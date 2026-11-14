@@ -5,8 +5,8 @@ import { MacOSLogin } from "./macos-login";
 import "./macos-project-approval.css";
 
 const permissionMessages = {
-  project_screen_permission: "无法显示文件夹授权窗口。请在虚拟 Mac 的“系统设置 → 隐私与安全性 → 屏幕与系统音频录制”中允许 ccBox Guest Window，并按系统提示重新打开助手。",
-  accessibility_permission: "无法点击文件夹授权窗口。请在虚拟 Mac 的“系统设置 → 隐私与安全性 → 辅助功能”中允许 ccBox Guest Window，然后重试。",
+  project_screen_permission: "无法显示文件夹授权窗口。请在虚拟 Mac 的“系统设置 → 隐私与安全性 → 屏幕与系统音频录制”中允许 CCBox Guest Window，并按系统提示重新打开助手。",
+  accessibility_permission: "无法点击文件夹授权窗口。请在虚拟 Mac 的“系统设置 → 隐私与安全性 → 辅助功能”中允许 CCBox Guest Window，然后重试。",
   requires_gui_login: "请先登录并解锁虚拟 Mac 的普通账户，然后重新打开项目。",
 };
 

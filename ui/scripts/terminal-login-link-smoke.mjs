@@ -16,7 +16,7 @@ for (const format of ["printed", "OSC 8"]) {
       socket.send(Buffer.from(format === "printed" ? url : `\x1b]8;;${url}\x07Open Claude\x1b]8;;\x07`));
     });
     await page.reload();
-    await page.getByRole("button", { name: "启动 ccBox 环境", exact: true }).click();
+    await page.getByRole("button", { name: "启动 CCBox 环境", exact: true }).click();
     await page.getByRole("button", { name: "新建终端", exact: true }).first().click();
     await page.getByRole("menuitem", { name: "普通终端", exact: true }).click();
     const row = page.locator(".xterm-rows > div").first();

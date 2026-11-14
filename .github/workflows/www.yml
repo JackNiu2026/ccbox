@@ -1,4 +1,4 @@
-name: ccBox website checks
+name: CCBox website checks
 on:
   push:
     branches: [main]

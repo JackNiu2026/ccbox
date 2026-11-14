@@ -154,7 +154,7 @@ export async function assembleRelease({ directory, output, version, commitSha, a
     }
   }
   const result = await assemble({ inputs: platforms.map(platform => join(directory, platform)), output });
-  const required = [`ccBox-${version}-macos-arm64.dmg`, `ccBox-${version}-windows-amd64-setup.exe`, `ccBox-${version}-linux-amd64.deb`];
+  const required = [`CCBox-${version}-macos-arm64.dmg`, `CCBox-${version}-windows-amd64-setup.exe`, `CCBox-${version}-linux-amd64.deb`];
   if (result.version !== version || required.some(name => !result.assets.includes(name))) throw new Error('All three verified platform installers are required.');
   return result;
 }

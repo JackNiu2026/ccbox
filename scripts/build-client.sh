@@ -37,7 +37,7 @@ CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X github.com/sylvinus/agent-vm
 mkdir -p "$stage/result"
 
 if [[ "$platform" == macos ]]; then
-  bundle="$stage/result/ccBox Client.app"
+  bundle="$stage/result/CCBox Client.app"
   mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
   swiftc -O -target "$(uname -m)-apple-macosx14.0" -parse-as-library \
     -framework Cocoa -framework WebKit -framework Security -framework LocalAuthentication \
@@ -52,8 +52,8 @@ if [[ "$platform" == macos ]]; then
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-<key>CFBundleName</key><string>ccBox Client</string>
-<key>CFBundleDisplayName</key><string>ccBox Client</string>
+<key>CFBundleName</key><string>CCBox Client</string>
+<key>CFBundleDisplayName</key><string>CCBox Client</string>
 <key>CFBundleIdentifier</key><string>org.ccbox.desktop-client</string>
 <key>CFBundleVersion</key><string>1</string>
 <key>CFBundleShortVersionString</key><string>$short_version</string>
@@ -73,7 +73,7 @@ PLIST
   codesign --force --sign - "$bundle/Contents/MacOS/Cage"
   codesign --force --sign - "$bundle"
   codesign --verify --deep --strict "$bundle"
-  ditto -c -k --keepParent "$bundle" "$stage/result/ccBox-Client-macos-$arch.zip"
+  ditto -c -k --keepParent "$bundle" "$stage/result/CCBox-Client-macos-$arch.zip"
 else
   pkg-config --atleast-version=2.40 webkit2gtk-4.1
   pkg-config --exists gtk+-3.0 json-glib-1.0
@@ -90,23 +90,23 @@ else
   cp /etc/os-release "$app/BUILD-PLATFORM.txt"
   pkg-config --modversion gtk+-3.0 webkit2gtk-4.1 json-glib-1.0 >> "$app/BUILD-PLATFORM.txt"
   cat > "$app/README.txt" <<'LINUX_README'
-ccBox 轻量远程客户端（Linux 开发构建）
+CCBox 轻量远程客户端（Linux 开发构建）
 在兼容 BUILD-PLATFORM.txt 所列发行版的图形桌面中，以普通用户运行 cage-desktop。
 系统依赖见 dependencies.txt。项目、应用与网络在云端运行；本机连接配置默认位于 ~/.ccbox/client。
 构建不安装或覆盖现有应用，不包含虚拟机、Mihomo 或 OpenSSH 程序。验收范围以项目测试报告为准。
 LINUX_README
   "$app/cage-desktop" --self-test
-  tar -C "$stage/result" -czf "$stage/result/ccBox-Client-linux-$arch.tar.gz" app
+  tar -C "$stage/result" -czf "$stage/result/CCBox-Client-linux-$arch.tar.gz" app
 fi
 cp LICENSE "$stage/result/LICENSE"
 printf '%s\n' "$version" > "$stage/result/VERSION"
 cat > "$stage/result/README.txt" <<'README'
-ccBox 轻量远程客户端（开发构建）
+CCBox 轻量远程客户端（开发构建）
 
-本机只提供窗口、SSH 连接、输入和文件传递；项目、浏览器、终端与网络在云端 ccBox 运行。
+本机只提供窗口、SSH 连接、输入和文件传递；项目、浏览器、终端与网络在云端 CCBox 运行。
 默认连接配置目录为 ~/.ccbox/client；显式设置 CCBOX_CONFIG 时沿用指定路径。
-此目录为独立构建产物，不会安装或替换已安装的 ccBox。当前构建使用手动更新。
-macOS 运行 ccBox Client.app。Linux 安装 app/dependencies.txt 中的系统依赖后运行 app/cage-desktop。
+此目录为独立构建产物，不会安装或替换已安装的 CCBox。当前构建使用手动更新。
+macOS 运行 CCBox Client.app。Linux 安装 app/dependencies.txt 中的系统依赖后运行 app/cage-desktop。
 本构建未公证或发布；原生运行验收范围以项目测试报告为准。
 README
 mv "$stage/result" "$destination"

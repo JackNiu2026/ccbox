@@ -250,7 +250,7 @@ export function SafetyPanel({
               <small>{site.source}</small>
               <p>{site.description}</p>
               <button disabled={!online || busy} onClick={() => open(site.url)}>
-                在 ccBox 中打开
+                在 CCBox 中打开
                 <ArrowUpRight size={14} />
               </button>
               {site.attribution && (
@@ -262,7 +262,7 @@ export function SafetyPanel({
           ))}
         </div>
         <p className="field-help">
-          点击后才访问第三方站点。站点会收到 ccBox 的出口
+          点击后才访问第三方站点。站点会收到 CCBox 的出口
           IP，并可读取该页面可访问的浏览器信息。评分属于社区参考。
         </p>
         <details className="safety-scope">

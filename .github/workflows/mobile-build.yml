@@ -1,4 +1,4 @@
-name: ccBox Windows and mobile test packages
+name: CCBox Windows and mobile test packages
 on:
   workflow_dispatch:
   workflow_call:
@@ -60,19 +60,19 @@ jobs:
           bash mobile/build.sh android
           version=$(tr -d '\r\n' < VERSION)
           tools="$ANDROID_HOME/build-tools/35.0.0"
-          apk=mobile/.build/android/ccBox-android-arm64-debug.apk
+          apk=mobile/.build/android/CCBox-android-arm64-debug.apk
           "$tools/apksigner" verify --verbose "$apk"
           "$tools/zipalign" -c -P 16 4 "$apk"
           "$tools/aapt2" dump badging "$apk" > "$RUNNER_TEMP/apk-badging.txt"
           grep -F "package: name='org.ccbox.android'" "$RUNNER_TEMP/apk-badging.txt"
-          grep -Fx "application-label:'ccBox'" "$RUNNER_TEMP/apk-badging.txt"
+          grep -Fx "application-label:'CCBox'" "$RUNNER_TEMP/apk-badging.txt"
           grep -Fx "native-code: 'arm64-v8a'" "$RUNNER_TEMP/apk-badging.txt"
           grep -F "versionName='$version'" "$RUNNER_TEMP/apk-badging.txt"
           mark=$(find mobile/.build/resources/mobile-ui/assets -name 'logo-*.svg' -print -quit)
           test -s "$mark"
           unzip -p "$apk" "assets/mobile-ui/assets/$(basename "$mark")" | cmp "$mark" -
           mkdir -p _output/ci-android
-          artifact="ccBox-$version-android-arm64-debug.apk"
+          artifact="CCBox-$version-android-arm64-debug.apk"
           cp "$apk" "_output/ci-android/$artifact"
           (cd _output/ci-android && sha256sum "$artifact" > SHA256SUMS && sha256sum -c SHA256SUMS)
       - uses: actions/upload-artifact@v4
@@ -108,7 +108,7 @@ jobs:
           unset ANDROID_KEYSTORE_BASE64 ANDROID_PASSWORD
           bash mobile/build.sh android-release
           version=$(tr -d '\r\n' < VERSION)
-          name="ccBox-$version-android-arm64.apk"
+          name="CCBox-$version-android-arm64.apk"
           apk="mobile/.build/android/$name"
           tools="$ANDROID_HOME/build-tools/35.0.0"
           "$tools/apksigner" verify --print-certs "$apk" > "$RUNNER_TEMP/ccbox-android-certs.txt"
@@ -116,7 +116,7 @@ jobs:
           "$tools/zipalign" -c -P 16 4 "$apk"
           "$tools/aapt2" dump badging "$apk" > "$RUNNER_TEMP/ccbox-android-badging.txt"
           grep -F "package: name='org.ccbox.android'" "$RUNNER_TEMP/ccbox-android-badging.txt"
-          grep -Fx "application-label:'ccBox'" "$RUNNER_TEMP/ccbox-android-badging.txt"
+          grep -Fx "application-label:'CCBox'" "$RUNNER_TEMP/ccbox-android-badging.txt"
           grep -Fx "native-code: 'arm64-v8a'" "$RUNNER_TEMP/ccbox-android-badging.txt"
           grep -F "versionCode='$CAGE_ANDROID_VERSION_CODE' versionName='$version'" "$RUNNER_TEMP/ccbox-android-badging.txt"
           mkdir -p _output/ci-android-release
@@ -166,13 +166,13 @@ jobs:
               -sdk iphonesimulator -configuration Debug ARCHS=arm64 ONLY_ACTIVE_ARCH=YES \
               CODE_SIGNING_ALLOWED=NO MARKETING_VERSION="$short_version" SYMROOT="$products" build
             app="$products/Debug-iphonesimulator/$target.app"
-            [[ "$(/usr/libexec/PlistBuddy -c 'Print CFBundleDisplayName' "$app/Info.plist")" == ccBox ]]
+            [[ "$(/usr/libexec/PlistBuddy -c 'Print CFBundleDisplayName' "$app/Info.plist")" == CCBox ]]
             [[ "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$app/Info.plist")" == "$bundle_id" ]]
             [[ "$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$app/Info.plist")" == "$short_version" ]]
             [[ "$(lipo -archs "$app/$target")" == arm64 ]]
             vtool -show-build "$app/$target" | grep -E 'platform[[:space:]]+IOSSIMULATOR'
             test -s "$app/Assets.car"
-            ditto -c -k --keepParent "$app" "$output/ccBox-$version-ios$variant-simulator-arm64.zip"
+            ditto -c -k --keepParent "$app" "$output/CCBox-$version-ios$variant-simulator-arm64.zip"
           done
           (cd "$output" && shasum -a 256 ./*.zip > SHA256SUMS && shasum -a 256 -c SHA256SUMS)
       - uses: actions/upload-artifact@v4

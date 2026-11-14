@@ -31,6 +31,12 @@ ASSETS := internal/limaembed/assets
 LDFLAGS := -s -w \
 	-X github.com/sylvinus/agent-vm/internal/version.Version=$(VERSION) \
 	-X github.com/lima-vm/lima/v2/pkg/version.Version=$(LIMA_VERSION)
+ifneq ($(strip $(CCBOX_LICENSE_PUBLIC_KEY)),)
+LDFLAGS += -X github.com/sylvinus/agent-vm/internal/workbench.licensePublicKey=$(CCBOX_LICENSE_PUBLIC_KEY)
+endif
+ifeq ($(CCBOX_LICENSE_LOCAL_TEST),1)
+LDFLAGS += -X github.com/sylvinus/agent-vm/internal/workbench.licenseEndpoint=http://127.0.0.1:8791/v1/redeem
+endif
 # yq only edits Lima's YAML here: without its other formats (Lua, HCL, TOML,
 # XML...), 10% smaller. Tests run with the same tags.
 TAGS := yq_noxml,yq_nolua,yq_noini,yq_nohcl,yq_notoml,yq_noprops,yq_nocsv,yq_nouri,yq_nobase64,yq_nosh,yq_noshell

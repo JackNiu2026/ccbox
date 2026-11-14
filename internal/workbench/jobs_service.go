@@ -10,6 +10,11 @@ func (s *Server) busy() bool { return s.jobs.snapshot().Running }
 // submitJob keeps network intent and account policy in the workbench. The
 // manager owns admission, execution, cancellation and published job state.
 func (s *Server) submitJob(kind string, run func() error) (Job, error) {
+	if kind == "start" || kind == "guest-install" || kind == "restore" {
+		if err := s.requireLicense(); err != nil {
+			return Job{}, err
+		}
+	}
 	s.mu.Lock()
 	if s.closing {
 		s.mu.Unlock()

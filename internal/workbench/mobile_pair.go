@@ -200,7 +200,7 @@ func (s *Server) reportPhoneDevice(w http.ResponseWriter, r *http.Request) {
 	s.account.mu.Lock()
 	defer s.account.mu.Unlock()
 	if !s.mobileAuthorized(r.Context()) {
-		http.Error(w, "请先解锁 ccBox", http.StatusLocked)
+		http.Error(w, "请先解锁 CCBox", http.StatusLocked)
 		return
 	}
 	p := &s.phones
@@ -255,7 +255,7 @@ func (s *Server) pairPhone(w http.ResponseWriter, r *http.Request) {
 	}
 	epoch, ok := s.account.access()
 	if !ok {
-		http.Error(w, "请先解锁 ccBox", 423)
+		http.Error(w, "请先解锁 CCBox", 423)
 		return
 	}
 	s.mu.Lock()

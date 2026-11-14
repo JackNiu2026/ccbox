@@ -45,7 +45,7 @@ func (s *Server) accountAction(w http.ResponseWriter, r *http.Request) {
 	}
 	if action != "create" && action != "unlock" && action != "device-unlock" {
 		if _, ok := s.account.accessFor(s.hasTrustedView(r)); !ok {
-			http.Error(w, "请先解锁 ccBox", http.StatusLocked)
+			http.Error(w, "请先解锁 CCBox", http.StatusLocked)
 			return
 		}
 	}
@@ -89,7 +89,7 @@ func (s *Server) accountAction(w http.ResponseWriter, r *http.Request) {
 		err = s.account.createAccount(input.Username, input.Password, input.Avatar, s.macAccountHost())
 	case "prepare-macos":
 		if !s.macAccountHost() || !s.hasTrustedView(r) {
-			http.Error(w, "请在本机 ccBox 窗口设置共用账密", http.StatusForbidden)
+			http.Error(w, "请在本机 CCBox 窗口设置共用账密", http.StatusForbidden)
 			return
 		}
 		if input.Password != input.ConfirmPassword {

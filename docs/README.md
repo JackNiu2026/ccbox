@@ -1,6 +1,6 @@
-# ccBox 文档入口
+# CCBox 文档入口
 
-首次使用 ccBox，从安装与代理配置开始；已有环境遇到问题时，直接查故障恢复。公开安装包与版本验收范围见 [安装指南](guide/installation.md)，产品介绍见[项目主页](../docs/guide/installation.md)。
+首次使用 CCBox，从安装与代理配置开始；已有环境遇到问题时，直接查故障恢复。公开安装包与版本验收范围见 [安装指南](guide/installation.md)，产品介绍见[项目主页](../docs/guide/installation.md)。
 
 ## 使用与反馈
 
@@ -8,7 +8,7 @@
 
 | 你要做什么 | 从这里开始 |
 |---|---|
-| 让自己的 Agent 下载、安装、配置 ccBox，跟踪任务并排查故障 | [Agent 使用指南](guide/agent.md) |
+| 让自己的 Agent 下载、安装、配置 CCBox，跟踪任务并排查故障 | [Agent 使用指南](guide/agent.md) |
 | 选择 macOS、Windows、Linux 安装包，配置代理并打开第一个项目 | [开始使用](getting-started.md) |
 | 选择与主机同类的客机系统，了解原生工具、镜像与数据保留 | [选择客机系统](guide/guest-systems.md) |
 | 查看快捷键、文件保存、关闭与退出行为 | [日常使用](getting-started.md#日常使用) |
@@ -26,7 +26,7 @@
 
 GitHub 私有仓库内的 [上线准备说明](launch-readiness.md)列出当前测试产物、正式签名配置、官网构建流程和上线验收条件。
 
-先使用对应平台的打包脚本生成 ccBox 正式包、`SHA256SUMS` 和对应源码。Windows 正式包由打包流程验证 Authenticode 签名，macOS 正式包须完成 Developer ID 签名与公证。Linux 发行者在打包时将 `CCBOX_DEB_MAINTAINER` 设为真实的维护者名称和邮箱。
+先使用对应平台的打包脚本生成 CCBox 正式包、`SHA256SUMS` 和对应源码。Windows 正式包由打包流程验证 Authenticode 签名，macOS 正式包须完成 Developer ID 签名与公证。Linux 发行者在打包时将 `CCBOX_DEB_MAINTAINER` 设为真实的维护者名称和邮箱。
 
 为实际提供的平台准备发行说明，再从仓库根目录运行以下命令。示例只发布 Windows，也可传入 Linux 或 macOS 的正式包输出目录。
 

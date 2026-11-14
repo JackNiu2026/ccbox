@@ -1,0 +1,19 @@
+[Unit]
+Description=CCBox desktop activation
+After=network.target
+
+[Service]
+User=ccbox-license
+Group=ccbox-license
+StateDirectory=ccbox-license
+StateDirectoryMode=0700
+ExecStart=/usr/local/bin/ccbox-license serve /var/lib/ccbox-license/state /var/lib/ccbox-license/signing.key
+Restart=on-failure
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

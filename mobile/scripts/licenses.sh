@@ -13,9 +13,9 @@ for target in android ios; do
 done | awk -F '\t' 'NF == 3 && !seen[$1]++' | LC_ALL=C sort > "$list"
 {
   cat <<'NOTICE'
-ccBox mobile third-party notices
+CCBox mobile third-party notices
 
-ccBox mobile source and build scripts are included with the source distribution.
+CCBox mobile source and build scripts are included with the source distribution.
 The licenses of the linked Go modules are included below.
 
 NOTICE

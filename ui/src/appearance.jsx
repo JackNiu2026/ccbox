@@ -104,7 +104,7 @@ export function AppearanceProvider({ children }) {
         foreground: variables["--sidebar-ink"],
         translucent: !theme.opaqueWindows,
       }).catch(() =>
-        setError("外观已应用到工作台，原生窗口未能同步，请重新打开 ccBox。"),
+        setError("外观已应用到工作台，原生窗口未能同步，请重新打开 CCBox。"),
       );
   }, [appearance, variant, systemReduced]);
   const update = (next) => {

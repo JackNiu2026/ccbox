@@ -170,7 +170,7 @@ func runAgent(args []string, stdin io.Reader, stdout io.Writer, clientOnly bool)
 		return finish(map[string]bool{"created": err == nil}, err)
 	case "service.start":
 		if clientOnly {
-			return finish(nil, &workbench.AgentError{Code: "user_action_required", Message: "Open the installed ccBox client to start its connection service", NextAction: "open_desktop"})
+			return finish(nil, &workbench.AgentError{Code: "user_action_required", Message: "Open the installed CCBox client to start its connection service", NextAction: "open_desktop"})
 		}
 		if err := host.ConfigureWindowsRuntime(); err != nil {
 			return finish(nil, err)

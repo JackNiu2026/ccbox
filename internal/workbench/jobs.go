@@ -28,7 +28,7 @@ type Job struct {
 
 var (
 	errJobBusy    = errors.New("另一个操作仍在进行，请稍候")
-	errJobsClosed = errors.New("后台正在更新，请重新打开 ccBox。")
+	errJobsClosed = errors.New("后台正在更新，请重新打开 CCBox。")
 )
 
 // jobManager owns accepted work independently of HTTP requests. The operation

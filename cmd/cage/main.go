@@ -32,35 +32,35 @@ import (
 	"syscall"
 )
 
-const help = `ccBox — local isolated Claude development
+const help = `CCBox — local isolated Claude development
 
-cage desktop       Open the unified ccBox workbench (desktop launcher)
+cage desktop       Open the unified CCBox workbench (desktop launcher)
 cage agent         Discover and use the versioned, JSON-only external Agent interface
 cage serve         Run its private localhost control service
 cage server-entry --json  Issue a private SSH remote connection entry
 cage container-configure --json  Configure a Linux container from JSON stdin
-cage init          Create a private profile; add and select nodes in ccBox settings
+cage init          Create a private profile; add and select nodes in CCBox settings
 cage check         Verify proxy transport (no VM required)
 cage guest-os --json  Check host prerequisites for a same-system guest
                      On Windows, add --vm-id GUID to inspect one Hyper-V VM
-cage proxy-start   Start ccBox's bundled proxy core with the applied node
-cage proxy-stop    Stop ccBox's core and close external networking
+cage proxy-start   Start CCBox's bundled proxy core with the applied node
+cage proxy-stop    Stop CCBox's core and close external networking
 cage setup         Build the isolated base VM through the specified proxy
-cage up            Start the shared ccBox environment, editor and browser
-cage login         Start ccBox services, then Claude's login flow inside the VM
+cage up            Start the shared CCBox environment, editor and browser
+cage login         Start CCBox services, then Claude's login flow inside the VM
 cage access        Inspect legacy viewer credentials (diagnostics only)
 cage shell         Open a shell in the shared environment
 cage run COMMAND   Execute a command in the shared environment
 cage claude        Run Claude Code in the shared environment
-cage stop          Stop the shared ccBox environment
-cage list          List this ccBox profile's VMs
+cage stop          Stop the shared CCBox environment
+cage list          List this CCBox profile's VMs
 cage doctor        Diagnose the VM
 cage diagnostics --json PATH.zip   Export a redacted diagnostic bundle
 cage version       Print this build's version. --min VERSION fails if older
 cage licenses      Print third-party license notices
 
 Configuration: ~/.ccbox/config.json (override CCBOX_CONFIG).
-Each configuration directory is an independent ccBox profile.
+Each configuration directory is an independent CCBox profile.
 Only explicitly opened project folders are shared. No host Claude credentials are imported.
 `
 
@@ -318,7 +318,7 @@ func run() int {
 		}
 		_ = json.NewEncoder(os.Stdout).Encode(map[string]string{
 			"phase": "manual", "currentVersion": version.Version,
-			"message": "ccBox 使用安装包手动更新，请向安装包提供方获取新版。",
+			"message": "CCBox 使用安装包手动更新，请向安装包提供方获取新版。",
 		})
 		return 0
 	}
@@ -442,7 +442,7 @@ func run() int {
 			if err := openWorkbench(entry.URL); err != nil {
 				return fail(err)
 			}
-			fmt.Println("ccBox workbench opened.")
+			fmt.Println("CCBox workbench opened.")
 		}
 		return 0
 	}
@@ -624,7 +624,7 @@ func run() int {
 		if err := workbench.StartGuestServices(context.Background(), path, cfg, os.Stdout, os.Stderr); err != nil {
 			return fail(err)
 		}
-		fmt.Println("ccBox local services are ready. Open ccBox or run cage desktop to complete the required network checks. External networking stays closed until the workbench approves this VM; no local access password is required.")
+		fmt.Println("CCBox local services are ready. Open CCBox or run cage desktop to complete the required network checks. External networking stays closed until the workbench approves this VM; no local access password is required.")
 		if args[0] == "login" {
 			return cli.Main([]string{"run", "--tty", "bash", "-lc", "source /etc/profile.d/claude-cage.sh; exec claude auth login"}, cli.Stdio())
 		}

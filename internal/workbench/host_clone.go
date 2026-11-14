@@ -37,7 +37,7 @@ func (s *Server) hostClonePlan(ctx context.Context) (hostimage.Plan, error) {
 
 func (s *Server) hostClone(w http.ResponseWriter, r *http.Request) {
 	if !s.hasTrustedView(r) || !s.localVMStorage() {
-		http.Error(w, "请在本机 ccBox 窗口选择系统创建方式", http.StatusForbidden)
+		http.Error(w, "请在本机 CCBox 窗口选择系统创建方式", http.StatusForbidden)
 		return
 	}
 	view, err := s.guestInstallView()

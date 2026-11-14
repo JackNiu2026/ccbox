@@ -53,7 +53,7 @@ New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 $dependencies = Get-Content -LiteralPath (Join-Path $repository 'packaging/windows/dependencies.json') -Raw | ConvertFrom-Json
 $qemuTar = Get-VerifiedGitArchive $dependencies.qemuSource (Join-Path $repository '_output/windows-deps')
 $suffix = if ($Release) { '' } elseif ($Sign) { '-test-signed' } else { '-unsigned' }
-$artifact = Join-Path $OutputDirectory "ccBox-$version-windows-amd64-setup$suffix.exe"
+$artifact = Join-Path $OutputDirectory "CCBox-$version-windows-amd64-setup$suffix.exe"
 $manifest = Join-Path $AppDirectory 'Cage.install-files.json'
 $files = @(Get-ChildItem -LiteralPath $AppDirectory -File -Recurse -Force | Where-Object FullName -ne $manifest)
 $ownership = [Collections.Generic.List[object]]::new()

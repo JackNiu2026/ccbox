@@ -33,9 +33,11 @@ import { ResourceSettings } from "./resources";
 import { DiagnosticSettings } from "./diagnostics.jsx";
 import { MacOSLogin } from "./macos-login";
 import { AccountSettings } from "./account";
+import { DesktopLicenseSettings } from "./desktop-license";
 import { ClaudeAccountsPanel } from "./claude-accounts";
 const sections = [
   ["account", "账户", UserRound],
+  ["license", "授权", KeyRound],
   ["vault", "密码保险箱", KeyRound],
   ["claude-accounts", "Claude 账号", UsersRound],
   ["archived-sessions", "已归档会话", Archive],
@@ -224,7 +226,7 @@ export function SettingsPanel({
         </button>
         <h2>设置</h2>
         <nav aria-label="设置分组">
-          {sections.map(([id, label, Icon]) => (
+          {sections.filter(([id]) => id !== "license" || !isRemoteClient()).map(([id, label, Icon]) => (
             <button
               key={id}
               className={section === id ? "selected" : ""}
@@ -247,6 +249,7 @@ export function SettingsPanel({
           {section === "archived-sessions" && <ArchivedSessions ready={status.ready && !busy} />}
           {section === "vault" && <PasswordVaultSettings onConfirm={onConfirm} onDirty={setAccountDirty} />}
           {section === "account" && <AccountSettings busy={busy} onDirty={setAccountDirty} />}
+          {section === "license" && <DesktopLicenseSettings />}
           {section === "claude-accounts" && <ClaudeAccountsPanel store={claudeProfiles} tabs={terminalTabs} onConfirm={onConfirm}
             running={status.vm_running} environmentBusy={busy} login={async (id) => {
               if (changed && !(await onConfirm({ title: "放弃尚未保存的设置并登录？",
@@ -316,7 +319,7 @@ export function SettingsPanel({
                   </div>
                 )}
                 <p className="footnote">
-                  代理不可用时，ccBox 会停止对外联网。修改表单后需要重新验证。
+                  代理不可用时，CCBox 会停止对外联网。修改表单后需要重新验证。
                 </p>
                 <section className="network-exit-policy" aria-label="IP 变化规则">
                   <ExitPolicyFields
@@ -334,7 +337,7 @@ export function SettingsPanel({
               <>
                 <div className="section-title">
                   <h3>时区与语言</h3>
-                  <p>这些设置作用于 ccBox 内的系统、CLI 和浏览器。</p>
+                  <p>这些设置作用于 CCBox 内的系统、CLI 和浏览器。</p>
                 </div>
                 {!draft.auto_timezone && !draft.auto_language && (
                   <p className="field-help">
@@ -579,14 +582,14 @@ export function SettingsPanel({
               <>
                 <div className="section-title">
                   <h3>环境与恢复</h3>
-                  <p>{isRemoteClient() ? "项目位于云端，ccBox 中的改动会直接保存到云端文件。" : "本机与 ccBox 中的改动会双向同步。"}</p>
+                  <p>{isRemoteClient() ? "项目位于云端，CCBox 中的改动会直接保存到云端文件。" : "本机与 CCBox 中的改动会双向同步。"}</p>
                 </div>
                 {status.local_vm_storage && !isRemoteClient() && <EnvironmentStorage status={status} onConfirm={onConfirm} />}
                 <div className="setting-summary-row">
                   <span>当前项目</span>
                   <strong title={current.workspace}>
                     {status.environment_workspace
-                      ? "ccBox 默认工作区"
+                      ? "CCBox 默认工作区"
                       : current.workspace || "尚未选择项目"}
                   </strong>
                 </div>
@@ -596,11 +599,11 @@ export function SettingsPanel({
                 <div className="project-explanation">
                   <FolderOpen size={22} />
                   <div>
-                    <strong>所有项目共用一个 ccBox 环境</strong>
+                    <strong>所有项目共用一个 CCBox 环境</strong>
                     <p>
                       明确打开的项目文件夹会共享到同一个环境。主机的 Claude
                       登录、SSH 密钥和个人配置不会自动导入。浏览器下载统一保存到
-                      ccBox 默认工作区的 Downloads 文件夹。
+                      CCBox 默认工作区的 Downloads 文件夹。
                     </p>
                   </div>
                 </div>
@@ -610,7 +613,7 @@ export function SettingsPanel({
                 {!status.storage_recovery?.required && <EnvironmentVersions status={status} onConfirm={onConfirm} />}
                 {status.guest_system === "macos" && <section aria-label="客机系统权限">
                   <h4>客机系统权限</h4>
-                  <p className="field-help">在受限的客机系统设置窗口中完成授权，ccBox 会自动检查并重新连接项目。</p>
+                  <p className="field-help">在受限的客机系统设置窗口中完成授权，CCBox 会自动检查并重新连接项目。</p>
                   <div className="project-recovery-actions">
                     <MacOSLogin maintenance="projects" label="文件共享权限" disabled={!status.ready || busy} />
                     <MacOSLogin maintenance="screen" label="屏幕录制权限" disabled={!status.ready || busy} />

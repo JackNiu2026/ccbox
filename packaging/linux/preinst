@@ -13,7 +13,7 @@ if [ "${1:-}" = upgrade ] || [ "${1:-}" = install ] || [ "${1:-}" = remove ]; th
     fi
     case "$executable" in
       /usr/bin/ccbox|/usr/bin/ccbox-desktop|/usr/lib/ccbox/cage|/usr/lib/ccbox/cage-desktop|/usr/lib/ccbox/mihomo|/usr/lib/ccbox/*' (deleted)')
-        echo 'ccBox is running. Save work, stop the environment, and quit ccBox before changing the installation.' >&2
+        echo 'CCBox is running. Save work, stop the environment, and quit CCBox before changing the installation.' >&2
         exit 1
         ;;
     esac

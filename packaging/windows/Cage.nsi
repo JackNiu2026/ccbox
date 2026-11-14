@@ -31,16 +31,16 @@ ManifestSupportedOS all
 !define APP_ID "org.ccbox.desktop"
 !define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\ccBox"
 !define WEBVIEW2_APP_ID "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
-Name "ccBox ${VERSION}"
+Name "CCBox ${VERSION}"
 OutFile "${OUTPUT_FILE}"
 InstallDir "$LOCALAPPDATA\Programs\ccBox"
 InstallDirRegKey HKCU "${UNINSTALL_KEY}" "InstallLocation"
 VIProductVersion "${VERSION_NUMERIC}"
-VIAddVersionKey /LANG=1033 "ProductName" "ccBox"
+VIAddVersionKey /LANG=1033 "ProductName" "CCBox"
 VIAddVersionKey /LANG=1033 "ProductVersion" "${VERSION}"
 VIAddVersionKey /LANG=1033 "FileVersion" "${VERSION}"
-VIAddVersionKey /LANG=1033 "FileDescription" "ccBox Windows Installer"
-VIAddVersionKey /LANG=1033 "CompanyName" "ccBox"
+VIAddVersionKey /LANG=1033 "FileDescription" "CCBox Windows Installer"
+VIAddVersionKey /LANG=1033 "CompanyName" "CCBox"
 VIAddVersionKey /LANG=1033 "LegalCopyright" "Cage contributors"
 
 !ifdef SIGN_SCRIPT
@@ -50,7 +50,7 @@ VIAddVersionKey /LANG=1033 "LegalCopyright" "Cage contributors"
 !define MUI_ABORTWARNING
 !define MUI_FINISHPAGE_RUN "$INSTDIR\Cage.exe"
 !define MUI_FINISHPAGE_RUN_NOTCHECKED
-!define MUI_FINISHPAGE_TEXT "ccBox is installed.$\r$\n$\r$\nIf virtualization is unavailable, enable Windows Hypervisor Platform in Windows Features and restart Windows. Your projects and ccBox data are preserved during upgrades and uninstall."
+!define MUI_FINISHPAGE_TEXT "CCBox is installed.$\r$\n$\r$\nIf virtualization is unavailable, enable Windows Hypervisor Platform in Windows Features and restart Windows. Your projects and CCBox data are preserved during upgrades and uninstall."
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "${APP_DIR}/LICENSE.txt"
 !define MUI_DIRECTORYPAGE_TEXT_TOP "$(CageDirectoryHelp)"
@@ -63,12 +63,12 @@ Page custom ShortcutOptionsPage ShortcutOptionsLeave
 !insertmacro MUI_LANGUAGE "English"
 !insertmacro MUI_LANGUAGE "SimpChinese"
 
-LangString CageDirectoryHelp ${LANG_ENGLISH} "Choose where to install the ccBox application. On first launch, you can choose a separate drive for the Linux image, download cache, and virtual disks before starting the environment."
-LangString CageDirectoryHelp ${LANG_SIMPCHINESE} "请选择 ccBox 程序的安装目录。首次打开 ccBox 后，可以在启动环境前单独选择存放 Linux 镜像、下载缓存和虚拟磁盘的磁盘。"
+LangString CageDirectoryHelp ${LANG_ENGLISH} "Choose where to install the CCBox application. On first launch, you can choose a separate drive for the Linux image, download cache, and virtual disks before starting the environment."
+LangString CageDirectoryHelp ${LANG_SIMPCHINESE} "请选择 CCBox 程序的安装目录。首次打开 CCBox 后，可以在启动环境前单独选择存放 Linux 镜像、下载缓存和虚拟磁盘的磁盘。"
 LangString CageShortcutsTitle ${LANG_ENGLISH} "Shortcuts"
 LangString CageShortcutsTitle ${LANG_SIMPCHINESE} "快捷方式"
-LangString CageShortcutsHelp ${LANG_ENGLISH} "Choose where to add ccBox shortcuts for your Windows account."
-LangString CageShortcutsHelp ${LANG_SIMPCHINESE} "选择为当前 Windows 用户添加的 ccBox 快捷方式。"
+LangString CageShortcutsHelp ${LANG_ENGLISH} "Choose where to add CCBox shortcuts for your Windows account."
+LangString CageShortcutsHelp ${LANG_SIMPCHINESE} "选择为当前 Windows 用户添加的 CCBox 快捷方式。"
 LangString CageDesktopShortcut ${LANG_ENGLISH} "Add a desktop shortcut"
 LangString CageDesktopShortcut ${LANG_SIMPCHINESE} "添加桌面快捷方式"
 LangString CageStartMenuShortcuts ${LANG_ENGLISH} "Add to the Start menu"
@@ -173,12 +173,12 @@ FunctionEnd
   Pop $1
   ${If} $0 == 0
     SetErrorLevel 2
-    Abort "无法锁定 ccBox 安装操作，请核对系统权限后重试。"
+    Abort "无法锁定 CCBox 安装操作，请核对系统权限后重试。"
   ${EndIf}
   StrCpy $InstallationMutex $0
   ${If} $1 == 183
     SetErrorLevel 2
-    Abort "另一个 ccBox 安装或卸载仍在进行，请等待完成后重试。"
+    Abort "另一个 CCBox 安装或卸载仍在进行，请等待完成后重试。"
   ${EndIf}
 !macroend
 
@@ -202,10 +202,10 @@ Function LoadShortcutOptions
   ${If} $0 != ""
     StrCpy $DesktopShortcut 0
     StrCpy $StartMenuShortcuts 0
-    ${If} ${FileExists} "$DESKTOP\ccBox.lnk"
+    ${If} ${FileExists} "$DESKTOP\CCBox.lnk"
       StrCpy $DesktopShortcut 1
     ${EndIf}
-    ${If} ${FileExists} "$SMPROGRAMS\ccBox\ccBox.lnk"
+    ${If} ${FileExists} "$SMPROGRAMS\CCBox\CCBox.lnk"
       StrCpy $StartMenuShortcuts 1
     ${EndIf}
   ${EndIf}
@@ -291,7 +291,7 @@ FunctionEnd
     ${If} $0 == -1
       StrCpy $HelperExit "application_file_in_use"
       SetErrorLevel 2
-      Abort "Quit ccBox and stop its environment before installing or uninstalling."
+      Abort "Quit CCBox and stop its environment before installing or uninstalling."
     ${EndIf}
     System::Call 'kernel32::CloseHandle(p r0)'
   ${EndIf}
@@ -310,13 +310,13 @@ Function .onInit
   SetShellVarContext current
   SetRegView 64
   ${IfNot} ${IsNativeAMD64}
-    MessageBox MB_ICONSTOP "This ccBox package requires an Intel/AMD 64-bit version of Windows. Windows on ARM and 32-bit Windows are not supported."
+    MessageBox MB_ICONSTOP "This CCBox package requires an Intel/AMD 64-bit version of Windows. Windows on ARM and 32-bit Windows are not supported."
     SetErrorLevel 1633
     Quit
   ${EndIf}
   ReadRegStr $0 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion" "CurrentBuildNumber"
   ${If} $0 < 19045
-    MessageBox MB_ICONSTOP "ccBox requires Windows 10 22H2 (build 19045) or Windows 11. Update Windows and try again."
+    MessageBox MB_ICONSTOP "CCBox requires Windows 10 22H2 (build 19045) or Windows 11. Update Windows and try again."
     SetErrorLevel 1633
     Quit
   ${EndIf}
@@ -390,7 +390,7 @@ Function RestorePreservedFiles
   ${EndIf}
 FunctionEnd
 
-Section "ccBox" Main
+Section "CCBox" Main
   !insertmacro InstallPhase "acquiring_installation_lock"
   !insertmacro AcquireInstallationMutex
   StrCpy $TransactionRecord "$INSTDIR.ccbox-installation.json"
@@ -418,7 +418,7 @@ Section "ccBox" Main
     SetOutPath "$TEMP"
     RMDir /r "$StageDir"
     SetErrorLevel 2
-    Abort "Could not unpack ccBox. Check free disk space and folder permissions."
+    Abort "Could not unpack CCBox. Check free disk space and folder permissions."
   ${EndIf}
 
   ; Install the bundled offline runtime only when WebView2 is absent.
@@ -481,7 +481,7 @@ Section "ccBox" Main
       Pop $1
       RMDir /r "$StageDir"
       SetErrorLevel 2
-      Abort "Could not move the installed application. Quit ccBox and retry."
+      Abort "Could not move the installed application. Quit CCBox and retry."
     ${EndIf}
     DetailPrint "正在迁入个人文件并保留原有链接…"
     !insertmacro InstallPhase "moving_personal_files"
@@ -509,7 +509,7 @@ Section "ccBox" Main
     ${EndIf}
     RMDir /r "$StageDir"
     SetErrorLevel 2
-    Abort "Could not install ccBox. The previous installation has been restored."
+    Abort "Could not install CCBox. The previous installation has been restored."
   ${EndIf}
   ${If} $BackupDir != ""
     !insertmacro InstallPhase "cleaning_previous_application"
@@ -538,9 +538,9 @@ Section "ccBox" Main
     ${EndIf}
   ${EndIf}
   !insertmacro InstallPhase "registering_installation"
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayName" "ccBox"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayName" "CCBox"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayVersion" "${VERSION}"
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "Publisher" "ccBox"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "Publisher" "CCBox"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "URLInfoAbout" "https://ccbox.org/"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "UninstallString" '$\"$INSTDIR\Uninstall.exe$\"'
@@ -550,18 +550,18 @@ Section "ccBox" Main
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoRepair" 1
   SetOutPath "$INSTDIR"
   ${If} $DesktopShortcut == 1
-    CreateShortcut "$DESKTOP\ccBox.lnk" "$INSTDIR\Cage.exe"
+    CreateShortcut "$DESKTOP\CCBox.lnk" "$INSTDIR\Cage.exe"
   ${Else}
-    Delete "$DESKTOP\ccBox.lnk"
+    Delete "$DESKTOP\CCBox.lnk"
   ${EndIf}
   ${If} $StartMenuShortcuts == 1
-    CreateDirectory "$SMPROGRAMS\ccBox"
-    CreateShortcut "$SMPROGRAMS\ccBox\ccBox.lnk" "$INSTDIR\Cage.exe"
-    CreateShortcut "$SMPROGRAMS\ccBox\Uninstall ccBox.lnk" "$INSTDIR\Uninstall.exe"
+    CreateDirectory "$SMPROGRAMS\CCBox"
+    CreateShortcut "$SMPROGRAMS\CCBox\CCBox.lnk" "$INSTDIR\Cage.exe"
+    CreateShortcut "$SMPROGRAMS\CCBox\Uninstall CCBox.lnk" "$INSTDIR\Uninstall.exe"
   ${Else}
-    Delete "$SMPROGRAMS\ccBox\ccBox.lnk"
-    Delete "$SMPROGRAMS\ccBox\Uninstall ccBox.lnk"
-    RMDir "$SMPROGRAMS\ccBox"
+    Delete "$SMPROGRAMS\CCBox\CCBox.lnk"
+    Delete "$SMPROGRAMS\CCBox\Uninstall CCBox.lnk"
+    RMDir "$SMPROGRAMS\CCBox"
   ${EndIf}
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "DesktopShortcut" $DesktopShortcut
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "StartMenuShortcuts" $StartMenuShortcuts
@@ -588,7 +588,7 @@ Function un.onInit
     StrCpy $HelperExit "identity_mismatch"
     Call un.WriteInstallDiagnostic
     SetErrorLevel 2
-    Abort "This is not a ccBox installation folder."
+    Abort "This is not a CCBox installation folder."
   ${EndIf}
   !insertmacro UninstallPhase "checking_stopped_processes"
   !insertmacro CheckStopped "Cage.exe"
@@ -627,10 +627,10 @@ Section "Uninstall"
     Abort "部分程序文件正在使用或无法读取，卸载未完成。个人文件已保留，请关闭占用程序后重试。"
   ${EndIf}
   !insertmacro UninstallPhase "removing_shortcuts_and_registration"
-  Delete "$DESKTOP\ccBox.lnk"
-  Delete "$SMPROGRAMS\ccBox\ccBox.lnk"
-  Delete "$SMPROGRAMS\ccBox\Uninstall ccBox.lnk"
-  RMDir "$SMPROGRAMS\ccBox"
+  Delete "$DESKTOP\CCBox.lnk"
+  Delete "$SMPROGRAMS\CCBox\CCBox.lnk"
+  Delete "$SMPROGRAMS\CCBox\Uninstall CCBox.lnk"
+  RMDir "$SMPROGRAMS\CCBox"
   DeleteRegKey HKCU "${UNINSTALL_KEY}"
   !insertmacro UninstallPhase "removing_install_directory"
   RMDir "$INSTDIR"
