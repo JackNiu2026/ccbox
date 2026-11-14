@@ -36,7 +36,7 @@ function readCopy(language: typeof languages[number]) {
   const sections = headings.map(heading => ({
     title: heading[1], body: source.slice(heading.index! + heading[0].length, allHeadings[allHeadings.indexOf(heading) + 1]?.index ?? source.length),
   }));
-  const [reason, uses, quick, installation, steps, boundaries, contribution, license] = sections;
+  const [reason, uses, quick, installation, steps, boundaries, contribution, license, thanks] = sections;
   const reasonParagraphs = paragraphs(reason.body);
   const installParagraphs = paragraphs(withoutLinkLists(installation.body));
   const stepHeadings = [...steps.body.matchAll(/^### \d+\. (.+)$/gm)];
@@ -56,6 +56,14 @@ function readCopy(language: typeof languages[number]) {
     return { title, text, guide: link && { label: link[1], slug: link[2] } };
   });
   const limit = plain(bullets(boundaries.body).at(-1)!);
+  // "- Lima：…" / "- noVNC − …" / "- code-server - …": the name ends at the first
+  // full-width colon, colon, or a dash surrounded by spaces.
+  const credits = bullets(thanks.body).map(line => {
+    const match = plain(line).match(/^(.+?)\s*(?:[：:]|\s[−–-]\s)\s*(.+)$/);
+    if (!match) throw new Error(`${file}: acknowledgement "${line}" has no name separator`);
+    return { name: match[1].trim(), text: match[2].trim() };
+  });
+  if (credits.length < 5) throw new Error(`${file}: acknowledgements are missing`);
   return {
     ...language,
     home: 'CCBox', start: quick.title, boundary: boundaries.title,
@@ -69,10 +77,11 @@ function readCopy(language: typeof languages[number]) {
     stepsTitle: steps.title, steps: setup,
     boundaryTitle: boundaries.title, boundaries: bullets(boundaries.body).map(pair),
     downloadTitle: installation.title, downloadText: installParagraphs[1],
-    downloadNote: installParagraphs[0], updateNote: installParagraphs.at(-1) || '',
+    downloadNote: installParagraphs[0], updateNote: plain(withoutLinkLists(installation.body).trim().split(/\n\s*\n/).at(-1)!.replace(guideLink, '')),
     docsTitle: contribution.title, docs,
     licenseTitle: license.title, licenseText: paragraphs(license.body).slice(1, -1).join('\n\n'),
     independent: paragraphs(license.body).at(-1) || '',
+    creditsTitle: thanks.title, creditsIntro: paragraphs(thanks.body)[0] || '', credits,
   };
 }
 export const cageCopy = Object.fromEntries(languages.map(language => [language.code, readCopy(language)])) as Record<CageLocale, ReturnType<typeof readCopy>>;

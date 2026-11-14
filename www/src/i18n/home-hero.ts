@@ -80,22 +80,27 @@ export const homeHero: Record<CageLocale, HeroCopy> = {
   },
 };
 
-type HomeUi = { copy: string; copied: string };
+type HomeUi = {
+  copy: string;
+  copied: string;
+  /** Short headings for the four README principles, in README order. */
+  principles: [string, string, string, string];
+};
 
 export const homeUi: Record<CageLocale, HomeUi> = {
-  zh: { copy: '复制', copied: '已复制' },
-  'zh-TW': { copy: '複製', copied: '已複製' },
-  ru: { copy: 'Копировать', copied: 'Скопировано' },
-  ar: { copy: 'نسخ', copied: 'تم النسخ' },
-  fa: { copy: 'کپی', copied: 'کپی شد' },
-  ko: { copy: '복사', copied: '복사됨' },
-  es: { copy: 'Copiar', copied: 'Copiado' },
-  my: { copy: 'ကူးယူရန်', copied: 'ကူးယူပြီး' },
-  be: { copy: 'Скапіяваць', copied: 'Скапіявана' },
-  ps: { copy: 'کاپي', copied: 'کاپي شو' },
-  prs: { copy: 'کاپی', copied: 'کاپی شد' },
-  am: { copy: 'ቅዳ', copied: 'ተቀድቷል' },
-  so: { copy: 'Koobiyee', copied: 'Waa la koobiyeeyay' },
-  ti: { copy: 'ቅዳሕ', copied: 'ተቐዲሑ' },
-  fr: { copy: 'Copier', copied: 'Copié' },
+  zh: { copy: '复制', copied: '已复制', principles: ['网络隔离', '环境指纹', '全链路适配', '联网检查'] },
+  'zh-TW': { copy: '複製', copied: '已複製', principles: ['網路隔離', '環境指紋', '全鏈路適配', '連網檢查'] },
+  ru: { copy: 'Копировать', copied: 'Скопировано', principles: ['Изолированная сеть', 'Отпечаток среды', 'Весь путь Claude', 'Проверки перед выходом в сеть'] },
+  ar: { copy: 'نسخ', copied: 'تم النسخ', principles: ['شبكة معزولة', 'بصمة البيئة', 'مسار Claude كاملًا', 'فحص قبل الاتصال'] },
+  fa: { copy: 'کپی', copied: 'کپی شد', principles: ['شبکهٔ جداگانه', 'اثرانگشت محیط', 'پشتیبانی کامل از Claude', 'بررسی پیش از اتصال'] },
+  ko: { copy: '복사', copied: '복사됨', principles: ['네트워크 격리', '환경 지문', 'Claude 전 과정 지원', '연결 전 검사'] },
+  es: { copy: 'Copiar', copied: 'Copiado', principles: ['Red aislada', 'Huella del entorno', 'Flujo completo de Claude', 'Comprobación antes de conectar'] },
+  my: { copy: 'ကူးယူရန်', copied: 'ကူးယူပြီး', principles: ['သီးခြားကွန်ရက်', 'ပတ်ဝန်းကျင် လက်ဗွေ', 'Claude လုပ်ငန်းစဉ် အပြည့်', 'မချိတ်ဆက်မီ စစ်ဆေးမှု'] },
+  be: { copy: 'Скапіяваць', copied: 'Скапіявана', principles: ['Ізаляваная сетка', 'Адбітак асяроддзя', 'Увесь шлях Claude', 'Праверкі перад выхадам у сетку'] },
+  ps: { copy: 'کاپي', copied: 'کاپي شو', principles: ['جلا شبکه', 'د چاپېریال نښه', 'د Claude بشپړ بهیر', 'له وصل مخکې ازموینه'] },
+  prs: { copy: 'کاپی', copied: 'کاپی شد', principles: ['شبکهٔ جداگانه', 'اثر انگشت محیط', 'پشتیبانی کامل از Claude', 'بررسی پیش از اتصال'] },
+  am: { copy: 'ቅዳ', copied: 'ተቀድቷል', principles: ['የተነጠለ አውታረ መረብ', 'የአካባቢ አሻራ', 'ሙሉ የClaude ሂደት', 'ከመገናኘት በፊት ፍተሻ'] },
+  so: { copy: 'Koobiyee', copied: 'Waa la koobiyeeyay', principles: ['Shabakad gooni ah', 'Faraha deegaanka', 'Socodka Claude oo dhan', 'Hubin ka hor xiriirka'] },
+  ti: { copy: 'ቅዳሕ', copied: 'ተቐዲሑ', principles: ['ፍሉይ መርበብ', 'ኣሻራ ከባቢ', 'ምሉእ መስርሕ Claude', 'ቅድሚ ምትእስሳር ምርመራ'] },
+  fr: { copy: 'Copier', copied: 'Copié', principles: ['Réseau isolé', 'Empreinte de l’environnement', 'Parcours Claude complet', 'Vérification avant connexion'] },
 };

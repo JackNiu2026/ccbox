@@ -3,90 +3,29 @@ import GoogleAnalytics from './GoogleAnalytics.astro';
 import SiteFooter from './SiteFooter.astro';
 import SiteHeader from './SiteHeader.astro';
 import SiteIcons from './SiteIcons.astro';
+import LanguagePicker from './home/LanguagePicker.astro';
+import HomeHero from './home/HomeHero.astro';
+import HomePrinciples from './home/HomePrinciples.astro';
+import HomeFeatures from './home/HomeFeatures.astro';
+import HomeEvidence from './home/HomeEvidence.astro';
+import HomeQuickStart from './home/HomeQuickStart.astro';
+import HomeBoundaries from './home/HomeBoundaries.astro';
+import HomeDownload from './home/HomeDownload.astro';
+import HomeDocs from './home/HomeDocs.astro';
+import HomeOpenSource from './home/HomeOpenSource.astro';
+import DownloadDialog from './home/DownloadDialog.astro';
 import '../styles/cage.css';
 import '../styles/home.css';
-import { cageCopy, languages, type CageLocale } from '../i18n/cage';
-import { homeHero, homeUi } from '../i18n/home-hero';
-import releaseData from '../data/release.json';
-import checks from '../../../assets/network-checks.png';
-import browserChecks from '../../../assets/browser-checks.png';
+import { languages, type CageLocale } from '../i18n/cage';
+import { docHref, homeContext, pathFor } from '../lib/home';
 interface Props { locale: CageLocale }
 const { locale } = Astro.props;
-const c = cageCopy[locale];
-const hero = homeHero[locale];
-const ui = homeUi[locale];
+const ctx = homeContext(locale);
+const { base, copy: c, hero, guideLabel, published } = ctx;
 const titleSeparator = c.lang.startsWith('zh-') ? '' : ' ';
 const pageTitle = `CCBox — ${hero.lead}${titleSeparator}${hero.emphasis}`;
-type PlatformRelease = { version: string; releaseURL?: string; downloadURL?: string };
-type ReleaseMetadata = PlatformRelease & {
-  windowsDownloadURL?: string; linuxDownloadURL?: string; androidDownloadURL?: string;
-  macosPreview?: PlatformRelease; windowsPreview?: PlatformRelease; linuxPreview?: PlatformRelease; androidPreview?: PlatformRelease;
-};
-const stagedRelease = import.meta.glob<ReleaseMetadata>('../data/local-release.json', { eager: true, import: 'default' });
-const published: ReleaseMetadata = stagedRelease['../data/local-release.json'] ?? releaseData;
-const previews = [published.macosPreview, published.windowsPreview, published.linuxPreview, published.androidPreview];
-for (const url of [published.releaseURL, published.downloadURL, published.windowsDownloadURL, published.linuxDownloadURL, published.androidDownloadURL, ...previews.flatMap(preview => [preview?.downloadURL, preview?.releaseURL])]) {
-  if (url && (!/^\/downloads\/[\w./-]+$/.test(url) || url.split("/").some(part => part === "." || part === ".."))) throw new Error("CCBox release links must point to local downloads.");
-}
-const base = import.meta.env.BASE_URL;
-const guideLabels: Record<CageLocale, string> = {
-  zh: '使用文档', 'zh-TW': '使用文件 · 中文', ru: 'Документация · 中文', ar: 'الدليل · 中文', fa: 'راهنما · 中文',
-  ko: '사용 문서 · 中文', es: 'Documentación · 中文', my: 'လမ်းညွှန် · 中文', be: 'Дакументацыя · 中文',
-  ps: 'لارښود · 中文', prs: 'راهنما · 中文', am: 'መመሪያ · 中文', so: 'Hagaha · 中文', ti: 'መምርሒ · 中文', fr: 'Documentation · 中文',
-};
-const guideLabel = guideLabels[locale];
-const docHref = (slug: string) => base + 'docs/' + (slug === 'index' ? '' : slug + '/');
-const previewLabels = locale === 'zh' ? ['预览版 · 未经 Apple 公证', '预览版', '预览版 · 调试签名']
-  : locale === 'zh-TW' ? ['預覽版 · 未經 Apple 公證', '預覽版', '預覽版 · 偵錯簽章']
-  : ['Preview · not Apple-notarized', 'Preview', 'Preview · debug-signed'];
-function platformRelease(download: string | undefined, preview: PlatformRelease | undefined, label: string) {
-  if (download) return { url: download, version: published.version, notes: published.releaseURL };
-  return { url: preview?.downloadURL, version: preview?.version, notes: preview?.releaseURL, preview: preview?.downloadURL ? label : undefined };
-}
-const platforms: Array<{
-  name: string; icon: string; requirements: string; guideURL: string;
-  format?: string; url?: string; version?: string; notes?: string; preview?: string; localBuild?: boolean;
-}> = [
-  { name: 'macOS', icon: 'apple', requirements: 'Apple Silicon · macOS 14+', format: '.dmg',
-    ...platformRelease(published.downloadURL, published.macosPreview, previewLabels[0]), guideURL: base + 'docs/installation/' },
-  { name: 'Windows', icon: 'windows', requirements: 'Windows 10 22H2 / 11 · x64', format: '.exe',
-    ...platformRelease(published.windowsDownloadURL, published.windowsPreview, c.unsignedLabel), guideURL: base + 'docs/installation/' },
-  { name: 'Linux', icon: 'linux', requirements: 'Debian 12 / Ubuntu 22.04 / 24.04 · x86_64', format: '.deb',
-    ...platformRelease(published.linuxDownloadURL, published.linuxPreview, previewLabels[1]), guideURL: base + 'docs/installation/' },
-  { name: 'Android', icon: 'android', requirements: 'Android 8.0+ · arm64', format: '.apk',
-    ...platformRelease(published.androidDownloadURL, published.androidPreview, previewLabels[2]), guideURL: `${base}docs/mobile/` },
-  { name: 'iOS', icon: 'apple', requirements: 'iOS 17+ · Secure Enclave', localBuild: true,
-    guideURL: `${base}docs/mobile/` },
-];
-const pathFor = (code: CageLocale) => `${base}${code === 'zh' ? '' : `${code}/`}`;
-const desktopPlatforms = platforms.slice(0, 3);
 const site = Astro.site;
 const canonical = site && new URL(pathFor(locale), site);
-// Icons follow the fixed README order of the four principles and nine uses.
-const icon = {
-  network: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M3.6 9h16.8', 'M3.6 15h16.8', 'M12 3a14 14 0 0 1 0 18', 'M12 3a14 14 0 0 0 0 18'],
-  fingerprint: ['M12 11v3a8 8 0 0 1-1.5 4.7', 'M8.5 15.5A12 12 0 0 0 9 11a3 3 0 0 1 6 0v1', 'M5.6 17.4A11 11 0 0 0 6 11a6 6 0 0 1 10-4.5', 'M18 12c0 3-.5 5.6-1.3 7.6', 'M14.6 19.9c.5-1.3.9-2.8 1.1-4.4'],
-  link: ['M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1', 'M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1'],
-  shield: ['M12 3 4 6v6c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V6l-8-3z', 'm8.5 12 2.5 2.5 4.5-5'],
-  window: ['M3 5h18v14H3z', 'M3 9h18', 'M6 7h.01', 'M8.5 7h.01', 'M8 13l2 2-2 2', 'M13 17h3'],
-  monitor: ['M3 4h18v12H3z', 'M8 20h8', 'M12 16v4'],
-  folder: ['M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z', 'M9 13h6'],
-  pulse: ['M3 12h4l2.5-6 5 12 2.5-6h4'],
-  disk: ['M5 4h11l3 3v13H5z', 'M8 4v5h7V4', 'M8 20v-6h8v6'],
-  users: ['M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20', 'M10 11.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z', 'M20 20v-1.5a3.5 3.5 0 0 0-2.5-3.3', 'M15.5 4.6a3.5 3.5 0 0 1 0 6.8'],
-  phone: ['M7 3h10v18H7z', 'M11 18h2'],
-  server: ['M4 4h16v6H4z', 'M4 14h16v6H4z', 'M8 7h.01', 'M8 17h.01'],
-  mesh: ['M6 6a2 2 0 1 0 0 .01', 'M18 6a2 2 0 1 0 0 .01', 'M12 18a2 2 0 1 0 0 .01', 'M7.5 7.5l3.5 8.5', 'M16.5 7.5 13 16', 'M8 6h8'],
-  alert: ['M12 9v4', 'M12 17h.01', 'M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z'],
-  book: ['M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z', 'M4 19V5', 'M9 7h6'],
-  check: ['m5 12.5 4.5 4.5L19 7.5'],
-  arrow: ['M5 12h14', 'm13 6 6 6-6 6'],
-  copy: ['M9 9h11v11H9z', 'M5 15H4V4h11v1'],
-};
-type IconName = keyof typeof icon;
-const principleIcons: IconName[] = ['network', 'fingerprint', 'link', 'shield'];
-const featureIcons: IconName[] = ['window', 'monitor', 'folder', 'pulse', 'disk', 'users', 'phone', 'server', 'mesh'];
-const stepIcons: IconName[] = ['pulse', 'monitor', 'window'];
 const structuredData = JSON.stringify({
   '@context': 'https://schema.org', '@type': 'SoftwareApplication', name: 'CCBox',
   applicationCategory: 'DeveloperApplication', operatingSystem: 'macOS 14+, Windows 10/11, Debian 12, Ubuntu 22.04/24.04, Android 8+',
@@ -124,270 +63,21 @@ const structuredData = JSON.stringify({
       <a class="nav-secondary" href={docHref('index')}>{guideLabel}</a>
       <a class="nav-download" href="#download" data-download-open aria-haspopup="dialog">{c.downloadLabel} <span aria-hidden="true">↓</span></a>
     </Fragment>
-    <div class="language-switch">
-      <span id="language-label" class="visually-hidden">{c.languageLabel}</span>
-      <details id="site-language" class="language-picker">
-        <summary aria-labelledby="language-label current-language">
-          <svg class="globe" viewBox="0 0 24 24" aria-hidden="true">{icon.network.map(d => <path d={d} />)}</svg>
-          <bdi id="current-language">{languages.find(l => l.code === locale)?.name}</bdi>
-          <span class="language-chevron" aria-hidden="true"></span>
-        </summary>
-        <nav class="language-options" aria-labelledby="language-label">
-          {languages.map(l => <a href={pathFor(l.code)} lang={l.lang} dir={l.dir} aria-current={l.code === locale ? 'page' : undefined}>{l.name}</a>)}
-        </nav>
-      </details>
-    </div>
+    <LanguagePicker locale={locale} label={c.languageLabel} />
   </SiteHeader>
   <main id="main">
-    <section class="hero" aria-labelledby="hero-title">
-      <div class="hero-glow" aria-hidden="true"></div>
-      <div class="hero-grid wrap">
-        <div class="hero-copy">
-          <p class="hero-pill" dir="ltr"><span class="pill-dot" aria-hidden="true"></span>CCBox v{published.version}<span class="pill-platforms"><span class="pill-sep" aria-hidden="true">·</span>macOS · Windows · Linux · Android</span></p>
-          <h1 id="hero-title">{hero.lead}{titleSeparator}<em>{hero.emphasis}</em></h1>
-          <p class="hero-intro">{hero.description}</p>
-          <div class="hero-actions">
-            <a class="button button-lg" href="#download" data-download-open aria-haspopup="dialog">{c.downloadLabel} <span aria-hidden="true">↓</span></a>
-            <a class="button button-ghost button-lg" href={docHref('index')}>{guideLabel} <svg viewBox="0 0 24 24" aria-hidden="true" class="flip-rtl">{icon.arrow.map(d => <path d={d} />)}</svg></a>
-          </div>
-          <ul class="hero-checks" role="list">
-            <li><svg viewBox="0 0 24 24" aria-hidden="true">{icon.check.map(d => <path d={d} />)}</svg>{c.checksLabel}</li>
-            <li><svg viewBox="0 0 24 24" aria-hidden="true">{icon.check.map(d => <path d={d} />)}</svg>{c.browserCheckLabel}</li>
-          </ul>
-        </div>
-        <figure class="hero-shot">
-          <div class="window-frame">
-            <div class="window-bar" aria-hidden="true"><i></i><i></i><i></i><span dir="ltr">CCBox</span></div>
-            <img src={`${base}workbench-preview.jpg`} width="1440" height="900" alt="CCBox" fetchpriority="high" />
-          </div>
-          <figcaption>CCBox · {c.uiPreviewLabel}</figcaption>
-        </figure>
-      </div>
-      <div class="wrap">
-        <ul class="platform-strip" dir="ltr" role="list">
-          {platforms.map(({ name, icon: platformIcon, requirements }) => <li><img src={`${base}platforms/${platformIcon}.svg`} width="20" height="20" alt="" /><span><strong>{name}</strong><small>{requirements}</small></span></li>)}
-        </ul>
-      </div>
-    </section>
-
-    <section class="why section" aria-labelledby="why-title">
-      <div class="wrap">
-        <div class="section-intro" data-reveal>
-          <p class="eyebrow" dir="ltr">01</p>
-          <h2 id="why-title">{c.why}</h2>
-          <p class="lede">{c.whyText}</p>
-        </div>
-        <ul class="principles" role="list">
-          {c.keyFeatures.map((text, i) => <li data-reveal style={`--delay:${i * 70}ms`}>
-            <span class="icon-tile" aria-hidden="true"><svg viewBox="0 0 24 24">{icon[principleIcons[i] ?? 'shield'].map(d => <path d={d} />)}</svg></span>
-            <p>{text}</p>
-          </li>)}
-        </ul>
-      </div>
-    </section>
-
-    <section id="features" class="features section" aria-labelledby="tools-title">
-      <div class="wrap">
-        <div class="section-heading" data-reveal>
-          <div><p class="eyebrow" dir="ltr">02</p><h2 id="tools-title">{c.featureTitle}</h2></div>
-          <a class="text-link" href={docHref('index')}>{guideLabel} <span aria-hidden="true">↗</span></a>
-        </div>
-        <div class="feature-grid">
-          {c.features.map(({ title, text, guide }, i) =>
-            <article class="feature-card" data-reveal style={`--delay:${(i % 3) * 70}ms`}>
-              <span class="icon-tile" aria-hidden="true"><svg viewBox="0 0 24 24">{icon[featureIcons[i] ?? 'window'].map(d => <path d={d} />)}</svg></span>
-              <h3>{title}</h3>
-              <p>{text}</p>
-              {guide && <a class="card-link" href={docHref(guide.slug)}>{guide.label} <span aria-hidden="true">↗</span></a>}
-            </article>
-          )}
-        </div>
-      </div>
-    </section>
-
-    <section class="evidence section dark-surface" aria-labelledby="checks-title">
-      <div class="wrap">
-        <div class="section-heading" data-reveal>
-          <div><p class="eyebrow" dir="ltr">03</p><h2 id="checks-title">{c.checksLabel}</h2></div>
-          <a class="text-link" href={docHref('network')}>{guideLabel} <span aria-hidden="true">↗</span></a>
-        </div>
-        <div class="evidence-grid">
-          {[{ image: checks, label: c.checksLabel }, { image: browserChecks, label: c.browserCheckLabel }].map(({ image, label }, i) =>
-            <figure data-reveal style={`--delay:${i * 90}ms`}>
-              <a href={image.src} class="evidence-shot"><img src={image.src} width={image.width} height={image.height} alt={label} loading="lazy" /></a>
-              <figcaption><svg viewBox="0 0 24 24" aria-hidden="true">{icon.shield.map(d => <path d={d} />)}</svg>{label} · {c.uiPreviewLabel}</figcaption>
-            </figure>
-          )}
-        </div>
-        <p class="evidence-note" data-reveal><svg viewBox="0 0 24 24" aria-hidden="true">{icon.alert.map(d => <path d={d} />)}</svg><span>{c.whyNote}</span></p>
-      </div>
-    </section>
-
-    <section id="how" class="start section" aria-labelledby="start-title">
-      <div class="wrap">
-        <div class="quick-start" data-reveal>
-          <div class="quick-copy">
-            <p class="eyebrow" dir="ltr">04</p>
-            <h2 id="start-title">{c.quickTitle}</h2>
-            <p class="lede">{c.quickText}</p>
-            <p class="small-note">{c.quickNote}</p>
-          </div>
-          <div class="terminal" dir="ltr">
-            <div class="terminal-bar"><i></i><i></i><i></i><span>agent prompt</span>
-              <button type="button" class="copy-button" data-copy-target="agent-prompt" data-copied={ui.copied} hidden>
-                <svg viewBox="0 0 24 24" aria-hidden="true">{icon.copy.map(d => <path d={d} />)}</svg><span>{ui.copy}</span>
-              </button>
-            </div>
-            <pre><code id="agent-prompt" dir="auto">{c.prompt}</code></pre>
-          </div>
-        </div>
-        <h3 class="steps-title" data-reveal>{c.stepsTitle}</h3>
-        <ol class="steps" role="list">
-          {c.steps.map(({ title, text, guide }, index) =>
-            <li data-reveal style={`--delay:${index * 80}ms`}>
-              <div class="step-top"><span class="step-number" aria-hidden="true" dir="ltr">{String(index + 1).padStart(2, '0')}</span><span class="icon-tile small" aria-hidden="true"><svg viewBox="0 0 24 24">{icon[stepIcons[index] ?? 'window'].map(d => <path d={d} />)}</svg></span></div>
-              <h4>{title}</h4><p>{text}</p>
-              {guide && <a class="card-link" href={docHref(guide.slug)}>{guide.label} <span aria-hidden="true">↗</span></a>}
-            </li>
-          )}
-        </ol>
-        <details class="first-look" data-reveal>
-          <summary>{c.firstLookLabel}<span class="disclosure-chevron" aria-hidden="true"></span></summary>
-          <img src={base + 'first-launch-preview.jpg'} width="1440" height="900" alt={c.firstLookLabel} loading="lazy" />
-        </details>
-      </div>
-    </section>
-
-    <section id="boundaries" class="boundaries section" aria-labelledby="boundary-title">
-      <div class="wrap">
-        <div class="section-intro" data-reveal>
-          <p class="eyebrow" dir="ltr">05</p>
-          <h2 id="boundary-title">{c.boundaryTitle}</h2>
-        </div>
-        <ul class="boundary-list" role="list">
-          {c.boundaries.map(([title, text], i) => <li data-reveal style={`--delay:${(i % 2) * 70}ms`}>
-            <span class="icon-tile warn" aria-hidden="true"><svg viewBox="0 0 24 24">{icon.alert.map(d => <path d={d} />)}</svg></span>
-            <p>{title && <strong>{title} </strong>}{text}</p>
-          </li>)}
-        </ul>
-      </div>
-    </section>
-
-    <section id="download" class="download-section wrap" aria-labelledby="download-title">
-      <div class="download-box dark-surface" data-reveal>
-        <div class="download-content">
-          <h2 id="download-title">{c.downloadTitle}</h2>
-          <p>{c.downloadText}</p>
-          <div class="download-actions">
-            <a class="button button-lg" href="#download" data-download-open aria-haspopup="dialog">{c.downloadLabel} <span aria-hidden="true">↓</span></a>
-            {published.releaseURL && <a class="text-link" href={published.releaseURL}>{c.releaseNotesLabel} ↗</a>}
-          </div>
-          <noscript><p class="download-fallback">{platforms.map(platform => <a class="text-link" href={platform.url || platform.guideURL}>{platform.name}{platform.localBuild ? ` · ${c.localBuildLabel}` : platform.preview ? ` · ${platform.preview}` : ''} ↗ </a>)}</p></noscript>
-        </div>
-        <div class="download-brand">
-          <img src={`${base}ccbox-icon.svg`} width="96" height="96" alt="" />
-          <span dir="ltr">CCBox · v{published.version}</span>
-        </div>
-        <div class="download-details">
-          <ul class="download-meta" dir="ltr" role="list">{platforms.map(platform => <li><img src={`${base}platforms/${platform.icon}.svg`} width="16" height="16" alt="" />{platform.name}</li>)}</ul>
-          <p class="access-note">{c.downloadNote}</p>
-        </div>
-      </div>
-    </section>
-
-    <section class="docs section" aria-labelledby="docs-title">
-      <div class="wrap">
-        <div class="section-heading" data-reveal>
-          <div><p class="eyebrow" dir="ltr">06</p><h2 id="docs-title">{c.docsTitle}</h2></div>
-          <a class="text-link" href={docHref('index')}>{guideLabel} <span aria-hidden="true">↗</span></a>
-        </div>
-        <ul class="doc-links" role="list">
-          {c.docs.map((doc, i) => <li data-reveal style={`--delay:${(i % 3) * 60}ms`}><a href={docHref(doc.slug)}>
-            <span class="doc-label"><svg viewBox="0 0 24 24" aria-hidden="true">{icon.book.map(d => <path d={d} />)}</svg>{doc.label}<span class="doc-arrow" aria-hidden="true">↗</span></span>
-            <span class="doc-desc">{doc.title}</span>
-          </a></li>)}
-        </ul>
-      </div>
-    </section>
-
-    <section class="license wrap" aria-labelledby="license-title"><h2 id="license-title"><a class="text-link" href={`${base}LICENSE.txt`}>{c.licenseTitle}</a></h2><p>{c.licenseText}</p></section>
+    <HomeHero ctx={ctx} titleSeparator={titleSeparator} />
+    <HomePrinciples ctx={ctx} />
+    <HomeFeatures ctx={ctx} />
+    <HomeEvidence ctx={ctx} />
+    <HomeQuickStart ctx={ctx} />
+    <HomeBoundaries ctx={ctx} />
+    <HomeDownload ctx={ctx} />
+    <HomeDocs ctx={ctx} />
+    <HomeOpenSource ctx={ctx} />
   </main>
   <SiteFooter homeHref={pathFor(locale)} guideLabel={guideLabel} privacyLabel={locale === 'zh' || locale === 'zh-TW' ? '统计与隐私' : 'Privacy'} note={c.independent} />
-  <dialog class="download-dialog" aria-labelledby="platform-title">
-    <div class="dialog-heading"><h2 id="platform-title">{c.platformLabel}</h2><form method="dialog"><button class="dialog-close" aria-label={c.closeLabel}>×</button></form></div>
-    <div class="platform-options">{platforms.map(platform => <article class="platform-option" data-platform={platform.name}>
-      <div class="platform-heading"><span class="platform-icon" aria-hidden="true"><img src={`${base}platforms/${platform.icon}.svg`} width="32" height="32" alt="" /></span><h3 dir="ltr">{platform.name}</h3></div><p class="platform-requirements" dir="ltr">{platform.requirements}</p>
-      <p class="platform-status" data-preview={platform.preview ? '' : undefined}><bdi>{platform.localBuild ? c.localBuildLabel : platform.preview || (platform.url ? platform.format : c.unavailableLabel)}</bdi>{platform.version && <bdi dir="ltr"> · v{platform.version}</bdi>}</p>
-      <a class="button" href={platform.url || platform.guideURL}>{platform.localBuild ? c.buildGuideLabel : platform.url ? c.downloadLabel : c.installGuideLabel} ↗</a>
-      {platform.notes && <a class="text-link" href={platform.notes}>{c.releaseNotesLabel} ↗</a>}
-      {platform.url && <a class="text-link" href={platform.guideURL}>{c.installGuideLabel} ↗</a>}
-    </article>)}</div>
-  </dialog>
-  <script>
-    const language = document.querySelector<HTMLDetailsElement>('#site-language');
-    language?.addEventListener('keydown', event => {
-      if (event.key === 'Escape' && language.open) {
-        event.preventDefault();
-        language.open = false;
-        language.querySelector('summary')?.focus();
-      }
-    });
-    document.addEventListener('click', event => {
-      if (language && event.target instanceof Node && !language.contains(event.target)) language.open = false;
-    });
-    const downloads = document.querySelector<HTMLDialogElement>('.download-dialog');
-    document.querySelectorAll<HTMLAnchorElement>('[data-download-open]').forEach(link => {
-      link.addEventListener('click', event => {
-        if (!downloads) return;
-        event.preventDefault();
-        downloads.showModal();
-      });
-    });
-    downloads?.addEventListener('click', event => {
-      if (event.target !== downloads) return;
-      const bounds = downloads.getBoundingClientRect();
-      if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) downloads.close();
-    });
-    const openDownloadHash = () => {
-      if (window.location.hash === '#download' && downloads && !downloads.open) downloads.showModal();
-    };
-    window.addEventListener('hashchange', openDownloadHash);
-    openDownloadHash();
-
-    document.querySelectorAll<HTMLButtonElement>('[data-copy-target]').forEach(button => {
-      const source = document.getElementById(button.dataset.copyTarget!);
-      const label = button.querySelector('span')!;
-      const original = label.textContent;
-      if (!source || !navigator.clipboard) return;
-      button.hidden = false;
-      button.addEventListener('click', async () => {
-        try {
-          await navigator.clipboard.writeText(source.textContent!.trim());
-          label.textContent = button.dataset.copied!;
-          button.classList.add('is-copied');
-          setTimeout(() => { label.textContent = original; button.classList.remove('is-copied'); }, 1800);
-        } catch { /* clipboard denied: the prompt stays selectable */ }
-      });
-    });
-
-    const header = document.querySelector<HTMLElement>('.site-header');
-    const onScroll = () => header?.classList.toggle('is-scrolled', window.scrollY > 8);
-    window.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
-
-    const reveals = document.querySelectorAll<HTMLElement>('[data-reveal]');
-    if ('IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      const observer = new IntersectionObserver(entries => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          entry.target.classList.add('is-visible');
-          observer.unobserve(entry.target);
-        }
-      }, { rootMargin: '0px 0px -8% 0px' });
-      reveals.forEach(element => observer.observe(element));
-    } else {
-      reveals.forEach(element => element.classList.add('is-visible'));
-    }
-  </script>
+  <DownloadDialog ctx={ctx} />
+  <script>import '../scripts/home';</script>
 </body>
 </html>

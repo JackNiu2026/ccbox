@@ -226,7 +226,7 @@ function renderLogin(message = "") {
     }
   } },
     h("img", { class: "logo", src: "assets/icon.svg", alt: "" }),
-    h("h1", {}, "CCBox 授权管理"),
+    h("h1", {}, "CCBox ", h("em", {}, "授权管理")),
     h("p", {}, "使用服务器配置的管理员密码登录。"),
     h("div", { class: "field" }, h("label", { for: "password" }, "管理员密码"), input),
     error,
@@ -308,7 +308,7 @@ async function logout() {
 
 function pageHead(title, description, ...actions) {
   return h("header", { class: "page-head" },
-    h("div", {}, h("h1", {}, title), description && h("p", {}, description)),
+    h("div", {}, h("p", { class: "eyebrow" }, "CCBox 授权管理"), h("h1", {}, title), description && h("p", {}, description)),
     actions.length ? h("div", { class: "head-actions" }, actions) : null);
 }
 

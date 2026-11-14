@@ -139,7 +139,8 @@ func (a *adminServer) asset(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	types := map[string]string{".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".svg": "image/svg+xml"}
+	types := map[string]string{".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".svg": "image/svg+xml",
+		".woff2": "font/woff2", ".txt": "text/plain; charset=utf-8"}
 	contentType, ok := types[path.Ext(name)]
 	if !ok {
 		http.NotFound(w, r)

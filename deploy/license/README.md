@@ -39,7 +39,7 @@ ccbox-license issue /var/lib/ccbox-license/state /var/lib/ccbox-license/signing.
 
 激活码只在生成后显示一次，可复制或下载 TXT / CSV。账本只保存激活码哈希和末 4 位尾号，后台无法再次显示原码；已兑换或绑定设备的码不能停用，因为离线凭证已在设备上。操作日志写入状态目录的 `admin-audit.jsonl`，不含激活码和签名凭证。
 
-登录使用服务端会话：Cookie 为 HttpOnly、SameSite=Strict，经 HTTPS 访问时带 Secure；闲置 45 分钟或登录满 8 小时失效，服务重启后需重新登录。同一来源 15 分钟内失败 8 次后暂停登录。所有写操作校验浏览器 `Origin` 与 `Host`，并要求 JSON 请求体；页面使用严格的内容安全策略，不加载任何外部资源。
+登录使用服务端会话：Cookie 为 HttpOnly、SameSite=Strict，经 HTTPS 访问时带 Secure；闲置 45 分钟或登录满 8 小时失效，服务重启后需重新登录。同一来源 15 分钟内失败 8 次后暂停登录。所有写操作校验浏览器 `Origin` 与 `Host`，并要求 JSON 请求体；页面使用严格的内容安全策略，不加载任何外部资源；配色与官网一致，内嵌的 Inter 字体按 SIL OFL 1.1 分发（`web/inter-LICENSE.txt`）。
 
 默认允许的来源为 `http://127.0.0.1:8791`、`http://localhost:8791` 和 `https://ccbox.org`。使用其他域名或端口时，设置 `CCBOX_LICENSE_ADMIN_ORIGINS`，多个来源用逗号分隔，例如 `https://admin.example.com`。
 

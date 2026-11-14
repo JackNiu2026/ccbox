@@ -1,0 +1,18 @@
+---
+import Icon from '../Icon.astro';
+import SectionHeading from './SectionHeading.astro';
+import { docHref, type HomeContext } from '../../lib/home';
+interface Props { ctx: HomeContext }
+const { copy: c, guideLabel } = Astro.props.ctx;
+---
+<section class="docs section" aria-labelledby="docs-title">
+  <div class="wrap">
+    <SectionHeading index="06" id="docs-title" title={c.docsTitle} link={{ href: docHref('index'), label: guideLabel }} />
+    <ul class="doc-links" role="list">
+      {c.docs.map((doc, i) => <li data-reveal style={`--delay:${(i % 3) * 60}ms`}><a href={docHref(doc.slug)}>
+        <span class="doc-label"><Icon name="book" />{doc.label}<span class="doc-arrow" aria-hidden="true">↗</span></span>
+        <span class="doc-desc">{doc.title}</span>
+      </a></li>)}
+    </ul>
+  </div>
+</section>

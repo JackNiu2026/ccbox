@@ -12,6 +12,7 @@
   font-synthesis: none;
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
+  font-variant-ligatures: no-contextual;
   --ink: #1b2024;
   --paper: #f7f6f3;
   --paper-tint: #efece6;

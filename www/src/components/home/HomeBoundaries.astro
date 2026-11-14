@@ -1,0 +1,18 @@
+---
+import Icon from '../Icon.astro';
+import SectionHeading from './SectionHeading.astro';
+import type { HomeContext } from '../../lib/home';
+interface Props { ctx: HomeContext }
+const { copy: c } = Astro.props.ctx;
+---
+<section id="boundaries" class="boundaries section" aria-labelledby="boundary-title">
+  <div class="wrap">
+    <SectionHeading index="05" id="boundary-title" title={c.boundaryTitle} />
+    <ul class="boundary-list" role="list">
+      {c.boundaries.map(([title, text], i) => <li data-reveal style={`--delay:${(i % 2) * 70}ms`}>
+        <span class="icon-tile warn" aria-hidden="true"><Icon name="alert" /></span>
+        <p>{title && <strong>{title} </strong>}{text}</p>
+      </li>)}
+    </ul>
+  </div>
+</section>
