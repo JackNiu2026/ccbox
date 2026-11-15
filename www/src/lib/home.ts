@@ -2,10 +2,9 @@ import { cageCopy, type CageLocale } from '../i18n/cage';
 import { homeHero, homeUi } from '../i18n/home-hero';
 import { platformsFor, published } from './release';
 
+// The user guide is written in Chinese; other languages say so in the label.
 const guideLabels: Record<CageLocale, string> = {
-  zh: '使用文档', 'zh-TW': '使用文件 · 中文', ru: 'Документация · 中文', ar: 'الدليل · 中文', fa: 'راهنما · 中文',
-  ko: '사용 문서 · 中文', es: 'Documentación · 中文', my: 'လမ်းညွှန် · 中文', be: 'Дакументацыя · 中文',
-  ps: 'لارښود · 中文', prs: 'راهنما · 中文', am: 'መመሪያ · 中文', so: 'Hagaha · 中文', ti: 'መምርሒ · 中文', fr: 'Documentation · 中文',
+  zh: '使用文档', 'zh-TW': '使用文件 · 中文', en: 'User guide · Chinese',
 };
 
 export const pathFor = (code: CageLocale) => `${import.meta.env.BASE_URL}${code === 'zh' ? '' : `${code}/`}`;
