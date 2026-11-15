@@ -71,10 +71,10 @@ func windowsHypervisorReady() error {
 	if err := proc.Find(); err != nil {
 		return fmt.Errorf("请启用 Windows Hypervisor Platform（Windows 虚拟机监控程序平台）并重启后再启动环境")
 	}
-	var present, written uint32
-	result, _, _ := proc.Call(0, uintptr(unsafe.Pointer(&present)), unsafe.Sizeof(present), uintptr(unsafe.Pointer(&written)))
-	if result != 0 || written != 4 || present == 0 {
-		return fmt.Errorf("Windows 虚拟化尚未就绪：请在固件中启用 CPU 虚拟化，启用 Windows Hypervisor Platform 并重启")
-	}
-	return nil
+	// WHvCapabilityCodeHypervisorPresent (0). The documented buffer holds a
+	// 64-bit value; a 4-byte buffer can be rejected on hosts that work.
+	var value uint64
+	var written uint32
+	result, _, _ := proc.Call(0, uintptr(unsafe.Pointer(&value)), unsafe.Sizeof(value), uintptr(unsafe.Pointer(&written)))
+	return whvHypervisorPresent(result, value)
 }

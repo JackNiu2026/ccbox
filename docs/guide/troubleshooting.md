@@ -24,7 +24,7 @@ keywords: 错误 失败 白屏 断网 137 OOM 代理 账号 配对 SSH 损坏 �
 
 ## Windows 虚拟化与镜像安装
 
-在 Windows 上安装 Debian 13 或 Ubuntu 22.04 时，如果提示“准备镜像失败”或“程序提前结束（退出码 1）”，请打开“操作详情”，查看 `Starting agent-vm setup...` 后的错误。“Windows 虚拟化尚未就绪”表示 Windows 虚拟机监控程序平台尚不可用。这个检查可能在 Debian 开始下载前执行，也可能在 Ubuntu 镜像校验完成后执行。
+在 Windows 上安装 Debian 13 或 Ubuntu 22.04 时，如果提示“准备镜像失败”或“程序提前结束（退出码 1）”，请打开“操作详情”，查看 `Starting agent-vm setup...` 后的错误。“Windows 虚拟化尚未就绪”表示 Windows 虚拟机监控程序平台尚不可用。若提示“无法查询 Windows 虚拟化状态（HRESULT …）”，说明 CCBox 未能读取虚拟化状态，并不代表固件设置有误；请确认已启用 Windows 虚拟机监控程序平台并重启，仍失败时导出诊断包并附上该 HRESULT。这个检查可能在 Debian 开始下载前执行，也可能在 Ubuntu 镜像校验完成后执行。
 
 1. 打开“任务管理器 → 性能 → CPU”，查看“虚拟化”状态。若显示“已禁用”，在电脑的 BIOS/UEFI 中启用 Intel VT-x 或 AMD SVM（AMD-V）。
 2. 在开始菜单搜索“启用或关闭 Windows 功能”，勾选“Windows 虚拟机监控程序平台”（Windows Hypervisor Platform），然后重启电脑。也可在管理员终端运行以下命令。即使任务管理器显示虚拟化已启用，也要检查此功能。
