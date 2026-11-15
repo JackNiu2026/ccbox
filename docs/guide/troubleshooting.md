@@ -19,21 +19,53 @@ keywords: 错误 失败 白屏 断网 137 OOM 代理 账号 配对 SSH 损坏 �
 | Mac 显示损坏、无法验证或不支持 | 核对 Apple Silicon、macOS 14+，重新下载完整 DMG，检查该版签名、公证和校验说明。保留系统原文，不关闭系统验证来掩盖问题。 |
 | Windows 未知发布者 | 确认是否为明确标注的未签名预览，阅读对应发行说明；不能把它当作已签名发行。 |
 | Windows 安装 Debian 或 Ubuntu 时提示“准备镜像失败” | 打开“操作详情”，按下方的 [Windows 虚拟化与镜像安装](#windows-虚拟化与镜像安装) 排查。 |
-| Linux 无法启动 | 确认 x86_64、支持发行版与 KVM 权限，使用 APT 补齐安装依赖。 |
+| Linux 无法启动 | 确认 x86_64、支持发行版与 KVM 权限，使用 APT 补齐安装依赖。选择 Debian 或 Ubuntu 时，页面会提示 `/dev/kvm` 缺失或无权访问等具体原因和处理命令。 |
 | 缺少代理核心 | 重装对应平台完整应用，不要只复制单个命令行文件。 |
 
 ## Windows 虚拟化与镜像安装
 
-在 Windows 上安装 Debian 13 或 Ubuntu 22.04 时，如果提示“准备镜像失败”或“程序提前结束（退出码 1）”，请打开“操作详情”，查看 `Starting agent-vm setup...` 后的错误。“Windows 虚拟化尚未就绪”表示 Windows 虚拟机监控程序平台尚不可用。若提示“无法查询 Windows 虚拟化状态（HRESULT …）”，说明 CCBox 未能读取虚拟化状态，并不代表固件设置有误；请确认已启用 Windows 虚拟机监控程序平台并重启，仍失败时导出诊断包并附上该 HRESULT。这个检查可能在 Debian 开始下载前执行，也可能在 Ubuntu 镜像校验完成后执行。
+在 Windows 上选择 Debian 或 Ubuntu 后，CCBox 会先检查这台电脑能否运行 Linux 虚拟机，再开始下载镜像。检查没有通过时，“客户机系统”下方会显示具体原因、处理步骤和可用的按钮；处理完成前，安装按钮保持不可用，不会白白下载镜像。已经创建好的环境照常启动，不受这项检查影响。
 
-1. 打开“任务管理器 → 性能 → CPU”，查看“虚拟化”状态。若显示“已禁用”，在电脑的 BIOS/UEFI 中启用 Intel VT-x 或 AMD SVM（AMD-V）。
-2. 在开始菜单搜索“启用或关闭 Windows 功能”，勾选“Windows 虚拟机监控程序平台”（Windows Hypervisor Platform），然后重启电脑。也可在管理员终端运行以下命令。即使任务管理器显示虚拟化已启用，也要检查此功能。
+| 提示的原因 | 处理方式 |
+| --- | --- |
+| Windows 虚拟机监控程序平台尚未启用 | 点击“一键启用”，在 Windows 管理员授权窗口中选择“是”。启用完成后点击“立即重启”，重启后回到 CCBox 继续安装。 |
+| CPU 虚拟化在 BIOS/UEFI 中处于关闭状态 | 按页面列出的按键和选项进入固件设置开启虚拟化，或点击“重启并进入 BIOS 设置”。回到 Windows 后，再按提示点击“一键启用”。 |
+| 设置已完成，需要重启电脑 | 保存其他程序中的工作，点击“立即重启”或手动重启。 |
+| Windows 虚拟机监控程序没有运行 | 点击“一键启用”，它会同时恢复 Windows 的虚拟机监控程序启动设置。若曾为安卓模拟器关闭 Hyper-V，或安全软件开启了“核晶防护”等独占虚拟化的功能，请先关闭这些设置再重启。 |
+| 当前 Windows 运行在虚拟机或云主机中 | 需要在外层宿主机或云平台为这台虚拟机开启嵌套虚拟化，CCBox 无法在虚拟机内部开启。 |
+| 无法查询 Windows 虚拟化状态（HRESULT …） | 说明 CCBox 未能读取虚拟化状态，并不代表固件设置有误。先点击“一键启用”并重启；仍失败时导出诊断包并附上该 HRESULT。 |
 
-   ```powershell
-   DISM /Online /Enable-Feature /FeatureName:HypervisorPlatform /All
-   ```
+“一键启用”只做两件事：启用“Windows 虚拟机监控程序平台”（Windows Hypervisor Platform），并把 Windows 的虚拟机监控程序启动设置恢复为自动。它需要 Windows 管理员授权，不会自动重启电脑；两种重启按钮都会先请你确认，并在 15 秒后重启。取消授权时设置不会改变。
 
-3. 重启后打开 CCBox，点击“继续安装”。保留原来的环境存储目录，CCBox 会复用已校验的镜像。仍失败时，记录操作详情里的具体错误，按[导出诊断与反馈](#导出诊断与反馈)提供日志。
+### 在 BIOS/UEFI 中开启 CPU 虚拟化
+
+页面会按电脑品牌和处理器给出进入固件设置的按键和选项名称。常见情况如下，具体以你的电脑为准：
+
+| 品牌 | 开机时连续按 |
+| --- | --- |
+| 联想 | F2（部分机型为 Fn+F2）；ThinkPad 和台式机按 F1；也可在关机状态按机身的 Novo 小孔 |
+| 戴尔 | F2 |
+| 惠普 | Esc 后按 F10 |
+| 华硕 | F2 或 Del |
+| 宏碁 | F2 或 Del |
+| 微星、技嘉、华擎等台式机主板 | Del |
+| 华为、荣耀 | F2 |
+
+- Intel 处理器：开启 Intel Virtualization Technology（也可能写作 VT-x、Intel VT、VMX）。
+- AMD 处理器：开启 SVM Mode（也可能写作 AMD-V、SVM、Virtualization）。
+- 选项常在 Advanced、Advanced → CPU Configuration、Configuration、Security 或 Virtualization Support 中。改为 Enabled 后保存并退出，通常按 F10。
+
+不确定按键时，可以从 Windows 进入固件设置。Windows 11：设置 → 系统 → 恢复 → 高级启动“立即重新启动” → 疑难解答 → 高级选项 → UEFI 固件设置。Windows 10：设置 → 更新和安全 → 恢复 → 高级启动“立即重新启动”，之后的路径相同。
+
+### 手动检查
+
+如需手动确认，可以打开“任务管理器 → 性能 → CPU”查看“虚拟化”状态；启用了 Hyper-V 等功能后，这里显示的状态可能不准确，以 CCBox 的检查结果为准。也可以在开始菜单搜索“启用或关闭 Windows 功能”，勾选“Windows 虚拟机监控程序平台”后重启，或在管理员终端运行：
+
+```powershell
+DISM /Online /Enable-Feature /FeatureName:HypervisorPlatform /All
+```
+
+处理完成后打开 CCBox，点击“重新检测”或“继续安装”。保留原来的环境存储目录，CCBox 会复用已校验的镜像。仍失败时，记录操作详情里的具体错误，按[导出诊断与反馈](#导出诊断与反馈)提供日志。
 
 ### 提示未找到可用的物理 IPv4 网卡
 

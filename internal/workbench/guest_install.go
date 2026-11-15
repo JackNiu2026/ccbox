@@ -239,6 +239,13 @@ func (s *Server) beginGuestInstall(w http.ResponseWriter, r *http.Request, in gu
 		requestError(w, err)
 		return
 	}
+	// Check before any image download; Windows 11 has its own Hyper-V check.
+	if hostimage.IsLinux(install.System) {
+		if report, blocked := virtualizationBlocked(r.Context()); blocked {
+			writeVirtualizationBlocked(w, report)
+			return
+		}
+	}
 	s.launch(w, "guest-install", func() error {
 		s.jobs.execution().setSetupProgress(&SetupProgress{Phase: "image", System: install.System, Label: "正在准备 " + guestProgressName(install.System) + " 安装材料"})
 		if err := requireHostGit(s.operationContext()); err != nil {

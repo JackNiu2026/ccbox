@@ -68,6 +68,7 @@ func AgentOperations() []AgentOperation {
 		post("proxy."+action, "Proxy operation; import creates a source, refresh updates an existing source. Read state before retrying. select/route applies the route", "/api/proxy/"+action, proxy)
 	}
 	get("guest.options", "Available guest systems and resumable installation state", "/api/environment/guest-systems")
+	get("guest.virtualization", "Diagnose whether this host can run a Linux guest before installation; returns state, summary and steps", "/api/environment/virtualization")
 	get("guest.match", "Inspect a host-matching clean image plan; pass key as clone_key and plan.host.system as guest_system to environment.start", "/api/environment/guest-systems/clone")
 	post("guest.activate", "Activate an installed guest; controller may retire, reconnect afterwards", "/api/environment/guest-systems/activate", object(nil))
 	get("initialization.status", "Read initial setup state", "/api/environment/initialization")
