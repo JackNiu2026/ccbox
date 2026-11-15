@@ -1,6 +1,8 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { api, native } from "./api";
 import { InlineSelect } from "./inline-select";
+import { VirtualizationNotice } from "./virtualization-notice";
+import { hostAllowsInstall, isLinuxGuest } from "./virtualization-state.mjs";
 import "./guest-system-picker.css";
 
 const names = { "debian-12": "Debian 12", "debian-13": "Debian 13", "ubuntu-22.04": "Ubuntu 22.04", "ubuntu-24.04": "Ubuntu 24.04", macos: "macOS", "windows-11": "Windows 11" };
@@ -74,6 +76,8 @@ export function GuestSystemPicker({ system, onChange, preserveOnUnmount = false,
     });
     return () => { active = false; if (!preserveOnUnmount) onChange(undefined); };
   }, [onChange, attempt, preserveOnUnmount]);
+  const reportHostReady = useCallback((ready) => onChange((current) =>
+    current && isLinuxGuest(current.guest_system) ? { ...current, host_ready: ready } : current), [onChange]);
   if (!view || !system) return error ? <div className="guest-system-picker"><span role="alert">{error}</span>
     <button type="button" onClick={() => retry((n) => n + 1)}>重新检查安装选项</button></div> : null;
   const os = system.guest_system;
@@ -133,6 +137,7 @@ export function GuestSystemPicker({ system, onChange, preserveOnUnmount = false,
         <label><input type="checkbox" checked={system.editor_terms} disabled={system.pending}
           onChange={(e) => change({ editor_terms: e.target.checked })} />我接受上述编辑器许可条款</label>
       </div>}
+      {isLinuxGuest(os) && !system.activate && <VirtualizationNotice key={os} onReady={reportHostReady} />}
       {view.reason && !view.available && <small className="guest-install-fields">{view.reason}</small>}
       {view.reselect && <button type="button" className="guest-install-fields" onClick={async () => {
         try {
@@ -148,6 +153,7 @@ export function GuestSystemPicker({ system, onChange, preserveOnUnmount = false,
 }
 
 export function validGuestChoice(value) {
+  if (!hostAllowsInstall(value)) return false;
   if (value?.clone && !value.activate) return Boolean(value.clone_key && value.clone_ready && (value.guest_system !== "windows-11" || value.editor_terms));
   if (!value || value.activate || value.guest_system === "debian-13" || value.guest_system === "ubuntu-22.04") return true;
   if (value.guest_system === "macos") return true;

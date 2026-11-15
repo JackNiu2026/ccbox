@@ -395,6 +395,8 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("POST /api/projects/client-share", s.guestClientShare)
 	mux.HandleFunc("GET /api/projects/client-share", s.guestClientShare)
 	mux.HandleFunc("GET /api/environment/versions", s.environmentVersions)
+	mux.HandleFunc("GET /api/environment/virtualization", s.virtualization)
+	mux.HandleFunc("POST /api/environment/virtualization", s.virtualization)
 	mux.HandleFunc("GET /api/environment/guest-systems", s.guestInstallation)
 	mux.HandleFunc("GET /api/environment/guest-systems/clone", s.hostClone)
 	mux.HandleFunc("DELETE /api/environment/guest-systems", s.guestInstallation)
@@ -828,6 +830,12 @@ func (s *Server) start(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "当前环境无法启动所选客户机系统，请保留原环境并重新检查安装选择", http.StatusConflict)
 		}
 		return
+	}
+	if s.freshLinuxInstall() {
+		if report, blocked := virtualizationBlocked(r.Context()); blocked {
+			writeVirtualizationBlocked(w, report)
+			return
+		}
 	}
 	s.launch(w, "start", func() error {
 		if err := s.prepareEnvironment(); err != nil {
