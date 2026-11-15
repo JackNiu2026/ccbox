@@ -1,0 +1,12 @@
+---
+interface Props { index: string; id: string; title: string; link?: { href: string; label: string }; lede?: string }
+const { index, id, title, link, lede } = Astro.props;
+---
+<div class:list={['section-heading', { 'has-lede': lede }]} data-reveal>
+  <div>
+    <p class="eyebrow" dir="ltr">{index}</p>
+    <h2 id={id}>{title}</h2>
+    {lede && <p class="lede">{lede}</p>}
+  </div>
+  {link && <a class="text-link" href={link.href}>{link.label} <span aria-hidden="true">↗</span></a>}
+</div>

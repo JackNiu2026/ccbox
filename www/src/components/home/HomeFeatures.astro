@@ -1,0 +1,23 @@
+---
+import Icon from '../Icon.astro';
+import SectionHeading from './SectionHeading.astro';
+import { featureIcons } from '../../lib/icons';
+import { docHref, type HomeContext } from '../../lib/home';
+interface Props { ctx: HomeContext }
+const { copy: c, guideLabel } = Astro.props.ctx;
+---
+<section id="features" class="features section" aria-labelledby="tools-title">
+  <div class="wrap">
+    <SectionHeading index="02" id="tools-title" title={c.featureTitle} link={{ href: docHref('index'), label: guideLabel }} />
+    <div class="feature-grid">
+      {c.features.map(({ title, text, guide }, i) =>
+        <article class="feature-card" data-reveal style={`--delay:${(i % 3) * 70}ms`}>
+          <span class="icon-tile" aria-hidden="true"><Icon name={featureIcons[i] ?? 'window'} /></span>
+          <h3>{title}</h3>
+          <p>{text}</p>
+          {guide && <a class="card-link" href={docHref(guide.slug)}>{guide.label} <span aria-hidden="true">↗</span></a>}
+        </article>
+      )}
+    </div>
+  </div>
+</section>

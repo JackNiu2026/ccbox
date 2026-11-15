@@ -1,0 +1,24 @@
+---
+import Icon from '../Icon.astro';
+import SectionHeading from './SectionHeading.astro';
+import { docHref, type HomeContext } from '../../lib/home';
+import checks from '../../../../assets/network-checks.png';
+import browserChecks from '../../../../assets/browser-checks.png';
+interface Props { ctx: HomeContext }
+const { copy: c, guideLabel } = Astro.props.ctx;
+const shots = [{ image: checks, label: c.checksLabel }, { image: browserChecks, label: c.browserCheckLabel }];
+---
+<section id="checks" class="evidence section dark-surface" aria-labelledby="checks-title">
+  <div class="wrap">
+    <SectionHeading index="03" id="checks-title" title={c.checksLabel} link={{ href: docHref('network'), label: guideLabel }} />
+    <div class="evidence-grid">
+      {shots.map(({ image, label }, i) =>
+        <figure data-reveal style={`--delay:${i * 90}ms`}>
+          <a href={image.src} class="evidence-shot"><img src={image.src} width={image.width} height={image.height} alt={label} loading="lazy" /></a>
+          <figcaption><Icon name="shield" />{label} · {c.uiPreviewLabel}</figcaption>
+        </figure>
+      )}
+    </div>
+    <p class="evidence-note" data-reveal><Icon name="alert" /><span>{c.whyNote}</span></p>
+  </div>
+</section>

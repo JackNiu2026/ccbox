@@ -1,0 +1,20 @@
+---
+import Icon from '../Icon.astro';
+import SectionHeading from './SectionHeading.astro';
+import { principleIcons } from '../../lib/icons';
+import type { HomeContext } from '../../lib/home';
+interface Props { ctx: HomeContext }
+const { copy: c, ui } = Astro.props.ctx;
+---
+<section class="why section" aria-labelledby="why-title">
+  <div class="wrap">
+    <SectionHeading index="01" id="why-title" title={c.why} lede={c.whyText} />
+    <ul class="principles" role="list">
+      {c.keyFeatures.map((text, i) => <li data-reveal style={`--delay:${i * 70}ms`}>
+        <span class="icon-tile" aria-hidden="true"><Icon name={principleIcons[i] ?? 'shield'} /></span>
+        <h3>{ui.principles[i]}</h3>
+        <p>{text}</p>
+      </li>)}
+    </ul>
+  </div>
+</section>

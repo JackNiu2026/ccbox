@@ -36,3 +36,6 @@ changes used for the bundled components.
 
 The NOTICE of Lima is reproduced in THIRD_PARTY_LICENSES, as section 4(d) of
 the Apache License 2.0 asks.
+
+The license administration console (cmd/ccbox-license) embeds the Inter typeface,
+licensed under the SIL Open Font License 1.1 (cmd/ccbox-license/web/inter-LICENSE.txt).

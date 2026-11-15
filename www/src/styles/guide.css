@@ -3,7 +3,7 @@
 .skip-link {
   position: fixed;
   inset: 12px auto auto 12px;
-  z-index: 10;
+  z-index: 40;
   padding: 12px 20px;
   background: var(--surface);
   border: 2px solid var(--accent);
@@ -22,8 +22,8 @@
 
 .guide-sidebar {
   position: sticky;
-  top: 24px;
-  max-height: calc(100dvh - 48px);
+  top: 92px;
+  max-height: calc(100dvh - 116px);
   overflow: auto;
   padding: 4px 18px 14px 4px;
   border-inline-end: 1px solid var(--line);
@@ -121,6 +121,7 @@
 .guide-prose table { width: 100%; margin-block: 22px; border-collapse: collapse; font-size: 13px; line-height: 1.8; }
 .guide-prose th { background: var(--paper-tint); font-weight: 650; text-align: start; }
 .guide-prose th, .guide-prose td { padding: 11px 13px; border-block-end: 1px solid var(--line); vertical-align: top; }
+@media (min-width: 641px) { .guide-prose :is(th, td):first-child { min-width: 5.5em; white-space: nowrap; } }
 .guide-prose img { margin-block: 20px; border: 1px solid var(--line); border-radius: 10px; }
 .guide-shot { margin-block: 26px 34px; }
 .guide-shot > a { display: block; }

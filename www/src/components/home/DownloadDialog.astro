@@ -1,0 +1,15 @@
+---
+import type { HomeContext } from '../../lib/home';
+interface Props { ctx: HomeContext }
+const { base, copy: c, platforms } = Astro.props.ctx;
+---
+<dialog class="download-dialog" aria-labelledby="platform-title">
+  <div class="dialog-heading"><h2 id="platform-title">{c.platformLabel}</h2><form method="dialog"><button class="dialog-close" aria-label={c.closeLabel}>×</button></form></div>
+  <div class="platform-options">{platforms.map(platform => <article class="platform-option" data-platform={platform.name}>
+    <div class="platform-heading"><span class="platform-icon" aria-hidden="true"><img src={`${base}platforms/${platform.icon}.svg`} width="32" height="32" alt="" /></span><h3 dir="ltr">{platform.name}</h3></div><p class="platform-requirements" dir="ltr">{platform.requirements}</p>
+    <p class="platform-status" data-preview={platform.preview ? '' : undefined}><bdi>{platform.localBuild ? c.localBuildLabel : platform.preview || (platform.url ? platform.format : c.unavailableLabel)}</bdi>{platform.version && <bdi dir="ltr"> · v{platform.version}</bdi>}</p>
+    <a class="button" href={platform.url || platform.guideURL}>{platform.localBuild ? c.buildGuideLabel : platform.url ? c.downloadLabel : c.installGuideLabel} ↗</a>
+    {platform.notes && <a class="text-link" href={platform.notes}>{c.releaseNotesLabel} ↗</a>}
+    {platform.url && <a class="text-link" href={platform.guideURL}>{c.installGuideLabel} ↗</a>}
+  </article>)}</div>
+</dialog>

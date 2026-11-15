@@ -1,0 +1,36 @@
+---
+import Icon from '../Icon.astro';
+import { docHref, type HomeContext } from '../../lib/home';
+interface Props { ctx: HomeContext; titleSeparator: string }
+const { ctx: { base, copy: c, hero, guideLabel, published, platforms }, titleSeparator } = Astro.props;
+---
+<section class="hero" aria-labelledby="hero-title">
+  <div class="hero-glow" aria-hidden="true"></div>
+  <div class="hero-grid wrap">
+    <div class="hero-copy">
+      <p class="hero-pill" dir="ltr"><span class="pill-dot" aria-hidden="true"></span>CCBox v{published.version}<span class="pill-platforms"><span class="pill-sep" aria-hidden="true">·</span>macOS · Windows · Linux · Android</span></p>
+      <h1 id="hero-title">{hero.lead}{titleSeparator}<em>{hero.emphasis}</em></h1>
+      <p class="hero-intro">{hero.description}</p>
+      <div class="hero-actions">
+        <a class="button button-lg" href="#download" data-download-open aria-haspopup="dialog">{c.downloadLabel} <span aria-hidden="true">↓</span></a>
+        <a class="button button-ghost button-lg" href={docHref('index')}>{guideLabel} <Icon name="arrow" class="flip-rtl" /></a>
+      </div>
+      <ul class="hero-checks" role="list">
+        <li><Icon name="check" />{c.checksLabel}</li>
+        <li><Icon name="check" />{c.browserCheckLabel}</li>
+      </ul>
+    </div>
+    <figure class="hero-shot">
+      <div class="window-frame">
+        <div class="window-bar" aria-hidden="true"><i></i><i></i><i></i><span dir="ltr">CCBox</span></div>
+        <img src={`${base}workbench-preview.jpg`} width="1440" height="900" alt={`CCBox · ${c.uiPreviewLabel}`} fetchpriority="high" />
+      </div>
+      <figcaption>CCBox · {c.uiPreviewLabel}</figcaption>
+    </figure>
+  </div>
+  <div class="wrap">
+    <ul class="platform-strip" dir="ltr" role="list">
+      {platforms.map(({ name, icon, requirements }) => <li><img src={`${base}platforms/${icon}.svg`} width="20" height="20" alt="" /><span><strong>{name}</strong><small>{requirements}</small></span></li>)}
+    </ul>
+  </div>
+</section>

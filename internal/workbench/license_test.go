@@ -1,9 +1,11 @@
 package workbench
 
 import (
+	"context"
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -118,5 +120,29 @@ func TestDesktopLicenseActivationAndAdmission(t *testing.T) {
 	restarted.launch(blocked, "start", func() error { t.Error("expired license started an environment"); return nil })
 	if blocked.Code != http.StatusPaymentRequired {
 		t.Fatalf("expired start returned %d", blocked.Code)
+	}
+}
+
+func TestRedeemLicenseReportsRevokedCodes(t *testing.T) {
+	for _, tc := range []struct {
+		status int
+		body   string
+		want   error
+	}{
+		{http.StatusBadRequest, license.ErrRevoked.Error() + "\n", license.ErrRevoked},
+		{http.StatusBadRequest, license.ErrInvalid.Error() + "\n", license.ErrInvalid},
+		{http.StatusConflict, license.ErrUsed.Error() + "\n", license.ErrUsed},
+	} {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, strings.TrimSpace(tc.body), tc.status)
+		}))
+		previous := licenseEndpoint
+		licenseEndpoint = server.URL
+		_, err := redeemLicense(context.Background(), "CODE", strings.Repeat("a", 64))
+		licenseEndpoint = previous
+		server.Close()
+		if !errors.Is(err, tc.want) {
+			t.Fatalf("status %d %q: got %v, want %v", tc.status, tc.body, err, tc.want)
+		}
 	}
 }

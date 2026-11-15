@@ -81,8 +81,18 @@ func run(args []string) error {
 			if len(password) < 24 {
 				return errors.New("administrator password must have at least 24 characters")
 			}
-			mux.HandleFunc("GET /admin/license/{$}", adminHandler(store, password))
-			mux.HandleFunc("POST /admin/license/{$}", adminHandler(store, password))
+			username := strings.TrimSpace(os.Getenv("CCBOX_LICENSE_ADMIN_USER"))
+			if username == "" {
+				username = "admin"
+			}
+			if !validUsername(username) {
+				return errors.New("administrator username must be 1-64 printable characters without spaces")
+			}
+			origins, err := parseOrigins(os.Getenv("CCBOX_LICENSE_ADMIN_ORIGINS"))
+			if err != nil {
+				return err
+			}
+			newAdminServer(store, args[1], username, password, origins).register(mux)
 		}
 		address := "127.0.0.1:8791"
 		if os.Getenv("CCBOX_LICENSE_CONTAINER") == "1" {
@@ -129,7 +139,8 @@ func redeemHandler(store *license.Store) http.HandlerFunc {
 		}
 		token, err := store.Redeem(input.Code, input.Device, time.Now())
 		switch {
-		case errors.Is(err, license.ErrInvalid):
+		case errors.Is(err, license.ErrInvalid), errors.Is(err, license.ErrRevoked):
+			// Clients treat 400 as an unusable code; the body names which kind.
 			http.Error(w, err.Error(), http.StatusBadRequest)
 		case errors.Is(err, license.ErrUsed):
 			http.Error(w, err.Error(), http.StatusConflict)

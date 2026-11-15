@@ -1,0 +1,41 @@
+---
+import Icon from '../Icon.astro';
+import { stepIcons } from '../../lib/icons';
+import { docHref, type HomeContext } from '../../lib/home';
+interface Props { ctx: HomeContext }
+const { base, copy: c, ui } = Astro.props.ctx;
+---
+<section id="how" class="start section" aria-labelledby="start-title">
+  <div class="wrap">
+    <div class="quick-start" data-reveal>
+      <div class="quick-copy">
+        <p class="eyebrow" dir="ltr">04</p>
+        <h2 id="start-title">{c.quickTitle}</h2>
+        <p class="lede">{c.quickText}</p>
+        <p class="small-note">{c.quickNote}</p>
+      </div>
+      <div class="terminal" dir="ltr">
+        <div class="terminal-bar"><i></i><i></i><i></i><span>agent prompt</span>
+          <button type="button" class="copy-button" data-copy-target="agent-prompt" data-copied={ui.copied} hidden>
+            <Icon name="copy" /><span>{ui.copy}</span>
+          </button>
+        </div>
+        <pre><code id="agent-prompt" dir="auto">{c.prompt}</code></pre>
+      </div>
+    </div>
+    <h3 class="steps-title" data-reveal>{c.stepsTitle}</h3>
+    <ol class="steps" role="list">
+      {c.steps.map(({ title, text, guide }, index) =>
+        <li data-reveal style={`--delay:${index * 80}ms`}>
+          <div class="step-top"><span class="step-number" aria-hidden="true" dir="ltr">{String(index + 1).padStart(2, '0')}</span><span class="icon-tile small" aria-hidden="true"><Icon name={stepIcons[index] ?? 'window'} /></span></div>
+          <h4>{title}</h4><p>{text}</p>
+          {guide && <a class="card-link" href={docHref(guide.slug)}>{guide.label} <span aria-hidden="true">↗</span></a>}
+        </li>
+      )}
+    </ol>
+    <details class="first-look" data-reveal>
+      <summary>{c.firstLookLabel}<span class="disclosure-chevron" aria-hidden="true"></span></summary>
+      <img src={base + 'first-launch-preview.jpg'} width="1440" height="900" alt={c.firstLookLabel} loading="lazy" />
+    </details>
+  </div>
+</section>

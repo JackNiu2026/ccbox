@@ -13,7 +13,7 @@ assert.ok(menu, 'README language navigation is missing');
 const codes = [...menu.matchAll(/\]\(README(?:\.([\w-]+))?\.md\)/g)].map(m => m[1] || 'zh');
 // README.md has no dot before the base name's extension in the optional group.
 assert.equal(codes[0], 'zh');
-assert.ok(!codes.includes('en'));
+assert.deepEqual(codes, ['zh', 'zh-TW', 'en'], 'The site offers Simplified Chinese, Traditional Chinese and English');
 const dist = path.join(root,'www/dist');
 const site = process.env.SITE_URL?.trim();
 const measurementId = process.env.PUBLIC_GA_MEASUREMENT_ID?.trim();
@@ -110,7 +110,6 @@ for (const code of codes) {
   assert.deepEqual(options, codes.map(locale => `/${locale === 'zh' ? '' : locale + '/'}`), `${code}: incorrect language destinations`);
   assert.equal([...picker.matchAll(/aria-current="page"/g)].length, 1, `${code}: current language must be marked once`);
   assert.ok(!html.includes('<select'), `${code}: system popup selector remains`);
-  assert.ok(!options.some(url=>url.endsWith('/en/')), `${code}: unexpected English route`);
   assert.ok(html.includes('id="site-language"'), `${code}: missing language selector`);
   assert.ok(html.includes(`dir="${['ar','fa','ps','prs'].includes(code)?'rtl':'ltr'}"`), `${code}: incorrect reading direction`);
   for (const match of html.matchAll(/(?:src|href)="(\/[^"#]+)"/g)) {
@@ -146,7 +145,9 @@ for (const code of codes) {
   const android = html.match(/<article\b[^>]*data-platform="Android"[^>]*>([\s\S]*?)<\/article>/)?.[1];
   assert.ok(android?.includes('/platforms/android.svg'), `${code}: Android platform icon is missing`);
 }
-assert.ok(!fs.existsSync(path.join(dist,'en/index.html')), 'Old English page still present');
+for (const retired of ['ru', 'ar', 'fa', 'ko', 'es', 'my', 'be', 'ps', 'prs', 'am', 'so', 'ti', 'fr']) {
+  assert.ok(!fs.existsSync(path.join(dist, retired, 'index.html')), `${retired}: retired language page still published`);
+}
 console.log(`Verified ${codes.length} README languages, dropdowns, directions and local assets.`);
 
 // Check actual guide pages and every cross-page anchor, including project bases.
