@@ -43,10 +43,10 @@ ccbox-license issue /var/lib/ccbox-license/state /var/lib/ccbox-license/signing.
 
 默认允许的来源为 `http://127.0.0.1:8791`、`http://localhost:8791` 和 `https://ccbox.org`。使用其他域名或端口时，设置 `CCBOX_LICENSE_ADMIN_ORIGINS`，多个来源用逗号分隔，例如 `https://admin.example.com`。
 
-生产部署可在官网的 HTTPS 虚拟主机中单独代理整个管理路径，保留请求的原始 Host。反代位于本机或内网时，后台从 `X-Forwarded-For` 读取访客地址用于登录限速和日志。建议在代理入口限制管理员来源或使用管理 VPN。主页不显示管理入口。
+生产部署可在官网的 HTTPS 虚拟主机中单独代理整个管理路径（包括不带结尾斜杠的 `/admin/license`，服务会把它重定向到 `/admin/license/`），保留请求的原始 Host。反代位于本机或内网时，后台从 `X-Forwarded-For` 读取访客地址用于登录限速和日志。建议在代理入口限制管理员来源或使用管理 VPN。主页不显示管理入口。
 
 ```caddyfile
-handle /admin/license/* {
+handle /admin/license* {
     reverse_proxy 127.0.0.1:8791
 }
 ```

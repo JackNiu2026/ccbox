@@ -361,6 +361,15 @@ function deviceCell(device) {
     h("button", { class: "icon-btn", type: "button", "aria-label": "复制设备编号", onclick: () => copyText(device, "已复制设备编号") }, icon("copy")));
 }
 
+// A page beyond the end (after the last row on it was revoked, or an old
+// link) moves to the last page that has rows instead of showing "no results".
+function pastEnd(data, id, params) {
+  const last = Math.max(1, Math.ceil(data.total / data.size));
+  if (data.items.length || data.page <= last) return false;
+  navigate(id, { ...params, page: last });
+  return true;
+}
+
 function pager(data, onPage) {
   const pages = Math.max(1, Math.ceil(data.total / data.size));
   const from = data.total ? (data.page - 1) * data.size + 1 : 0;
@@ -469,7 +478,7 @@ function issueDialog(onDone) {
   const note = h("input", { id: "issue-note", type: "text", maxlength: config.max_note, placeholder: "例如：渠道 A · 11 月活动" });
   const error = h("p", { class: "form-error", role: "alert", hidden: true });
   const submit = submitButton("生成激活码");
-  const form = h("form", { onsubmit: async event => {
+  const form = h("form", { novalidate: true, onsubmit: async event => {
     event.preventDefault();
     error.hidden = true;
     const value = Number(count.value);
@@ -558,7 +567,7 @@ function transferDialog(from = "", onDone) {
   const dialog = openDialog({
     title: "换机",
     description: "保留剩余有效期，把授权迁移到新设备。",
-    body: h("form", { id: "transfer-form", style: "display:grid;gap:14px", onsubmit: async event => {
+    body: h("form", { id: "transfer-form", novalidate: true, style: "display:grid;gap:14px", onsubmit: async event => {
       event.preventDefault();
       error.hidden = true;
       try {
@@ -590,7 +599,7 @@ function renewDialog(device = "", onDone) {
   const dialog = openDialog({
     title: "设备续期",
     description: `为指定设备增加 ${config.duration_days} 天，生成仅该设备可用的续期码。适用于补偿或人工续费。`,
-    body: h("form", { id: "renew-form", style: "display:grid;gap:14px", onsubmit: async event => {
+    body: h("form", { id: "renew-form", novalidate: true, style: "display:grid;gap:14px", onsubmit: async event => {
       event.preventDefault();
       error.hidden = true;
       try {
@@ -634,7 +643,7 @@ function lookupDialog(onChange) {
     title: "查询激活码",
     description: "输入用户提供的完整激活码，查看兑换状态和绑定设备。",
     wide: true,
-    body: [h("form", { id: "lookup-form", style: "display:grid;gap:12px", onsubmit: async event => {
+    body: [h("form", { id: "lookup-form", novalidate: true, style: "display:grid;gap:12px", onsubmit: async event => {
       event.preventDefault();
       result.replaceChildren();
       try {
@@ -746,7 +755,7 @@ async function renderOverview(view, _params, alive) {
       stat("已兑换", codes.redeemed, `兑换率 ${rate}%`, "var(--ok)"),
       stat("已停用", codes.revoked, `换机 ${fmtNumber(codes.transfer)} · 续期 ${fmtNumber(codes.renewal)}`, "var(--bad)"),
       stat("有效设备", devices.active, `到期 ${fmtNumber(devices.expired)} · 转出 ${fmtNumber(devices.transferred)}`, "var(--brand)"),
-      stat("7 天内到期", (data.expiring || []).length >= 8 ? "8+" : (data.expiring || []).length, "可提醒续期", "var(--warn)")),
+      stat("7 天内到期", data.expiring_total ?? (data.expiring || []).length, "可提醒续期", "var(--warn)")),
     h("div", { class: "grid-2" },
       h("section", { class: "card" },
         h("div", { class: "card-head" }, h("h2", {}, "近 30 天"),
@@ -788,7 +797,7 @@ async function renderCodes(view, params, alive) {
   const page = Number(params.get("page")) || 1;
   const update = changes => navigate("codes", { ...filters, page: 1, ...changes });
   const data = await api("codes" + query({ ...filters, page }));
-  if (!alive()) return;
+  if (!alive() || pastEnd(data, "codes", filters)) return;
   const reload = () => route();
   const exportCSV = async event => {
     const items = await busy(event.currentTarget, "正在导出…", () => fetchAll("codes", filters));
@@ -865,7 +874,7 @@ async function renderBatches(view, params, alive) {
   const q = params.get("q") || "";
   const page = Number(params.get("page")) || 1;
   const data = await api("batches" + query({ q, page }));
-  if (!alive()) return;
+  if (!alive() || pastEnd(data, "batches", { q })) return;
   const reload = () => route();
   view.replaceChildren(
     pageHead("批次", "按发放渠道或活动管理激活码，可一键停用整批未使用的码。",
@@ -884,7 +893,7 @@ async function renderDevices(view, params, alive) {
   const filters = { status: params.get("status") || "", q: params.get("q") || "" };
   const page = Number(params.get("page")) || 1;
   const data = await api("devices" + query({ ...filters, page }));
-  if (!alive()) return;
+  if (!alive() || pastEnd(data, "devices", filters)) return;
   const reload = () => route();
   const update = changes => navigate("devices", { ...filters, ...changes });
   const exportCSV = async event => {
@@ -930,7 +939,7 @@ async function renderAudit(view, params, alive) {
   const action = params.get("action") || "";
   const page = Number(params.get("page")) || 1;
   const data = await api("audit" + query({ action, page }));
-  if (!alive()) return;
+  if (!alive() || pastEnd(data, "audit", { action })) return;
   const tone = { "login.failed": "bad", "codes.revoke": "bad", "batches.revoke": "bad", "codes.issue": "brand", "devices.transfer": "info", "devices.renew": "info" };
   const rows = data.items.map(entry => h("tr", {},
     h("td", { title: fmtTime(entry.time) }, fmtShort(entry.time)),

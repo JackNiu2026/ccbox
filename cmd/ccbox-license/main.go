@@ -139,7 +139,8 @@ func redeemHandler(store *license.Store) http.HandlerFunc {
 		}
 		token, err := store.Redeem(input.Code, input.Device, time.Now())
 		switch {
-		case errors.Is(err, license.ErrInvalid):
+		case errors.Is(err, license.ErrInvalid), errors.Is(err, license.ErrRevoked):
+			// Clients treat 400 as an unusable code; the body names which kind.
 			http.Error(w, err.Error(), http.StatusBadRequest)
 		case errors.Is(err, license.ErrUsed):
 			http.Error(w, err.Error(), http.StatusConflict)

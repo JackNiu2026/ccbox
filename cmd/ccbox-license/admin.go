@@ -443,6 +443,7 @@ func (a *adminServer) overview(r *http.Request, _ string) (any, error) {
 		}
 	}
 	slices.SortFunc(expiring, func(x, y deviceRow) int { return cmp.Compare(x.Expires, y.Expires) })
+	expiringTotal := len(expiring)
 	if len(expiring) > 8 {
 		expiring = expiring[:8]
 	}
@@ -451,7 +452,7 @@ func (a *adminServer) overview(r *http.Request, _ string) (any, error) {
 		batches = batches[:5]
 	}
 	return map[string]any{"codes": totals, "devices": deviceTotals, "series": series,
-		"expiring": expiring, "batches": batches, "generated": now.Unix()}, nil
+		"expiring": expiring, "expiring_total": expiringTotal, "batches": batches, "generated": now.Unix()}, nil
 }
 
 // --- Codes ------------------------------------------------------------------

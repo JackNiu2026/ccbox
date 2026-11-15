@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -175,6 +176,10 @@ func redeemLicense(ctx context.Context, code, device string) (string, error) {
 	defer response.Body.Close()
 	switch response.StatusCode {
 	case http.StatusBadRequest:
+		message, _ := io.ReadAll(io.LimitReader(response.Body, 256))
+		if strings.TrimSpace(string(message)) == license.ErrRevoked.Error() {
+			return "", license.ErrRevoked
+		}
 		return "", license.ErrInvalid
 	case http.StatusConflict:
 		return "", license.ErrUsed
