@@ -14,14 +14,14 @@ export const defaultAppearance = {
   customThemes: [],
   mode: "system",
   lightTheme: {
-    ...presets.light.codex,
-    preset: "codex",
+    ...presets.light.ccbox,
+    preset: "ccbox",
     opaqueWindows: false,
     fonts: { ui: "", code: "" },
   },
   darkTheme: {
-    ...presets.dark.codex,
-    preset: "codex",
+    ...presets.dark.ccbox,
+    preset: "ccbox",
     opaqueWindows: false,
     fonts: { ui: "", code: "" },
   },
@@ -31,8 +31,34 @@ export const defaultAppearance = {
   fontSmoothing: true,
   reducedMotion: "system",
 };
+// The server's default stores only a preset's base colors. While a theme still
+// matches its preset exactly, show the preset's element colors as well.
+function withPresetColors(theme, variant) {
+  const preset = presets[variant]?.[theme.preset];
+  if (
+    !preset ||
+    Object.keys(theme.colors).length ||
+    theme.accent !== preset.accent ||
+    theme.surface !== preset.surface ||
+    theme.ink !== preset.ink
+  )
+    return theme;
+  return {
+    ...theme,
+    colors: { ...preset.colors },
+    terminal: Object.keys(theme.terminal).length
+      ? theme.terminal
+      : { ...preset.terminal },
+  };
+}
 export function normalizeAppearance(value = {}) {
   value = value && typeof value === "object" ? value : {};
+  const normalized = normalizeThemes(value);
+  normalized.lightTheme = withPresetColors(normalized.lightTheme, "light");
+  normalized.darkTheme = withPresetColors(normalized.darkTheme, "dark");
+  return normalized;
+}
+function normalizeThemes(value) {
   return {
     ...defaultAppearance,
     ...value,
@@ -120,6 +146,11 @@ export function themeVariables(theme, variant) {
   // Shared components also use these aliases.
   variables["--border"] = variables["--line"];
   variables["--surface"] = variables["--paper"];
+  // Raised panels and cards sit slightly above the page background.
+  variables["--card"] =
+    variant === "light"
+      ? mix(surface, "#ffffff", 0.8)
+      : mix(surface, ink, 0.035);
   return variables;
 }
 export function terminalTheme(theme, variant) {

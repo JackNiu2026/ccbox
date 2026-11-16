@@ -62,6 +62,8 @@ import { AppUpdateButton, useAppUpdates } from "./app-updates";
 import "./appearance.css";
 import { stopAndExit } from "./quit";
 import { guestCapability } from "./guest-capabilities.mjs";
+// Loaded last: the visual refresh layers over every component stylesheet.
+import "./refresh.css";
 
 function App() {
   const { account } = useAccount();

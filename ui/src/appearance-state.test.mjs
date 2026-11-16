@@ -116,7 +116,8 @@ test("invalid theme files are rejected before any mutation", () => {
   reject((data) => {
     data.mode = "dark";
   });
-  assert.equal(defaultAppearance.lightTheme.accent, "#339cff");
+  assert.equal(defaultAppearance.lightTheme.accent, "#f47c47");
+  assert.equal(defaultAppearance.darkTheme.preset, "ccbox");
 });
 
 test("all built-in palettes produce valid, independently editable theme documents", async () => {
