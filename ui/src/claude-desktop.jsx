@@ -11,10 +11,12 @@ import {
 } from "lucide-react";
 import { BrowserUploads } from "./browser-uploads";
 import { ProjectDialog } from "./project-dialog";
-import { api } from "./api";
+import { api, nativeAvailable } from "./api";
 import { SafetyMessage } from "./safety-message";
+import { DeviceCheckButton } from "./device-checks";
 import { RemoteView } from "./views";
 import { useWindowVisibility } from "./window-visibility";
+import { guestCapability } from "./guest-capabilities.mjs";
 import "./claude-desktop.css";
 
 const desktopZooms = [0.75, 0.9, 1, 1.1, 1.25, 1.5];
@@ -31,7 +33,7 @@ export function useDesktopZoom(automatic = false) {
   return [zoom, setZoom];
 }
 
-export function DesktopToolbar({ desktop, platform, zoom, setZoom, onConfirm, onStop, busy, refresh, sidebarCollapsed, onExpand, children, automatic = false }) {
+export function DesktopToolbar({ desktop, platform, title = "Claude Desktop", zoom, setZoom, onConfirm, onStop, busy, refresh, sidebarCollapsed, onExpand, children, automatic = false }) {
   const [hidden, setHidden] = useState(() => {
     try { return localStorage.getItem("cage-desktop-toolbar-hidden") === "true"; }
     catch { return false; }
@@ -61,12 +63,13 @@ export function DesktopToolbar({ desktop, platform, zoom, setZoom, onConfirm, on
           </button>
         )}
         <Monitor size={18} />
-        <strong>Claude Desktop</strong>
+        <strong>{title}</strong>
         <span className="desktop-version">
           {desktop?.version ? `v${desktop.version}` : platform}
         </span>
         <span className="desktop-toolbar-spacer" />
         {children}
+        <DeviceCheckButton target="desktop" disabled={busy || !desktop?.running} />
         {desktop?.running && (
           <label className="desktop-display-size">
             显示大小
@@ -80,7 +83,7 @@ export function DesktopToolbar({ desktop, platform, zoom, setZoom, onConfirm, on
             </InlineSelect>
           </label>
         )}
-        {desktop?.running && (
+        {desktop?.running && onStop && (
           <button
             className="quiet-button"
             disabled={busy}
@@ -101,7 +104,7 @@ export function DesktopToolbar({ desktop, platform, zoom, setZoom, onConfirm, on
         )}
         <button
           className="icon-button"
-          aria-label="刷新 Claude Desktop 状态"
+          aria-label={"刷新 " + title + " 状态"}
           disabled={busy}
           onClick={refresh}
         >
@@ -128,6 +131,7 @@ export function ClaudeDesktop({
   const [closedChooser, setClosedChooser] = useState("");
   const directoryRequest = uploads.find((item) => item.directory && item.id !== closedChooser);
   const automatic = status.guest_system?.startsWith("windows");
+  const available = guestCapability(status, "desktop");
   const [zoom, setZoom] = useDesktopZoom(automatic);
   const windowVisible = useWindowVisibility();
   const screenVisible = visible && windowVisible;
@@ -142,6 +146,7 @@ export function ClaudeDesktop({
   const ownJob = status.job?.kind?.startsWith("claude-desktop-");
   const busy = submitting || Boolean(status.job?.running) || Boolean(jobID);
   const refresh = async (valid = () => true) => {
+    if (!available) return null;
     const revision = statusRevision.current;
     const request = statusRequest.current ??= api("/claude-desktop");
     try {
@@ -158,6 +163,7 @@ export function ClaudeDesktop({
     }
   };
   const run = async (action) => {
+    if (!available) return;
     statusRevision.current++;
     statusRequest.current = null;
     setSubmitting(true);
@@ -172,7 +178,7 @@ export function ClaudeDesktop({
     }
   };
   useEffect(() => {
-    if (!screenVisible || !status.vm_running || status.job?.running) return;
+    if (!available || !screenVisible || !status.vm_running || status.job?.running) return;
     let disposed = false;
     let timer;
     const poll = async () => {
@@ -190,7 +196,7 @@ export function ClaudeDesktop({
       disposed = true;
       clearTimeout(timer);
     };
-  }, [screenVisible, status.vm_running, status.job?.running]);
+  }, [available, screenVisible, status.vm_running, status.job?.running]);
   useEffect(() => {
     if (!jobID || status.job?.id !== jobID || status.job.running) return;
     setJobID("");
@@ -198,12 +204,12 @@ export function ClaudeDesktop({
       setError(status.job.error);
       return;
     }
-    if (status.job.kind === "claude-desktop-install") run("start");
+    if (["claude-desktop-install", "claude-desktop-update"].includes(status.job.kind)) run("start");
     else refresh();
   }, [status.job]);
   return (
     <section className="claude-desktop-view" aria-label="Claude Desktop">
-      <BrowserUploads requests={uploads} onStatus={onStatus} />
+      {!nativeAvailable() && <BrowserUploads requests={uploads} onStatus={onStatus} />}
       {directoryRequest && <ProjectDialog
         key={directoryRequest.id}
         status={status}
@@ -218,8 +224,12 @@ export function ClaudeDesktop({
           await onProjectOpened(workspace);
         }}
       />}
-      <DesktopToolbar desktop={desktop} platform={status.guest_system === "windows-11" ? "Windows" : "Linux"} zoom={zoom} setZoom={setZoom} automatic={automatic}
-        onConfirm={onConfirm} onStop={() => run("stop")} busy={busy} refresh={() => refresh()} sidebarCollapsed={sidebarCollapsed} onExpand={onExpand} />
+      <DesktopToolbar desktop={desktop} platform={automatic ? "Windows" : "Linux"} zoom={zoom} setZoom={setZoom} automatic={automatic}
+        onConfirm={onConfirm} onStop={() => run("stop")} busy={busy || !available} refresh={() => refresh()} sidebarCollapsed={sidebarCollapsed} onExpand={onExpand}>
+        {desktop?.installed && !status.guest_system?.startsWith("windows") && <button className="quiet-button" disabled={busy} onClick={async () => {
+          if (!desktop.running || await onConfirm({ title: "更新 Claude Desktop？", body: "请先保存应用内的工作。更新会关闭 Claude Desktop，从官方软件源安装可用版本，再重新打开；登录资料继续保留。", confirm: "更新应用" })) run("update");
+        }}>更新应用</button>}
+      </DesktopToolbar>
       {(error || statusError || desktop?.failed) && (
         <div className="connection-banner" role="alert">
           <SafetyMessage message={error || statusError || (desktop?.failure_reason === "oom-kill"
@@ -239,7 +249,13 @@ export function ClaudeDesktop({
         </div>
       )}
       <div className="desktop-screen">
-        {desktop?.running && status.vm_running ? (
+        {!available ? (
+          <div className="desktop-empty">
+            <Monitor size={36} />
+            <h2>Windows 云端暂不支持 Claude Desktop</h2>
+            <p>当前可使用隔离 PowerShell{guestCapability(status, "browser") && " 和浏览器"}，无需登录 Claude 账户。</p>
+          </div>
+        ) : desktop?.running && status.vm_running ? (
           <RemoteView
             ref={remoteRef}
             desktop
@@ -282,7 +298,7 @@ export function ClaudeDesktop({
                   {desktop.installed ? "打开 Claude Desktop" : "下载并安装"}
                 </button>
               )}
-              {desktop?.installed && (
+              {desktop?.installed && !status.guest_system?.startsWith("windows") && (
                 <button
                   className="quiet-button"
                   disabled={busy}
@@ -301,6 +317,9 @@ export function ClaudeDesktop({
                 </button>
               )}
             </div>
+            {desktop?.installed && <p>{status.guest_system?.startsWith("windows")
+              ? "在 Claude Desktop 应用内检查并安装更新。"
+              : "Linux 版通过系统软件源更新。可点击上方“更新应用”，或在 CCBox 终端运行 sudo apt update && sudo apt install --only-upgrade claude-desktop。"}</p>}
             <p className="desktop-note">
               关闭应用后释放图形会话资源，登录状态保留在 CCBox
               环境中。需要额外虚拟机的 Cowork 功能暂未适配。
