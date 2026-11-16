@@ -7,19 +7,19 @@ import (
 )
 
 // A program that embeds the shared commands names itself and says how it
-// updates: Cage must not send its users to agent-vm's installer.
+// updates: CCBox must not send its users to agent-vm's installer.
 func TestEmbeddingProgramIdentity(t *testing.T) {
-	savedCommand, savedHint := Command, UpdateHint
-	t.Cleanup(func() { Command, UpdateHint = savedCommand, savedHint })
-	Command, UpdateHint = "claude-cage", "update Cage with its installer"
+	savedCommand := Command
+	t.Cleanup(func() { Command = savedCommand })
+	Command = "claude-cage"
 
 	var stdout, stderr bytes.Buffer
 	io := IO{Stdout: &stdout, Stderr: &stderr}
-	if code := versionCmd([]string{"--min", "99.0.0"}, io); code != 1 {
+	if code := CCBoxVersion([]string{"--min", "99.0.0"}, io); code != 1 {
 		t.Fatalf("an unmet minimum returned %d", code)
 	}
 	got := stderr.String()
-	for _, want := range []string{"Error: claude-cage ", "Update it:  update Cage with its installer"} {
+	for _, want := range []string{"Error: CCBox ", "Update it:  get the latest installer from your CCBox distributor"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the version error lacks %q: %q", want, got)
 		}

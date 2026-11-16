@@ -259,7 +259,7 @@ printf '%s\\n' "$@"
         window = {"used_percentage": 20, "resets_at": int(time.time()) + 3600}
         callback = subprocess.run(shlex.split(command), env=child_env, cwd=self.home,
                                   input=json.dumps({"rate_limits": {"five_hour": window}}), text=True, capture_output=True, check=True)
-        self.assertEqual(callback.stdout.strip(), "Claude")
+        self.assertEqual(callback.stdout.strip(), "CCBox · Claude")
         result = json.loads(self.run_helper("snapshot", FIRST, env=env).stdout)
         self.assertEqual(result["quota"]["five_hour"]["used_percentage"], 20)
 
