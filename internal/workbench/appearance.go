@@ -47,7 +47,9 @@ type Appearance struct {
 }
 
 func defaultAppearance() Appearance {
-	return Appearance{Mode: "system", Light: AppearanceTheme{Preset: "codex", Accent: "#339cff", Surface: "#ffffff", Ink: "#1a1c1f", Contrast: 45}, Dark: AppearanceTheme{Preset: "codex", Accent: "#339cff", Surface: "#181818", Ink: "#ffffff", Contrast: 60}, UIFontSize: 14, CodeFontSize: 13, FontSmoothing: true, ReducedMotion: "system"}
+	// Base colors of the "ccbox" preset in ui/src/appearance-presets.mjs; the
+	// UI fills in that preset's element colors while they are left untouched.
+	return Appearance{Mode: "system", Light: AppearanceTheme{Preset: "ccbox", Accent: "#f47c47", Surface: "#f7f6f3", Ink: "#1d1f21", Contrast: 45}, Dark: AppearanceTheme{Preset: "ccbox", Accent: "#ff8a55", Surface: "#0f1316", Ink: "#eceae6", Contrast: 60}, UIFontSize: 14, CodeFontSize: 13, FontSmoothing: true, ReducedMotion: "system"}
 }
 
 func (a Appearance) validate() error {

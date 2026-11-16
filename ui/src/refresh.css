@@ -1,0 +1,603 @@
+/* Visual refresh layered over the original styles. Loaded last; only changes
+   presentation (spacing, shape, hierarchy). Colors come from theme tokens so
+   every appearance preset keeps working. */
+
+:root {
+  --radius-control: 9px;
+  --radius-card: 14px;
+  --shadow-card: 0 1px 2px color-mix(in srgb, var(--ink) 5%, transparent),
+    0 8px 24px color-mix(in srgb, var(--ink) 4%, transparent);
+  --card: var(--paper);
+}
+
+/* Controls */
+button {
+  border-radius: var(--radius-control);
+}
+button.primary {
+  font-weight: 600;
+}
+button.large {
+  border-radius: 11px;
+}
+.icon-button {
+  border-radius: 8px;
+}
+input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"]),
+select,
+textarea {
+  border-radius: var(--radius-control);
+}
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Sidebar */
+.workspace-sidebar {
+  background: var(--sidebar, var(--chrome));
+  color: var(--sidebar-ink, var(--ink));
+  gap: 0;
+}
+.sidebar-top {
+  border-bottom: 0;
+  min-height: 52px;
+}
+.sidebar-brand {
+  font-weight: 700;
+  font-size: 1.0714rem;
+  letter-spacing: -0.01em;
+}
+.sidebar-brand .brand-logo {
+  width: 24px;
+  height: 24px;
+}
+.sidebar-environment {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 56px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  text-align: left;
+  justify-content: flex-start;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--ink);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 5%, transparent);
+  flex: none;
+}
+.sidebar-environment:hover:not(:disabled) {
+  background: var(--card);
+  border-color: color-mix(in srgb, var(--ink) 18%, var(--line));
+}
+.sidebar-environment-icon {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--link);
+}
+.sidebar-environment.healthy .sidebar-environment-icon {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--success);
+}
+.sidebar-environment-text {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+.sidebar-environment-text strong {
+  color: var(--strong);
+  font-weight: 600;
+  font-size: 0.9286rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar-environment-text small {
+  color: var(--muted);
+  font-size: 0.8571rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar-environment .status-dot {
+  width: 7px;
+  height: 7px;
+}
+.sidebar-navigation {
+  gap: 2px;
+  padding-bottom: 10px;
+}
+.sidebar-group-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 10px 4px;
+  font-size: 0.8571rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.sidebar-group-heading small {
+  font-size: 0.7857rem;
+  font-weight: 400;
+}
+.sidebar-link {
+  border-radius: 8px;
+  color: inherit;
+}
+.sidebar-link.selected,
+.sidebar-browser-row.selected {
+  background: var(--card);
+  color: var(--strong);
+  font-weight: 600;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 7%, transparent);
+}
+.sidebar-browser-row {
+  border-radius: 8px;
+}
+.sidebar-browser-row.selected > .sidebar-link {
+  background: transparent;
+  box-shadow: none;
+}
+.sidebar-section-heading {
+  font-weight: 600;
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
+  height: 40px;
+}
+.sidebar-bottom {
+  padding: 8px 0 10px;
+}
+
+/* Workbench home */
+.welcome {
+  background: var(--paper);
+  padding: 40px 24px;
+  place-items: start center;
+}
+.welcome-content {
+  width: min(100%, 720px);
+  text-align: left;
+}
+/* The sidebar already carries the brand; the home page leads with its task. */
+.welcome-logo {
+  display: none;
+}
+.welcome h1 {
+  font-size: 2.2857rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+.welcome-subtitle {
+  font-size: 1.0714rem;
+  line-height: 1.65;
+  margin: 10px 0 24px;
+  color: color-mix(in srgb, var(--ink) 82%, var(--paper));
+  max-width: 600px;
+}
+.onboarding-steps {
+  justify-content: flex-start;
+  gap: 8px;
+  margin: 0 0 16px;
+  flex-wrap: wrap;
+}
+.onboarding-steps li {
+  padding: 5px 12px 5px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+}
+.onboarding-steps li > span {
+  width: 22px;
+  height: 22px;
+  font-size: 0.7857rem;
+  font-weight: 600;
+}
+.onboarding-steps [aria-current="step"] {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  color: var(--strong);
+}
+.onboarding-steps [aria-current="step"] > span {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.start-project-box {
+  border-radius: 16px;
+  background: var(--card);
+  box-shadow: var(--shadow-card);
+  display: grid;
+}
+.environment-summary {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--line);
+}
+.environment-summary > svg,
+.environment-summary > .environment-shield {
+  width: 36px;
+  height: 36px;
+  padding: 8px;
+  box-sizing: border-box;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--link);
+}
+.environment-summary strong {
+  font-size: 1.0714rem;
+  font-weight: 600;
+}
+.start-project-box .guest-system-picker {
+  padding: 18px 24px 4px;
+}
+.start-project-box .storage-entry {
+  margin: 4px 24px 14px;
+}
+.start-project-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--chrome) 70%, var(--card));
+}
+.start-project-footer .primary {
+  min-height: 42px;
+  padding: 0 20px;
+  border-radius: 11px;
+  font-size: 1rem;
+}
+.welcome-shortcuts {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.welcome-shortcuts button {
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink);
+  border-radius: 10px;
+  min-height: 38px;
+  padding: 0 14px;
+}
+.welcome-hint {
+  text-align: left;
+}
+
+/* Status bar */
+.status-bar {
+  height: 32px;
+  gap: 6px;
+  padding: 0 10px;
+  background: var(--chrome);
+  color: color-mix(in srgb, var(--ink) 85%, var(--chrome));
+  font-size: 0.8571rem;
+}
+.status-bar button {
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 0.8571rem;
+}
+.status-bar button:hover:not(:disabled) {
+  background: var(--hover);
+}
+.status-bar button:last-child {
+  border-left: 0;
+  padding-left: 8px;
+}
+.status-divider {
+  display: none;
+}
+
+/* Settings */
+.settings-page .settings-sidebar {
+  background: var(--sidebar, var(--chrome));
+  gap: 0;
+}
+.settings-page .settings-sidebar h2 {
+  margin: 20px 12px 14px;
+  font-size: 1.5714rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.settings-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 2px 14px;
+  padding: 0 10px;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--input);
+  color: var(--muted);
+}
+.settings-search:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.settings-page .settings-search input {
+  flex: 1;
+  min-width: 0;
+  min-height: 34px;
+  border: 0;
+  outline: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--ink);
+}
+.settings-page .settings-sidebar nav {
+  display: grid;
+  gap: 14px;
+  overflow-y: auto;
+}
+.settings-nav-group {
+  display: grid;
+  gap: 1px;
+}
+.settings-nav-heading {
+  padding: 0 12px 4px;
+  font-size: 0.8571rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.settings-page .settings-sidebar nav button {
+  min-height: 36px;
+  padding: 6px 12px;
+  justify-content: flex-start;
+  border: 0;
+}
+.settings-page .settings-sidebar nav button.selected {
+  background: var(--card);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--ink) 8%, transparent);
+}
+.settings-page .settings-sidebar nav button.selected svg {
+  color: var(--link);
+}
+.settings-page .settings-content .section-title h3 {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.settings-page .settings-footer {
+  margin: 0 max(16px, calc(var(--s-gutter) - 18px)) 18px;
+  padding: 10px 10px 10px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--ink) 12%, transparent);
+  backdrop-filter: none;
+  animation: surface-enter 160ms ease-out;
+}
+.settings-page .settings-footer .save-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+}
+.settings-page .settings-footer .save-note::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.settings-page .settings-footer button {
+  border-radius: var(--radius-control);
+}
+
+/* Account gate: brand panel beside the form on wide windows */
+.account-showcase {
+  display: none;
+}
+@media (min-width: 960px) {
+  .account-gate:has(.account-showcase) {
+    flex-direction: row;
+    align-items: stretch;
+    padding: 0;
+  }
+  .account-gate:has(.account-showcase) > .account-brand {
+    display: none;
+  }
+  .account-showcase {
+    flex: 0 0 52%;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 40px 56px;
+    background: #0f1316;
+    color: #eceae6;
+    position: relative;
+    overflow: hidden;
+  }
+  .account-showcase::before,
+  .account-showcase::after {
+    content: "";
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid #1f262b;
+    pointer-events: none;
+  }
+  .account-showcase::before {
+    right: -140px;
+    bottom: -140px;
+    width: 560px;
+    height: 560px;
+  }
+  .account-showcase::after {
+    right: -50px;
+    bottom: -50px;
+    width: 380px;
+    height: 380px;
+  }
+  .account-showcase-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 17px;
+    font-weight: 700;
+  }
+  .account-showcase-brand img {
+    width: 28px;
+    height: 28px;
+  }
+  .account-showcase-body {
+    margin: auto 0;
+    max-width: 480px;
+    display: grid;
+    gap: 28px;
+    position: relative;
+  }
+  .account-showcase-logo {
+    width: 68px;
+    height: 68px;
+  }
+  .account-showcase h2 {
+    margin: 0;
+    font-size: 38px;
+    line-height: 1.22;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #ffffff;
+  }
+  .account-showcase h2 span {
+    color: #ff8a55;
+  }
+  .account-showcase ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 18px;
+  }
+  .account-showcase li {
+    display: flex;
+    gap: 14px;
+    line-height: 1.55;
+  }
+  .account-showcase li > svg {
+    flex: none;
+    box-sizing: content-box;
+    padding: 7px;
+    border-radius: 9px;
+    background: #1a2025;
+    color: #ff8a55;
+  }
+  .account-showcase li strong {
+    display: block;
+    font-size: 15px;
+    color: #ffffff;
+  }
+  .account-showcase li span {
+    color: #9aa0a5;
+    font-size: 14px;
+  }
+  .account-gate:has(.account-showcase) > .account-entry {
+    flex: 0 1 400px;
+    width: auto;
+    max-width: 400px;
+    margin: auto;
+    padding: 40px 24px;
+    text-align: left;
+  }
+  .account-gate:has(.account-showcase) .account-welcome-logo {
+    display: none;
+  }
+  .account-gate:has(.account-showcase) .account-entry h1 {
+    font-size: 26px;
+    font-weight: 700;
+    margin-top: 0;
+  }
+}
+
+/* First-run setup: dark step rail on wide windows */
+@media (min-width: 960px) {
+  .initialization {
+    padding-left: 320px;
+    box-sizing: border-box;
+    background: linear-gradient(90deg, #0f1316 0 320px, var(--paper) 320px);
+  }
+  .initialization-brand {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 320px;
+    box-sizing: border-box;
+    padding: 32px;
+    color: #eceae6;
+  }
+  .initialization-brand strong {
+    color: #ffffff;
+  }
+  .initialization-brand > span {
+    color: #9aa0a5;
+  }
+  .initialization-content {
+    animation: none;
+    margin-top: 72px;
+  }
+  .initialization-steps {
+    position: fixed;
+    top: 120px;
+    left: 32px;
+    width: 256px;
+    flex-direction: column;
+    gap: 0;
+    margin: 0;
+    color: #9aa0a5;
+    font-size: 15px;
+  }
+  .initialization-steps li {
+    position: relative;
+    gap: 14px;
+    padding-bottom: 32px;
+  }
+  .initialization-steps li:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    left: 13px;
+    top: 34px;
+    bottom: 6px;
+    width: 2px;
+    background: #2a3238;
+  }
+  .initialization-steps li > span {
+    width: 28px;
+    height: 28px;
+    border: 1.5px solid #3a4248;
+    color: #c9ccce;
+  }
+  .initialization-steps [aria-current] {
+    color: #ffffff;
+    font-weight: 600;
+  }
+  .initialization-steps [aria-current] > span {
+    background: #f47c47;
+    border-color: #f47c47;
+    color: #1d1f21;
+  }
+}
+.initialization h1 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.initialization-actions {
+  border-top-color: var(--line);
+}
+
+/* Softer virtualization notice inside the welcome card and setup */
+.virtualization-notice {
+  border: 1px solid color-mix(in srgb, var(--danger) 28%, var(--line));
+  border-left-width: 1px;
+  background: color-mix(in srgb, var(--danger) 5%, var(--card));
+  border-radius: 12px;
+  padding: 14px 16px;
+}

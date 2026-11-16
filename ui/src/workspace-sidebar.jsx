@@ -114,6 +114,14 @@ export function WorkspaceSidebar({
           <PanelLeftClose size={17} />
         </button>
       </div>
+      <button className={`sidebar-environment ${healthy ? "healthy" : ""}`} onClick={onSafety} title="网络与隔离检查">
+        <span className="sidebar-environment-icon"><EnvironmentShield size={17} healthy={healthy} /></span>
+        <span className="sidebar-environment-text">
+          <strong>{healthy ? "环境运行正常" : runtimeLabel}</strong>
+          <small>{running ? network.label : "网络与隔离检查"}</small>
+        </span>
+        <i className={`status-dot ${network.mode}`} aria-hidden="true" />
+      </button>
       <nav className="sidebar-navigation" aria-label="主导航">
         <button
           className={`sidebar-link ${home ? "selected" : ""}`}
@@ -122,6 +130,14 @@ export function WorkspaceSidebar({
           <Home size={17} />
           工作台
         </button>
+        <button className={`sidebar-link ${claudeAccountsOpen ? "selected" : ""}`} onClick={onClaudeAccounts}
+          aria-current={claudeAccountsOpen ? "page" : undefined}>
+          <UsersRound size={17} />Claude 账号管理
+        </button>
+        <div className="sidebar-group-heading">
+          <span>应用</span>
+          {!running && <small>启动环境后可用</small>}
+        </div>
         <div className={`sidebar-browser-row ${!desktopOpen && !home && tabs.some((tab) => tab.id === active && tab.kind !== "terminal") ? "selected" : ""}`}>
           <button
             className="sidebar-link"
@@ -143,13 +159,10 @@ export function WorkspaceSidebar({
             <img src={claudeLogo} width="18" height="18" alt="" />
           </button>
         </div>
+        <button className={`sidebar-link ${desktopOpen ? "selected" : ""}`} onClick={onClaudeDesktop} disabled={!running || busy} title="安装或打开 Claude Desktop"><Monitor size={17} />Claude Desktop</button>
+        <div className="sidebar-group-heading"><span>连接</span></div>
         <button className={`sidebar-link ${tailscaleOpen ? "selected" : ""}`} aria-current={tailscaleOpen ? "page" : undefined} onClick={onTailscale} aria-label="打开 Tailscale"><Network size={17} />Tailscale</button>
         {ssh && <button className="sidebar-link ssh-navigation" onClick={ssh.open} aria-label="SSH 主机"><Server size={17} />SSH</button>}
-        <button className={`sidebar-link ${desktopOpen ? "selected" : ""}`} onClick={onClaudeDesktop} disabled={!running || busy} title="安装或打开 Claude Desktop"><Monitor size={17} />Claude Desktop</button>
-        <button className={`sidebar-link ${claudeAccountsOpen ? "selected" : ""}`} onClick={onClaudeAccounts}
-          aria-current={claudeAccountsOpen ? "page" : undefined}>
-          <UsersRound size={17} />Claude 账号管理
-        </button>
       </nav>
       <div className="sidebar-scroll">
         <div className="sidebar-section-heading">
@@ -324,11 +337,6 @@ export function WorkspaceSidebar({
         )}
       </div>
       <div className="sidebar-bottom">
-        <button className="sidebar-status" onClick={onSafety}>
-          <i className={`status-dot ${network.mode}`} />
-          <span>{healthy ? "环境运行正常" : runtimeLabel}</span>
-          <EnvironmentShield size={17} healthy={healthy} />
-        </button>
         <div className="sidebar-footer-actions">
           <AccountMenu onSettings={onSettings} onConfirm={onAccountConfirm} onStatus={onAccountStatus} busy={busy} />
           <button className="icon-button" aria-label="设置" title={shortcut("设置 ⌘,")} onClick={() => onSettings("keyboard")}><Settings size={17} /></button>

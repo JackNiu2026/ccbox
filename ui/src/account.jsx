@@ -13,9 +13,11 @@ import {
   Eye,
   EyeOff,
   Fingerprint,
+  Globe2,
   LockKeyhole,
   LogOut,
   Settings,
+  ShieldCheck,
 } from "lucide-react";
 import { api, native, nativeAvailable, writeClipboard } from "./api";
 import { getClientContext, isRemoteClient } from "./client-context.mjs";
@@ -298,6 +300,7 @@ export function AccountGate({ children }) {
   };
   return (
     <main className="account-gate">
+      {!isRemoteClient() && <AccountShowcase />}
       <div className="account-brand">
         <img src={logo} alt="" />
         CCBox
@@ -913,4 +916,20 @@ function AccountDeviceSettings() {
     {error && <p className="account-error" role="alert">{error}</p>}
     {message && <p className="account-saved" role="status">{message}</p>}
   </section>;
+}
+
+// Brand panel beside the sign-in form on wide windows; hidden when narrow.
+function AccountShowcase() {
+  return <aside className="account-showcase" aria-label="CCBox 简介">
+    <div className="account-showcase-brand"><img src={logo} alt="" />CCBox</div>
+    <div className="account-showcase-body">
+      <img className="account-showcase-logo" src={logo} alt="" />
+      <h2>为 Claude 准备的<br /><span>独立工作区</span></h2>
+      <ul>
+        <li><ShieldCheck size={17} aria-hidden="true" /><span><strong>隔离环境</strong>浏览器、终端和编辑器运行在独立的客户机系统里。</span></li>
+        <li><Globe2 size={17} aria-hidden="true" /><span><strong>内置代理</strong>导入自己的订阅或节点即可联网，无需额外的代理软件。</span></li>
+        <li><LockKeyhole size={17} aria-hidden="true" /><span><strong>本机账户</strong>账户资料与凭据只保存在这台设备上。</span></li>
+      </ul>
+    </div>
+  </aside>;
 }

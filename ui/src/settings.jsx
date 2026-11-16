@@ -20,6 +20,7 @@ import {
   UserRound,
   Archive,
   Info,
+  Search,
 } from "lucide-react";
 import { api } from "./api";
 import "./settings.css";
@@ -51,6 +52,13 @@ const sections = [
   ["project", "环境与恢复", RotateCcw],
   ["about", "关于", Info],
 ];
+// Display grouping only; every section keeps its id and content.
+const sectionGroups = [
+  ["个人", ["account", "license", "vault", "archived-sessions"]],
+  ["工作台", ["keyboard", "appearance"]],
+  ["网络与连接", ["network", "mobile"]],
+  ["系统", ["region", "project", "about"]],
+];
 export function SettingsPanel({
   current,
   status,
@@ -65,6 +73,7 @@ export function SettingsPanel({
   const [resourceDirty, setResourceDirty] = useState(false);
   const [draft, setDraft] = useState({ ...current }),
     [section, setSection] = useState(initialSection),
+    [sectionQuery, setSectionQuery] = useState(""),
     [probe, setProbe] = useState(null),
     [probing, setProbing] = useState(false),
     [probeFailed, setProbeFailed] = useState(false),
@@ -227,22 +236,34 @@ export function SettingsPanel({
           返回工作台
         </button>
         <h2>设置</h2>
+        <label className="settings-search">
+          <Search size={15} aria-hidden="true" />
+          <input type="search" placeholder="搜索设置" aria-label="搜索设置" value={sectionQuery} onChange={event => setSectionQuery(event.target.value)} />
+        </label>
         <nav aria-label="设置分组">
-          {sections.filter(([id]) => id !== "license" || !isRemoteClient()).map(([id, label, Icon]) => (
-            <button
-              key={id}
-              className={section === id ? "selected" : ""}
-              aria-current={section === id ? "page" : undefined}
-              onClick={async () => {
-                if (id !== section && accountDirty && !(await onConfirm({ title: "放弃尚未保存的修改？", body: "已保存的资料和密码保持不变。", confirm: "放弃修改" }))) return;
-                if (id !== section && proxyDirty && !(await onConfirm({ title: "放弃尚未应用的代理修改？", body: "当前代理仍按已应用的链路运行。离开会丢弃这次节点选择。", confirm: "放弃修改" }))) return;
-                setSection(id);
-              }}
-            >
-              <Icon size={17} />
-              {label}
-            </button>
-          ))}
+          {sectionGroups.map(([group, ids]) => {
+            const items = sections.filter(([id, label]) => ids.includes(id) && (id !== "license" || !isRemoteClient()) &&
+              (!sectionQuery.trim() || label.toLowerCase().includes(sectionQuery.trim().toLowerCase()) || group.includes(sectionQuery.trim())));
+            if (!items.length) return null;
+            return <div className="settings-nav-group" key={group} role="group" aria-label={group}>
+              <span className="settings-nav-heading">{group}</span>
+              {items.map(([id, label, Icon]) => (
+                <button
+                  key={id}
+                  className={section === id ? "selected" : ""}
+                  aria-current={section === id ? "page" : undefined}
+                  onClick={async () => {
+                    if (id !== section && accountDirty && !(await onConfirm({ title: "放弃尚未保存的修改？", body: "已保存的资料和密码保持不变。", confirm: "放弃修改" }))) return;
+                    if (id !== section && proxyDirty && !(await onConfirm({ title: "放弃尚未应用的代理修改？", body: "当前代理仍按已应用的链路运行。离开会丢弃这次节点选择。", confirm: "放弃修改" }))) return;
+                    setSection(id);
+                  }}
+                >
+                  <Icon size={17} />
+                  {label}
+                </button>
+              ))}
+            </div>;
+          })}
         </nav>
       </aside>
       <div className="settings-main">
@@ -692,7 +713,7 @@ export function SettingsPanel({
             </div>
           )}
         </div>
-        {(!["appearance", "browser", "account", "vault", "mobile", "archived-sessions", "project", "about"].includes(section) || changed) && (
+        {(changed || proxyDirty || status.job?.running) && (
           <footer className="settings-footer">
             {" "}
             <>
