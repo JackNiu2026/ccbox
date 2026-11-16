@@ -28,8 +28,12 @@ for (const file of htmlFiles) {
   assert.doesNotMatch(html, /<img\b[^>]*\bsrc="\/ccbox-icon\.png"/, `${file}: visible logo should use SVG`);
   assert.doesNotMatch(html, upstreamReleaseURL, file + ": public page links to an upstream service");
   assert.ok(!/\b(?:Claude Cage|Lee-xeo|GetToken)\b/i.test(html), `${file}: legacy brand appears in a public page`);
-  if (codes.some(code => file === (code === 'zh' ? 'index.html' : path.join(code, 'index.html')))) {
-    assert.ok(html.includes('href="/LICENSE.txt"'), `${file}: local MIT license link is missing`);
+  const homepageLocale = codes.find(code => file === (code === 'zh' ? 'index.html' : path.join(code, 'index.html')));
+  if (homepageLocale) {
+    const docsTitle = { zh: '使用文档', 'zh-TW': '使用文件', en: 'User guide' }[homepageLocale];
+    assert.ok(html.includes('<h2 id="docs-title">' + docsTitle + '</h2>'), file + ': user guide heading is missing');
+    assert.doesNotMatch(html, /<section[^>]*aria-labelledby="license-title"/, file + ': source and license module is still present');
+    assert.ok(html.includes('href="/LICENSE.txt"'), file + ': local MIT license link is missing');
   }
   assert.ok(!/(?:src|href)="\/Claude-Cage(?:\/|")/.test(html), `${file}: old project base remains`);
   if (file !== '404.html') {

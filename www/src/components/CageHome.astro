@@ -12,7 +12,6 @@ import HomeQuickStart from './home/HomeQuickStart.astro';
 import HomeBoundaries from './home/HomeBoundaries.astro';
 import HomeDownload from './home/HomeDownload.astro';
 import HomeDocs from './home/HomeDocs.astro';
-import HomeOpenSource from './home/HomeOpenSource.astro';
 import DownloadDialog from './home/DownloadDialog.astro';
 import '../styles/cage.css';
 import '../styles/home.css';
@@ -74,9 +73,10 @@ const structuredData = JSON.stringify({
     <HomeBoundaries ctx={ctx} />
     <HomeDownload ctx={ctx} />
     <HomeDocs ctx={ctx} />
-    <HomeOpenSource ctx={ctx} />
   </main>
-  <SiteFooter homeHref={pathFor(locale)} guideLabel={guideLabel} privacyLabel={locale === 'zh' || locale === 'zh-TW' ? '统计与隐私' : 'Privacy'} note={c.independent} />
+  <SiteFooter homeHref={pathFor(locale)} guideLabel={guideLabel} privacyLabel={locale === 'zh' || locale === 'zh-TW' ? '统计与隐私' : 'Privacy'} note={c.independent}>
+    <a href={base + 'LICENSE.txt'}>{locale === 'zh' ? 'MIT 许可' : locale === 'zh-TW' ? 'MIT 授權' : 'MIT License'}</a>
+  </SiteFooter>
   <DownloadDialog ctx={ctx} />
   <script>import '../scripts/home';</script>
 </body>

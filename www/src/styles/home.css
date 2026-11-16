@@ -661,37 +661,6 @@
 .doc-links a:hover .doc-arrow { color: var(--accent); transform: translate(2px, -2px); }
 .doc-desc { color: var(--muted); font-size: 14px; line-height: 1.65; }
 
-/* ------------------------------------------------------------- Open source */
-
-.open-source {
-  display: grid;
-  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
-  gap: clamp(28px, 5vw, 72px);
-  padding-block: clamp(40px, 5vw, 64px) var(--section-space);
-  border-block-start: 1px solid var(--line);
-}
-
-.open-source-license h2 { margin-block-start: 18px; font-size: clamp(22px, 2.2vw, 28px); }
-.open-source-license h2 .text-link { font-size: inherit; text-decoration-thickness: 1px; }
-.open-source-license p { margin-block-start: 12px; color: var(--muted); font-size: 14px; white-space: pre-line; }
-.open-source-credits h3 { font-size: 18px; }
-.credits-intro { margin-block-start: 6px; color: var(--muted); font-size: 14px; }
-
-.credits {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1px;
-  margin: 18px 0 0;
-  overflow: hidden;
-  background: var(--line);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-}
-
-.credits div { padding: 14px 16px; background: var(--surface); }
-.credits dt { font-weight: 650; font-size: 14px; }
-.credits dd { margin: 4px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
-
 /* ---------------------------------------------------------------- Layout */
 
 @media (max-width: 1080px) {
@@ -700,7 +669,6 @@
   .feature-card { grid-column: span 1; }
   .doc-links { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .platform-strip, .download-meta { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .open-source { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 900px) {
@@ -709,12 +677,11 @@
   .steps, .boundary-list { grid-template-columns: minmax(0, 1fr); }
   .download-box { grid-template-columns: minmax(0, 1fr); }
   .download-brand { display: none; }
-  .credits { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 640px) {
   .principles, .feature-grid, .doc-links, .evidence-grid { grid-template-columns: minmax(0, 1fr); }
-  .platform-strip, .download-meta, .credits { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .platform-strip, .download-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .platform-strip li:last-child, .download-meta li:last-child { grid-column: 1 / -1; }
   .section-heading { flex-direction: column; align-items: flex-start; gap: 12px; }
   .hero-actions .button { flex: 1 1 auto; }
