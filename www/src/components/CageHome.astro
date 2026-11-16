@@ -28,7 +28,7 @@ const canonical = site && new URL(pathFor(locale), site);
 const structuredData = JSON.stringify({
   '@context': 'https://schema.org', '@type': 'SoftwareApplication', name: 'CCBox',
   applicationCategory: 'DeveloperApplication', operatingSystem: 'macOS 14+, Windows 10/11, Debian 12, Ubuntu 22.04/24.04, Android 8+',
-  softwareVersion: published.version, description: hero.description, inLanguage: c.lang, license: 'https://opensource.org/licenses/MIT',
+  softwareVersion: published.version, description: hero.description, inLanguage: c.lang,
   offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
   ...(canonical ? { url: canonical.href } : {}),
 }).replaceAll('<', '\\u003c');
@@ -74,9 +74,7 @@ const structuredData = JSON.stringify({
     <HomeDownload ctx={ctx} />
     <HomeDocs ctx={ctx} />
   </main>
-  <SiteFooter homeHref={pathFor(locale)} guideLabel={guideLabel} privacyLabel={locale === 'zh' || locale === 'zh-TW' ? '统计与隐私' : 'Privacy'} note={c.independent}>
-    <a href={base + 'LICENSE.txt'}>{locale === 'zh' ? 'MIT 许可' : locale === 'zh-TW' ? 'MIT 授權' : 'MIT License'}</a>
-  </SiteFooter>
+  <SiteFooter homeHref={pathFor(locale)} guideLabel={guideLabel} privacyLabel={locale === 'zh' || locale === 'zh-TW' ? '统计与隐私' : 'Privacy'} note={c.independent} />
   <DownloadDialog ctx={ctx} />
   <script>import '../scripts/home';</script>
 </body>

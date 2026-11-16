@@ -33,7 +33,7 @@ for (const file of htmlFiles) {
     const docsTitle = { zh: '使用文档', 'zh-TW': '使用文件', en: 'User guide' }[homepageLocale];
     assert.ok(html.includes('<h2 id="docs-title">' + docsTitle + '</h2>'), file + ': user guide heading is missing');
     assert.doesNotMatch(html, /<section[^>]*aria-labelledby="license-title"/, file + ': source and license module is still present');
-    assert.ok(html.includes('href="/LICENSE.txt"'), file + ': local MIT license link is missing');
+    assert.doesNotMatch(html, /href="\/LICENSE\.txt"|opensource\.org\/licenses\/MIT/i, file + ': homepage exposes a license link');
   }
   assert.ok(!/(?:src|href)="\/Claude-Cage(?:\/|")/.test(html), `${file}: old project base remains`);
   if (file !== '404.html') {
