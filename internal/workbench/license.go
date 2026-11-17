@@ -37,6 +37,10 @@ type licenseView struct {
 	State   string `json:"state"`
 	Device  string `json:"device,omitempty"`
 	Expires int64  `json:"expires,omitempty"`
+	// Account is the online account codes are redeemed into, when signed in,
+	// and AccountExpires the end of its term.
+	Account        string `json:"account,omitempty"`
+	AccountExpires int64  `json:"account_expires,omitempty"`
 }
 
 func (s *Server) licenseEnabled() bool { return licensePublicKey != "" && s.localVMStorage() }
@@ -97,6 +101,14 @@ func (s *Server) requireLicense() error {
 		return err
 	}
 	if view.State != "active" && view.State != "disabled" {
+		// A signed-in account may hold a term this device has not fetched yet.
+		if record, token, err := s.onlineSession(); err == nil && record != nil && token != "" {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if refreshed, err := s.refreshOnlineGrant(ctx); err == nil && refreshed.State == "active" {
+				return nil
+			}
+		}
 		return errLicenseRequired
 	}
 	return nil
@@ -118,6 +130,9 @@ func (s *Server) desktopLicense(w http.ResponseWriter, r *http.Request) {
 			requestError(w, err)
 			return
 		}
+		if record, _ := s.loadOnlineRecord(); record != nil && s.onlineEnabled() {
+			view.Account, view.AccountExpires = record.Username, record.Expires
+		}
 		jsonReply(w, view)
 		return
 	}
@@ -129,6 +144,16 @@ func (s *Server) desktopLicense(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(input.Code) == 0 || len(input.Code) > 64 {
 		requestError(w, license.ErrInvalid)
+		return
+	}
+	if record, token, err := s.onlineSession(); s.onlineEnabled() && err == nil && record != nil && token != "" {
+		view, err := s.redeemOnline(r.Context(), input.Code)
+		if err != nil {
+			requestError(w, err)
+			return
+		}
+		view.Account = record.Username
+		jsonReply(w, view)
 		return
 	}
 	device, err := license.DeviceID()

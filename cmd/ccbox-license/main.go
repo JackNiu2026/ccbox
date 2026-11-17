@@ -66,8 +66,14 @@ func run(args []string) error {
 		}
 		return err
 	case args[0] == "serve" && len(args) == 3:
+		limit, err := maxDevicesFromEnv(os.Getenv("CCBOX_LICENSE_MAX_DEVICES"))
+		if err != nil {
+			return err
+		}
+		store.MaxDevices = limit
 		mux := http.NewServeMux()
 		mux.HandleFunc("POST /v1/redeem", redeemHandler(store))
+		registerAccountAPI(mux, store)
 		mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = io.WriteString(w, "ok\n") })
 		if path := os.Getenv("CCBOX_LICENSE_ADMIN_PASSWORD_FILE"); path != "" {
 			if err := host.CheckPrivateFile(path); err != nil {

@@ -314,6 +314,9 @@ func serve(configPath string, clientOnly bool, fullConfigPath string) (returned 
 	if s.desktopEntry {
 		go s.watchDesktopOwners(serveDone)
 	}
+	if workload {
+		go s.onlineGrantLoop(serveDone)
+	}
 	go func() {
 		select {
 		case <-signals.Done():
@@ -388,6 +391,8 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("POST /api/vault/browser", s.vaultBrowser)
 	mux.HandleFunc("GET /api/account", s.accountStatus)
 	mux.HandleFunc("POST /api/account/{action}", s.accountAction)
+	mux.HandleFunc("GET /api/account/online", s.onlineAccountRoute)
+	mux.HandleFunc("POST /api/account/online", s.onlineAccountRoute)
 	mux.HandleFunc("GET /api/desktop-license", s.desktopLicense)
 	mux.HandleFunc("POST /api/desktop-license", s.desktopLicense)
 	mux.HandleFunc("GET /api/settings", s.getSettings)

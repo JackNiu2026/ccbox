@@ -329,3 +329,13 @@
 .account-trigger[aria-expanded="false"] > svg { transform: rotate(180deg); }
 
 .account-trust-choice { display: grid; gap: 12px; margin: 16px 0; }
+.account-mode-links { display: flex; justify-content: center; flex-wrap: wrap; gap: 4px 16px; }
+.account-online-settings { display: grid; gap: 12px; margin-top: 12px; padding-top: 24px; border-top: 1px solid var(--line); }
+.account-online-settings h4 { margin: 0; }
+.account-online-settings fieldset { display: grid; gap: 14px; }
+.account-online-devices { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 10px; }
+.account-online-devices li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; }
+.account-online-devices li + li { border-top: 1px solid var(--line); }
+.account-online-devices span { display: grid; gap: 2px; min-width: 0; }
+.account-online-devices small { color: var(--muted); }
+.account-online-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }

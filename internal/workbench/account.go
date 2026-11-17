@@ -1,8 +1,11 @@
 package workbench
 
 import (
+	"context"
 	"net/http"
 	"runtime"
+	"strings"
+	"time"
 
 	"github.com/sylvinus/agent-vm/internal/guestos"
 )
@@ -23,6 +26,11 @@ func (s *Server) accountView(r *http.Request) accountView {
 		v.GuestSystem = "macos"
 		v.InitialMacSetup = s.macSetupPending()
 		v.MacOSGuestUser = s.macosGuest.User
+	}
+	if v.OnlineEnabled = s.onlineEnabled(); v.OnlineEnabled {
+		if record, err := s.loadOnlineRecord(); err == nil && record != nil {
+			v.OnlineUsername = record.Username
+		}
 	}
 	if s.windowsGuest != nil {
 		v.GuestSystem = "windows-11"
@@ -46,11 +54,16 @@ func (s *Server) accountAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	action := r.PathValue("action")
-	if action != "prepare-macos" && action != "create" && action != "unlock" && action != "profile" && action != "password" && action != "lock" && action != "logout" && action != "suspend" && action != "device-enroll" && action != "device-revoke" && action != "device-unlock" && action != "recovery-generate" && action != "recovery-reset" {
+	if action != "prepare-macos" && action != "create" && action != "unlock" && action != "profile" && action != "password" && action != "lock" && action != "logout" && action != "suspend" && action != "device-enroll" && action != "device-revoke" && action != "device-unlock" && action != "recovery-generate" && action != "recovery-reset" &&
+		action != "login" && action != "link" && action != "online-logout" && action != "online-reset" {
 		http.NotFound(w, r)
 		return
 	}
-	if action != "create" && action != "unlock" && action != "device-unlock" && action != "recovery-reset" {
+	if (action == "login" || action == "link" || action == "online-logout" || action == "online-reset") && !s.onlineEnabled() {
+		http.Error(w, errOnlineDisabled.Error(), http.StatusNotFound)
+		return
+	}
+	if action != "create" && action != "unlock" && action != "device-unlock" && action != "recovery-reset" && action != "login" && action != "online-reset" {
 		if _, ok := s.account.accessFor(s.hasTrustedView(r), false); !ok {
 			http.Error(w, "请先解锁 Cage", http.StatusLocked)
 			return
@@ -95,7 +108,36 @@ func (s *Server) accountAction(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "两次密码不一致", 400)
 			return
 		}
-		recoveryKey, err = s.account.createAccount(input.Username, input.Password, input.Avatar, s.macAccountHost())
+		recoveryKey, err = s.createWithOnline("register", input.Username, input.Password, input.Avatar, r)
+	case "login":
+		recoveryKey, err = s.createWithOnline("login", input.Username, input.Password, input.Avatar, r)
+	case "link":
+		if input.Kind != "register" && input.Kind != "login" {
+			http.Error(w, "未知操作", http.StatusBadRequest)
+			return
+		}
+		if input.Kind == "register" && input.Password != input.ConfirmPassword {
+			http.Error(w, "两次密码不一致", http.StatusBadRequest)
+			return
+		}
+		var reply onlineAuthReply
+		if reply, err = onlineAuthenticate(r.Context(), input.Kind, input.Username, input.Password); err == nil {
+			err = s.saveOnlineSession(reply)
+		}
+	case "online-logout":
+		if _, token, loadErr := s.onlineSession(); loadErr == nil && token != "" {
+			ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+			_ = onlineCall(ctx, "/v1/auth/logout", token, map[string]string{}, nil)
+			cancel()
+		}
+		err = s.clearOnlineSession()
+	case "online-reset":
+		if input.Password != input.ConfirmPassword {
+			http.Error(w, "两次密码不一致", http.StatusBadRequest)
+			return
+		}
+		err = onlineCall(r.Context(), "/v1/auth/reset", "", map[string]string{"username": strings.TrimSpace(input.Username),
+			"code": strings.TrimSpace(input.RecoveryKey), "password": input.Password}, nil)
 	case "recovery-generate":
 		recoveryKey, err = s.account.generateRecovery(input.Password)
 	case "recovery-reset":
@@ -155,7 +197,9 @@ func (s *Server) accountAction(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "两次密码不一致", 400)
 			return
 		}
-		err = s.account.changePassword(input.OldPassword, input.Password)
+		if err = s.changeOnlinePassword(r.Context(), input.OldPassword, input.Password); err == nil {
+			err = s.account.changePassword(input.OldPassword, input.Password)
+		}
 	case "lock":
 		err = s.account.lockAccess(false)
 	case "suspend":
@@ -181,6 +225,9 @@ func (s *Server) accountAction(w http.ResponseWriter, r *http.Request) {
 	}
 	if action == "lock" || action == "suspend" || action == "recovery-reset" {
 		s.clearBrowserVault(vaultLease)
+	}
+	if action == "create" || action == "login" || action == "link" || action == "unlock" || action == "device-unlock" {
+		s.refreshOnlineGrantSoon()
 	}
 	if (action == "password" || action == "prepare-macos") && s.macosGuest != nil && s.vmRunning() {
 		// The account write already succeeded. A failed guest update remains a

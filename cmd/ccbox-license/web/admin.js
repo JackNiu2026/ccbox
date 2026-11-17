@@ -38,6 +38,7 @@ const ICONS = {
   codes: ["M15 7a2 2 0 0 1 2 2", "M21 9a6 6 0 0 1-7.7 5.7L11 17H9v2H7v2H3v-3.6l5.3-5.3A6 6 0 1 1 21 9z"],
   batches: ["M21 8 12 3 3 8l9 5 9-5z", "m3 13 9 5 9-5", "m3 17.5 9 5 9-5"],
   devices: ["M4 5h16v11H4z", "M8 20h8", "M12 16v4"],
+  users: ["M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2", "M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", "M22 21v-2a4 4 0 0 0-3-3.9", "M16 3.1a4 4 0 0 1 0 7.8"],
   audit: ["M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2", "M9 3h6v4H9z", "M9 12h6", "M9 16h4"],
   plus: ["M12 5v14", "M5 12h14"],
   search: ["M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14z", "m21 21-4.3-4.3"],
@@ -125,7 +126,19 @@ const AUDIT_ACTION = {
   "batches.revoke": "停用批次",
   "devices.transfer": "换机",
   "devices.renew": "设备续期",
+  "users.disable": "停用用户",
+  "users.enable": "恢复用户",
+  "users.adjust": "调整用户期限",
+  "users.device-remove": "解绑用户设备",
+  "users.reset": "发放重置码",
 };
+const USER_STATUS = {
+  active: ["有效", "ok"],
+  expired: ["已到期", "bad"],
+  none: ["未授权", "info"],
+  disabled: ["已停用", "bad"],
+};
+const EVENT_SOURCE = { code: "兑换激活码", legacy: "旧版设备授权转入", admin: "后台调整" };
 
 const badge = ([label, kind]) => h("span", { class: `badge ${kind}` }, label);
 
@@ -280,6 +293,7 @@ function renderLogin(message = "") {
 
 const ROUTES = [
   { id: "overview", label: "概览", icon: "overview", render: renderOverview },
+  { id: "users", label: "用户", icon: "users", render: renderUsers },
   { id: "codes", label: "激活码", icon: "codes", render: renderCodes },
   { id: "batches", label: "批次", icon: "batches", render: renderBatches },
   { id: "devices", label: "设备", icon: "devices", render: renderDevices },
@@ -750,6 +764,7 @@ async function renderOverview(view, _params, alive) {
       h("button", { class: "btn", type: "button", onclick: () => transferDialog("", reload) }, icon("transfer"), "换机"),
       h("button", { class: "btn primary", type: "button", onclick: () => issueDialog(reload) }, icon("plus"), "生成激活码")),
     h("section", { class: "stats", "aria-label": "关键指标" },
+      stat("注册用户", (data.users || {}).total, `近 30 天新增 ${fmtNumber((data.users || {}).new30)} · 有效 ${fmtNumber((data.users || {}).active)}`, "var(--brand)"),
       stat("累计发放", codes.issued, `近 30 天 ${fmtNumber(issued30)}`, "var(--muted)"),
       stat("未使用", codes.unused, "可兑换库存", "var(--info)"),
       stat("已兑换", codes.redeemed, `兑换率 ${rate}%`, "var(--ok)"),
@@ -933,6 +948,181 @@ async function renderDevices(view, params, alive) {
   );
 }
 
+// --------------------------------------------------------------------- Users
+
+function userExpiry(user) {
+  if (!user.expires) return h("span", { class: "muted" }, "—");
+  return h("span", { title: fmtTime(user.expires) }, fmtDate(user.expires), h("span", { class: "muted" }, ` · ${remaining(user.expires)}`));
+}
+
+async function renderUsers(view, params, alive) {
+  const filters = { status: params.get("status") || "", q: params.get("q") || "" };
+  const page = Number(params.get("page")) || 1;
+  const data = await api("users" + query({ ...filters, page }));
+  if (!alive() || pastEnd(data, "users", filters)) return;
+  const reload = () => route();
+  const update = changes => navigate("users", { ...filters, page: 1, ...changes });
+  const totals = data.totals || {};
+  const exportCSV = async event => {
+    const items = await busy(event.currentTarget, "正在导出…", () => fetchAll("users", filters));
+    download(`ccbox-users-${stamp()}.csv`, toCSV([["用户编号", "用户名", "状态", "授权到期", "设备数", "注册时间", "最近登录", "停用原因"],
+      ...items.map(user => [user.id, user.username, USER_STATUS[user.status]?.[0] || user.status, fmtTime(user.expires), `${user.device_count}/${user.max_devices}`, fmtTime(user.created), fmtTime(user.last_login), user.disabled_reason])]), "text/csv");
+  };
+  const rows = data.items.map(user => h("tr", {},
+    h("td", {}, h("div", { class: "primary-text" }, user.username), h("div", { class: "secondary-text mono" }, user.id.slice(0, 12))),
+    h("td", {}, badge(USER_STATUS[user.status] || [user.status, ""])),
+    h("td", {}, userExpiry(user)),
+    h("td", {}, `${user.device_count} / ${user.max_devices}`),
+    h("td", { title: fmtTime(user.created) }, fmtShort(user.created)),
+    h("td", { title: fmtTime(user.last_login) }, fmtShort(user.last_login)),
+    h("td", { class: "actions" }, h("button", { class: "btn ghost small", type: "button", onclick: () => userDialog(user.id, reload) }, "详情"))));
+  const filtered = Object.values(filters).some(Boolean);
+  view.replaceChildren(
+    pageHead("用户", "线上账户与授权期限。密码只以哈希保存，后台无法查看或直接设置用户密码。"),
+    h("section", { class: "stats", "aria-label": "用户统计" },
+      stat("注册用户", totals.total, `近 30 天新增 ${fmtNumber(totals.new30)}`, "var(--brand)"),
+      stat("授权有效", totals.active, `7 天内到期 ${fmtNumber(totals.expiring)}`, "var(--ok)"),
+      stat("已到期", totals.expired, "可提醒续期", "var(--warn)"),
+      stat("未授权", totals.none, "注册后尚未兑换", "var(--info)"),
+      stat("已停用", totals.disabled, "停用后无法登录", "var(--bad)")),
+    h("div", { class: "toolbar" },
+      searchBox(filters.q, "用户名或用户编号", q => update({ q })),
+      chips([["", "全部"], ["active", "有效"], ["expired", "已到期"], ["none", "未授权"], ["disabled", "已停用"]], filters.status, status => update({ status }), "状态"),
+      h("span", { class: "spacer" }),
+      h("button", { class: "btn", type: "button", onclick: exportCSV, disabled: !data.total }, icon("download"), "导出 CSV")),
+    h("section", { class: "card" }, data.items.length
+      ? [table(["用户", "状态", "授权到期", "设备", "注册时间", "最近登录", ""], rows), pager(data, next => navigate("users", { ...filters, page: next }))]
+      : filtered ? emptyState("search", "没有匹配的用户", "调整筛选条件后重试。", h("button", { class: "btn", type: "button", onclick: () => navigate("users") }, "清除筛选"))
+        : emptyState("users", "还没有注册用户", "用户在桌面应用中注册后会出现在这里。")),
+  );
+}
+
+// A small form dialog: fields plus a required reason, posting to path.
+function userActionDialog({ title, description, fields = [], reasonLabel = "原因", reasonRequired = true, confirm, danger, onSubmit }) {
+  const reason = h("input", { id: "user-reason", type: "text", maxlength: 80, placeholder: "写入操作日志，例如：工单 1234" });
+  const error = h("p", { class: "form-error", role: "alert", hidden: true });
+  const submit = h("button", { class: `btn ${danger ? "danger-solid" : "primary"}`, type: "submit", form: "user-action-form" }, confirm);
+  const dialog = openDialog({
+    title, description,
+    body: h("form", { id: "user-action-form", novalidate: true, style: "display:grid;gap:14px", onsubmit: async event => {
+      event.preventDefault();
+      error.hidden = true;
+      if (reasonRequired && !reason.value.trim()) {
+        error.textContent = `请填写${reasonLabel}`;
+        error.hidden = false;
+        return;
+      }
+      try {
+        await busy(submit, "正在处理…", () => onSubmit(reason.value.trim()));
+        dialog.close();
+      } catch (failure) {
+        if (failure.status === 401) return;
+        error.textContent = failure.message;
+        error.hidden = false;
+      }
+    } }, fields, h("div", { class: "field" }, h("label", { for: "user-reason" }, reasonRequired ? reasonLabel : `${reasonLabel}（可选）`), reason), error),
+    footer: [h("button", { class: "btn", type: "button", onclick: () => dialog.close() }, "取消"), submit],
+  });
+  (fields[0]?.querySelector?.("input") || reason).focus();
+}
+
+function resetCodeDialog(result) {
+  openDialog({
+    title: "重置码已生成",
+    description: `用户 ${result.user.username} · 有效至 ${fmtTime(result.expires)}`,
+    body: [
+      h("div", { class: "code-single" }, h("span", {}, result.code),
+        h("button", { class: "btn small", type: "button", onclick: () => copyText(result.code) }, icon("copy"), "复制")),
+      h("div", { class: "notice info" }, icon("info"), h("span", {}, "请通过可信渠道交给用户本人。用户在桌面应用登录页点击「忘记密码」，输入用户名、重置码和新密码。重置码只能使用一次，仅显示这一次。")),
+    ],
+    footer: [h("button", { class: "btn primary", type: "button", onclick: event => event.target.closest("dialog").close() }, "完成")],
+  });
+}
+
+async function userDialog(id, onChange) {
+  let data;
+  try {
+    data = await api("users/detail" + query({ id }));
+  } catch (failure) {
+    if (failure.status !== 401) toast(failure.message, "error");
+    return;
+  }
+  const user = data.user;
+  const refresh = () => {
+    dialog.close();
+    onChange?.();
+    userDialog(id, onChange);
+  };
+  const devices = (user.devices || []).length
+    ? table(["设备", "名称", "系统", "首次登录", "最近使用", ""], user.devices.map(device => h("tr", {},
+      h("td", {}, deviceCell(device.id)),
+      h("td", {}, device.name || h("span", { class: "muted" }, "—")),
+      h("td", {}, device.platform || h("span", { class: "muted" }, "—")),
+      h("td", { title: fmtTime(device.added) }, fmtShort(device.added)),
+      h("td", { title: fmtTime(device.seen) }, fmtShort(device.seen)),
+      h("td", { class: "actions" }, h("button", { class: "btn danger small", type: "button", onclick: () => userActionDialog({
+        title: "解绑设备？", description: `设备 ${shortDevice(device.id)} 将退出登录并释放一个设备名额；已签发的离线授权最长 7 天后失效。`,
+        reasonRequired: false, confirm: "解绑", danger: true,
+        onSubmit: async reason => { await api("users/devices/remove", { id, device: device.id, reason }); toast("设备已解绑"); refresh(); },
+      }) }, "解绑")))))
+    : h("p", { class: "empty-mini" }, "当前没有登录的设备");
+  const events = (user.events || []).length
+    ? h("ul", { class: "list" }, user.events.map(event => h("li", {},
+      h("div", {}, h("div", { class: "primary-text" }, EVENT_SOURCE[event.source] || event.source,
+        event.seconds ? h("span", { class: "muted" }, ` ${event.seconds > 0 ? "+" : ""}${Math.round(event.seconds / 86400)} 天`) : null),
+        h("div", { class: "secondary-text" }, `${fmtTime(event.time)} · 到期 ${fmtDate(event.expires)}${event.note ? ` · ${event.note}` : ""}${event.ref ? ` · ${event.ref}` : ""}`)))))
+    : h("p", { class: "empty-mini" }, "还没有授权记录");
+  const audit = (data.audit || []).length
+    ? h("ul", { class: "list" }, data.audit.map(entry => h("li", {}, h("div", {},
+      h("div", { class: "primary-text" }, AUDIT_ACTION[entry.action] || entry.action),
+      h("div", { class: "secondary-text" }, `${fmtTime(entry.time)} · ${entry.detail || ""}`)))))
+    : h("p", { class: "empty-mini" }, "没有相关的后台操作");
+  const disabled = user.status === "disabled";
+  const dialog = openDialog({
+    title: user.username,
+    description: `用户编号 ${user.id}`,
+    wide: true,
+    body: [
+      h("dl", { class: "kv" },
+        h("dt", {}, "状态"), h("dd", {}, badge(USER_STATUS[user.status] || [user.status, ""]), disabled && user.disabled_reason ? h("span", { class: "muted" }, ` ${user.disabled_reason}`) : null),
+        h("dt", {}, "授权到期"), h("dd", {}, user.expires ? `${fmtTime(user.expires)}（${remaining(user.expires)}）` : "—"),
+        h("dt", {}, "设备"), h("dd", {}, `${user.device_count} / ${user.max_devices} · 有效会话 ${user.sessions}`),
+        h("dt", {}, "注册时间"), h("dd", {}, fmtTime(user.created)),
+        h("dt", {}, "最近登录"), h("dd", {}, fmtTime(user.last_login)),
+        user.reset_pending ? [h("dt", {}, "重置码"), h("dd", {}, "已发放，尚未使用")] : null),
+      h("h3", { class: "section-title" }, "登录的设备"), devices,
+      h("h3", { class: "section-title" }, "授权记录"), events,
+      h("h3", { class: "section-title" }, "后台操作"), audit,
+    ],
+    footer: [
+      h("button", { class: `btn left ${disabled ? "" : "danger"}`, type: "button", onclick: () => disabled
+        ? userActionDialog({ title: "恢复此账户？", description: "恢复后用户可以重新登录。", reasonRequired: false, confirm: "恢复账户",
+          onSubmit: async reason => { await api("users/enable", { id, reason }); toast("账户已恢复"); refresh(); } })
+        : userActionDialog({ title: "停用此账户？", description: "所有设备立即退出登录，无法再登录或续签授权；已签发的离线授权最长 7 天后失效。", confirm: "停用账户", danger: true,
+          onSubmit: async reason => { await api("users/disable", { id, reason }); toast("账户已停用"); refresh(); } }) },
+        disabled ? "恢复账户" : "停用账户"),
+      h("button", { class: "btn", type: "button", onclick: () => userActionDialog({
+        title: "发放密码重置码", description: "生成一次性重置码，24 小时内有效。原密码在用户完成重置前仍然可用。", reasonRequired: false, confirm: "生成重置码",
+        onSubmit: async reason => { const result = await api("users/reset", { id, reason }); resetCodeDialog(result); onChange?.(); },
+      }) }, icon("lock"), "重置密码"),
+      h("button", { class: "btn primary", type: "button", onclick: () => {
+        const days = h("input", { id: "adjust-days", type: "number", min: -3650, max: 3650, step: 1, value: config.duration_days, required: true });
+        userActionDialog({
+          title: "调整授权期限", description: "正数延长、负数缩短；从当前到期时间（已到期则从现在）开始计算。",
+          fields: [h("div", { class: "field" }, h("label", { for: "adjust-days" }, "天数"), days)], reasonLabel: "调整原因", confirm: "确认调整",
+          onSubmit: async reason => {
+            const value = Number(days.value);
+            if (!Number.isInteger(value) || value === 0 || Math.abs(value) > 3650) throw new Error("天数需在 -3650 至 3650 之间且不为 0");
+            await api("users/adjust", { id, days: value, reason });
+            toast("授权期限已调整");
+            refresh();
+          },
+        });
+      } }, icon("renew"), "调整期限"),
+    ],
+  });
+}
+
 // --------------------------------------------------------------------- Audit
 
 async function renderAudit(view, params, alive) {
@@ -940,7 +1130,8 @@ async function renderAudit(view, params, alive) {
   const page = Number(params.get("page")) || 1;
   const data = await api("audit" + query({ action, page }));
   if (!alive() || pastEnd(data, "audit", { action })) return;
-  const tone = { "login.failed": "bad", "codes.revoke": "bad", "batches.revoke": "bad", "codes.issue": "brand", "devices.transfer": "info", "devices.renew": "info" };
+  const tone = { "login.failed": "bad", "codes.revoke": "bad", "batches.revoke": "bad", "codes.issue": "brand", "devices.transfer": "info", "devices.renew": "info",
+    "users.disable": "bad", "users.enable": "ok", "users.adjust": "info", "users.device-remove": "warn", "users.reset": "warn" };
   const rows = data.items.map(entry => h("tr", {},
     h("td", { title: fmtTime(entry.time) }, fmtShort(entry.time)),
     h("td", {}, badge([AUDIT_ACTION[entry.action] || entry.action, tone[entry.action] || ""])),
@@ -948,7 +1139,7 @@ async function renderAudit(view, params, alive) {
     h("td", { class: "mono muted" }, entry.address || "—")));
   view.replaceChildren(
     pageHead("操作日志", "记录登录与所有写操作，不包含激活码原文。保存在授权服务状态目录的 admin-audit.jsonl。"),
-    h("div", { class: "toolbar" }, chips([["", "全部"], ["login", "登录"], ["codes", "激活码"], ["batches", "批次"], ["devices", "设备"]], action, value => navigate("audit", { action: value }), "操作类型")),
+    h("div", { class: "toolbar" }, chips([["", "全部"], ["login", "登录"], ["users", "用户"], ["codes", "激活码"], ["batches", "批次"], ["devices", "设备"]], action, value => navigate("audit", { action: value }), "操作类型")),
     h("section", { class: "card" }, data.items.length
       ? [table(["时间", "操作", "详情", "来源地址"], rows), pager(data, next => navigate("audit", { action, page: next }))]
       : emptyState("audit", "暂无记录", "管理员操作会记录在这里。")),

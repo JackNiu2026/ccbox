@@ -16,6 +16,9 @@ type Grant struct {
 	Version int    `json:"version"`
 	Device  string `json:"device"`
 	Expires int64  `json:"expires"`
+	// Account names the online account a grant was issued for. Older
+	// clients ignore it; it does not change how a grant verifies.
+	Account string `json:"account,omitempty"`
 }
 
 func (g Grant) Active(now time.Time) bool { return g.Expires > now.Unix() }

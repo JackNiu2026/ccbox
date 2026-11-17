@@ -33,9 +33,12 @@ export function DesktopLicenseForm({ license, onActivated }) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const active = license.state === "active";
-  const expiry = license.expires ? new Intl.DateTimeFormat(undefined, {
+  // A signed-in account shows its own term; the device grant inside it is
+  // shorter and renews in the background.
+  const shown = license.account && license.account_expires ? license.account_expires : license.expires;
+  const expiry = shown ? new Intl.DateTimeFormat(undefined, {
     dateStyle: "long", timeStyle: "short",
-  }).format(new Date(license.expires * 1000)) : "";
+  }).format(new Date(shown * 1000)) : "";
 
   async function activate(event) {
     event.preventDefault();
@@ -59,7 +62,9 @@ export function DesktopLicenseForm({ license, onActivated }) {
     <div className="desktop-license-state">
       <strong>{labels[license.state]}</strong>
       {expiry && <p>有效期至 {expiry}</p>}
-      <p>{active ? "提前续期会在当前到期时间后增加 30 天。" : "输入激活码，为此设备开通 30 天。"}</p>
+      <p>{license.account
+        ? `激活码兑换到线上账户 ${license.account}，${active ? "在当前到期时间后增加 30 天" : "开通 30 天"}；该账户登录的其他电脑同样可用。`
+        : active ? "提前续期会在当前到期时间后增加 30 天。" : "输入激活码，为此设备开通 30 天。"}</p>
     </div>
     <label htmlFor="desktop-license-code">激活码</label>
     <input id="desktop-license-code" type="text" value={code} maxLength={64} spellCheck={false}

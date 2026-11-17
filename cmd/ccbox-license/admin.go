@@ -121,6 +121,7 @@ func (a *adminServer) register(mux *http.ServeMux) {
 	mux.HandleFunc("POST "+adminPrefix+"api/devices/transfer", a.api(true, a.transfer))
 	mux.HandleFunc("POST "+adminPrefix+"api/devices/renew", a.api(true, a.renew))
 	mux.HandleFunc("GET "+adminPrefix+"api/audit", a.api(true, a.listAudit))
+	a.registerUsers(mux)
 }
 
 func securityHeaders(w http.ResponseWriter) {
@@ -451,7 +452,11 @@ func (a *adminServer) overview(r *http.Request, _ string) (any, error) {
 	if len(batches) > 5 {
 		batches = batches[:5]
 	}
-	return map[string]any{"codes": totals, "devices": deviceTotals, "series": series,
+	users, err := a.store.Users(now)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"codes": totals, "devices": deviceTotals, "series": series, "users": userTotals(users, now),
 		"expiring": expiring, "expiring_total": expiringTotal, "batches": batches, "generated": now.Unix()}, nil
 }
 

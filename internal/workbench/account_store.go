@@ -70,6 +70,8 @@ type accountView struct {
 	DeviceBinding         string            `json:"device_binding"`
 	Devices               map[string]string `json:"devices,omitempty"`
 	RequireAuthentication bool              `json:"require_authentication"`
+	OnlineEnabled         bool              `json:"online_enabled,omitempty"`
+	OnlineUsername        string            `json:"online_username,omitempty"`
 }
 
 func loadLocalAccount(profile string) (*localAccount, error) {
@@ -455,4 +457,68 @@ func normalizeAccountAvatar(value string) (string, error) {
 		return "", err
 	}
 	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(out.Bytes()), nil
+}
+
+// sealSecret encrypts a small secret with the unlocked account key, so it is
+// only readable while the account is unlocked.
+func (a *localAccount) sealSecret(purpose string, plain []byte) ([]byte, []byte, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if len(a.key) != 32 {
+		return nil, nil, errors.New("请先解锁 CCBox")
+	}
+	block, err := aes.NewCipher(a.key)
+	if err != nil {
+		return nil, nil, err
+	}
+	aead, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, nil, err
+	}
+	nonce := make([]byte, aead.NonceSize())
+	if _, err := rand.Read(nonce); err != nil {
+		return nil, nil, err
+	}
+	return nonce, aead.Seal(nil, nonce, plain, []byte("CCBox "+purpose)), nil
+}
+
+func (a *localAccount) openSecret(purpose string, nonce, sealed []byte) ([]byte, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if len(a.key) != 32 {
+		return nil, errors.New("请先解锁 CCBox")
+	}
+	block, err := aes.NewCipher(a.key)
+	if err != nil {
+		return nil, err
+	}
+	aead, err := cipher.NewGCM(block)
+	if err != nil || len(nonce) != aead.NonceSize() {
+		return nil, errors.New("线上账户记录损坏，请重新登录")
+	}
+	plain, err := aead.Open(nil, nonce, sealed, []byte("CCBox "+purpose))
+	if err != nil {
+		return nil, errors.New("线上账户记录无法读取，请重新登录")
+	}
+	return plain, nil
+}
+
+// exists reports whether a local account has been created.
+func (a *localAccount) exists() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.record != nil
+}
+
+// checkPassword reports whether password unlocks the local account, without
+// changing any state.
+func (a *localAccount) checkPassword(password string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.record == nil {
+		return errors.New("请先创建本地账户")
+	}
+	key, err := openAccountKey(a.record, password)
+	clear(key)
+	return err
 }

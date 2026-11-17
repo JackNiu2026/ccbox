@@ -407,3 +407,8 @@ dialog[open] { animation: pop 0.16s ease-out; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* Users */
+.section-title { margin: 22px 0 8px; font-size: 14px; font-weight: 600; }
+td .primary-text { font-weight: 600; }
+td .secondary-text { color: var(--muted); font-size: 12px; }
