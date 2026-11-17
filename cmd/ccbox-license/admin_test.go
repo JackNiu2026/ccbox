@@ -279,3 +279,74 @@ func TestParseOrigins(t *testing.T) {
 		}
 	}
 }
+
+func TestAdminUserManagement(t *testing.T) {
+	client, store, _ := newTestAdmin(t)
+	login := client.do("POST", "api/login", testOrigin, goodLogin)
+	client.cookie = login.Result().Cookies()[0]
+	device := strings.Repeat("a", 64)
+	token, info, err := store.Register("henry", "password1", device, license.DeviceMeta{Name: "PC"}, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.Register("irene", "password1", strings.Repeat("b", 64), license.DeviceMeta{}, time.Now())
+	list := decode[struct {
+		Items  []license.UserInfo `json:"items"`
+		Total  int                `json:"total"`
+		Totals map[string]int     `json:"totals"`
+	}](t, client.do("GET", "api/users?q=HEN", "", nil))
+	if list.Total != 1 || list.Items[0].Username != "henry" || list.Totals["total"] != 2 || list.Totals["none"] != 2 {
+		t.Fatalf("list: %+v", list)
+	}
+	if got := client.do("POST", "api/users/adjust", testOrigin, map[string]any{"id": info.ID, "days": 30}); got.Code != 400 {
+		t.Fatalf("adjust without reason: %d", got.Code)
+	}
+	adjusted := decode[license.UserInfo](t, client.do("POST", "api/users/adjust", testOrigin, map[string]any{"id": info.ID, "days": 30, "reason": "补偿"}))
+	if adjusted.Status != license.UserActive || len(adjusted.Events) != 1 {
+		t.Fatalf("adjust: %+v", adjusted)
+	}
+	if got := client.do("POST", "api/users/disable", testOrigin, map[string]any{"id": info.ID}); got.Code != 400 {
+		t.Fatalf("disable without reason: %d", got.Code)
+	}
+	disabled := decode[license.UserInfo](t, client.do("POST", "api/users/disable", testOrigin, map[string]any{"id": info.ID, "reason": "违规"}))
+	if disabled.Status != license.UserDisabled {
+		t.Fatalf("disable: %+v", disabled)
+	}
+	if _, err := store.Account(token, device, time.Now()); err == nil {
+		t.Fatal("disabled account kept its session")
+	}
+	if got := decode[license.UserInfo](t, client.do("POST", "api/users/enable", testOrigin, map[string]any{"id": info.ID})); got.Status != license.UserActive {
+		t.Fatalf("enable: %+v", got)
+	}
+	reset := decode[map[string]any](t, client.do("POST", "api/users/reset", testOrigin, map[string]any{"id": info.ID, "reason": "忘记密码"}))
+	code, _ := reset["code"].(string)
+	if len(code) != 14 {
+		t.Fatalf("reset: %v", reset)
+	}
+	if err := store.ResetPassword("henry", code, "password9", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	removed := decode[license.UserInfo](t, client.do("POST", "api/users/devices/remove", testOrigin, map[string]any{"id": info.ID, "device": device, "reason": "换机"}))
+	if removed.DeviceCount != 0 {
+		t.Fatalf("remove device: %+v", removed)
+	}
+	detail := decode[struct {
+		User  license.UserInfo `json:"user"`
+		Audit []auditEntry     `json:"audit"`
+	}](t, client.do("GET", "api/users/detail?id="+info.ID, "", nil))
+	if detail.User.Username != "henry" || len(detail.Audit) != 5 {
+		t.Fatalf("detail: %+v", detail)
+	}
+	for _, entry := range detail.Audit {
+		if strings.Contains(entry.Detail, code) || strings.Contains(entry.Detail, "password") {
+			t.Fatalf("audit leaked a secret: %+v", entry)
+		}
+	}
+	if got := client.do("GET", "api/users/detail?id=nothex", "", nil); got.Code != 400 {
+		t.Fatalf("bad id: %d", got.Code)
+	}
+	overview := decode[map[string]any](t, client.do("GET", "api/overview", "", nil))
+	if users, _ := overview["users"].(map[string]any); users["total"] != float64(2) {
+		t.Fatalf("overview users: %v", overview["users"])
+	}
+}

@@ -27,6 +27,9 @@ const MaxIssueBatch = 500
 type Store struct {
 	dir string
 	key ed25519.PrivateKey
+	// MaxDevices limits devices signed in to one account; 0 uses
+	// DefaultMaxDevices.
+	MaxDevices int
 }
 
 // Record kinds. Ordinary codes may be redeemed by any device; transfer and
@@ -48,6 +51,8 @@ type codeRecord struct {
 	Revoked  int64  `json:"revoked,omitempty"`
 	From     string `json:"from,omitempty"`
 	Expires  int64  `json:"expires,omitempty"`
+	// Account is set when the code was redeemed into an online account.
+	Account string `json:"account,omitempty"`
 }
 
 type batchRecord struct {
@@ -60,6 +65,13 @@ type ledger struct {
 	Codes   map[string]codeRecord  `json:"codes"`
 	Expires map[string]int64       `json:"expires"`
 	Batches map[string]batchRecord `json:"batches,omitempty"`
+	// Online accounts. Names maps a normalized username to its user ID,
+	// Sessions maps a token digest to its session, and Owners records which
+	// account a device's legacy activation was moved into.
+	Users    map[string]userRecord    `json:"users,omitempty"`
+	Names    map[string]string        `json:"names,omitempty"`
+	Sessions map[string]sessionRecord `json:"sessions,omitempty"`
+	Owners   map[string]string        `json:"owners,omitempty"`
 }
 
 func NewStore(dir string, key ed25519.PrivateKey) *Store { return &Store{dir: dir, key: key} }
@@ -237,6 +249,15 @@ func (s *Store) Redeem(code, device string, now time.Time) (string, error) {
 		expires := max(now.Unix(), state.Expires[device]) + int64(Duration/time.Second)
 		token = Grant{Version: 1, Device: device, Expires: expires}.sign(s.key)
 		record.Device, record.Token, record.Redeemed, record.Expires = device, token, now.Unix(), expires
+		// An older client on a device already linked to an account still
+		// extends that account, so the term is not lost when it upgrades.
+		if owner := state.Owners[device]; owner != "" {
+			if user, ok := state.Users[owner]; ok {
+				user.extend(now, int64(Duration/time.Second), "code", digest[:12], "")
+				state.Users[owner] = user
+				record.Account = owner
+			}
+		}
 		state.Codes[digest] = record
 		state.Expires[device] = expires
 		return true, nil
@@ -337,6 +358,7 @@ type CodeInfo struct {
 	Device   string `json:"device,omitempty"`
 	From     string `json:"from,omitempty"`
 	Expires  int64  `json:"expires,omitempty"`
+	Account  string `json:"account,omitempty"`
 }
 
 type BatchInfo struct {
@@ -362,7 +384,7 @@ const (
 
 func (record codeRecord) info(id string) CodeInfo {
 	info := CodeInfo{ID: id, Kind: record.Kind, Hint: record.Hint, Batch: record.Batch, Issued: record.Issued,
-		Redeemed: record.Redeemed, Revoked: record.Revoked, Device: record.Device, From: record.From, Expires: record.Expires}
+		Redeemed: record.Redeemed, Revoked: record.Revoked, Device: record.Device, From: record.From, Expires: record.Expires, Account: record.Account}
 	if info.Kind == "" {
 		info.Kind = KindCode
 	}

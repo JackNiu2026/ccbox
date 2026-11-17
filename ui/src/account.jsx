@@ -227,6 +227,10 @@ export function AccountGate({ children }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [recovering, setRecovering] = useState(false);
+  // Online builds: "register" | "login" | "reset" on the first-run screen.
+  const [mode, setMode] = useState("register");
+  const [resetCode, setResetCode] = useState("");
+  const [notice, setNotice] = useState("");
   const automaticAttempt = useRef("");
   const gateAcknowledged = useRef(false);
   const trustedAttempt = useRef(false);
@@ -262,19 +266,30 @@ export function AccountGate({ children }) {
   if (account?.unlocked) return children;
   if (recovering) return <AccountRecovery onBack={() => setRecovering(false)} onReset={() => { setRecovering(false); setPassword(""); setConfirmation(""); setRememberLogin(false); setError(""); }} />;
   const creating = account && !account.exists;
+  const online = Boolean(creating && account.online_enabled);
+  const signingIn = online && mode === "login";
+  const resetting = online && mode === "reset";
+  const switchMode = (next) => { setMode(next); setError(""); setNotice(""); setPassword(""); setConfirmation(""); setResetCode(""); };
   const rememberThisDevice = rememberLogin ?? Boolean(creating || account?.trusted_login || account?.devices?.automatic);
   const submit = async (event) => {
     event.preventDefault();
     if (busy) return;
-    if (creating && password !== confirmation) {
+    if (creating && !signingIn && password !== confirmation) {
       setError("两次密码不一致");
       return;
     }
     setBusy(true);
     setError("");
+    setNotice("");
     try {
+      if (resetting) {
+        await act("online-reset", { username, recovery_key: resetCode, password, confirm_password: confirmation });
+        switchMode("login");
+        setNotice("密码已重置，请用新密码登录。");
+        return;
+      }
       await act(
-        creating ? "create" : "unlock",
+        creating ? signingIn ? "login" : "create" : "unlock",
         creating
           ? { username, password, confirm_password: confirmation }
           : { password },
@@ -300,7 +315,7 @@ export function AccountGate({ children }) {
   };
   return (
     <main className="account-gate">
-      {!isRemoteClient() && <AccountShowcase />}
+      {!isRemoteClient() && <AccountShowcase online={Boolean(account?.online_enabled)} />}
       <div className="account-brand">
         <img src={logo} alt="" />
         CCBox
@@ -316,14 +331,17 @@ export function AccountGate({ children }) {
         )}
         <h1>
           {creating
-            ? "注册 CCBox 账户"
+            ? signingIn ? "登录 CCBox 账户" : resetting ? "重置账户密码" : "注册 CCBox 账户"
             : account
               ? `欢迎回来，${account.username}`
               : "正在连接 CCBox"}
         </h1>
         <p className="account-entry-intro">
           {creating
-            ? isRemoteClient() ? "在云端创建账户，保护这台主机上的工作与登录状态。" : "先注册用户名和密码，再选择客机系统并安装环境。macOS 客机会使用同一套账密。"
+            ? signingIn ? "使用已注册的 CCBox 账户登录这台电脑，密码同时用于解锁这台电脑上的数据。"
+              : resetting ? "输入客服提供的重置码，为线上账户设置新密码。"
+              : online ? "注册后可在其他电脑登录同一账户。密码同时用于解锁这台电脑上的数据。"
+              : isRemoteClient() ? "在云端创建账户，保护这台主机上的工作与登录状态。" : "先注册用户名和密码，再选择客机系统并安装环境。macOS 客机会使用同一套账密。"
             : account
               ? account.trusted_local ? "本机工作区" : "输入密码，继续你的工作。"
               : isRemoteClient() ? "正在读取云端账户…" : "正在读取本机账户…"}
@@ -348,23 +366,30 @@ export function AccountGate({ children }) {
                   <input
                     autoFocus
                     autoComplete="username"
-                    maxLength={account.macos_account_host ? 31 : 40}
-                    pattern={account.macos_account_host ? "[a-z][a-z0-9_]{0,30}" : undefined}
+                    maxLength={account.macos_account_host && !signingIn && !resetting ? 31 : online ? 32 : 40}
+                    pattern={account.macos_account_host && !signingIn && !resetting ? "[a-z][a-z0-9_]{0,30}" : undefined}
                     required
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder={account.macos_account_host ? "例如：shihao" : "你希望怎样被称呼"}
                   />
                 </label>
-                {account.macos_account_host && <p className="field-help">与 macOS 客机共用：小写字母开头，1–31 个小写字母、数字或下划线。</p>}</>
+                {account.macos_account_host && !signingIn && !resetting && <p className="field-help">与 macOS 客机共用：小写字母开头，1–31 个小写字母、数字或下划线。</p>}
+                {online && !account.macos_account_host && mode === "register" && <p className="field-help">3–32 个字母、数字、下划线、连字符或点。</p>}</>
+              )}
+              {resetting && (
+                <label className="account-field">
+                  重置码
+                  <input autoComplete="one-time-code" required maxLength={20} value={resetCode} onChange={(e) => setResetCode(e.target.value)} placeholder="XXXX-XXXX-XXXX" />
+                </label>
               )}
               <PasswordField
-                label={creating ? "设置密码" : "账户密码"}
+                label={signingIn ? "账户密码" : resetting ? "新密码" : creating ? "设置密码" : "账户密码"}
                 value={password}
                 onChange={setPassword}
-                autoComplete={creating ? "new-password" : "current-password"}
+                autoComplete={creating && !signingIn ? "new-password" : "current-password"}
               />
-              {creating && (
+              {creating && !signingIn && (
                 <PasswordField
                   label="确认密码"
                   value={confirmation}
@@ -372,12 +397,13 @@ export function AccountGate({ children }) {
                   autoComplete="new-password"
                 />
               )}
-              {creating && account.macos_account_host && <p className="field-help">密码使用 8–256 个英文键盘可输入的字母、数字、空格或符号。安装中断后继续使用这套账密。</p>}
+              {creating && account.macos_account_host && !signingIn && !resetting && <p className="field-help">密码使用 8–256 个英文键盘可输入的字母、数字、空格或符号。安装中断后继续使用这套账密。</p>}
               {(error || connectionError) && (
                 <p className="account-error" role="alert">
                   {error || connectionError}
                 </p>
               )}
+              {notice && <p className="field-help" role="status">{notice}</p>}
               {!creating && Object.values(deviceSupport?.device_status || {}).includes("missing") && (
                 <p className="field-help" role="status">当前目录的快捷登录凭据缺失或已失效。请用密码解锁，再到「设置 → 账户 → 登录与解锁」重新开启。</p>
               )}
@@ -387,7 +413,7 @@ export function AccountGate({ children }) {
               {deviceSupport?.supported && !deviceSupport.device_status && (
                 <p className="field-help" role="status">当前应用启动器需要更新，暂时无法检查快捷登录状态。请先用密码进入，并重新安装完整的 CCBox 应用。</p>
               )}
-              {(localDesktop() || (creating && deviceSupport?.supported && deviceSupport.device_status)) && (
+              {!resetting && (localDesktop() || (creating && deviceSupport?.supported && deviceSupport.device_status)) && (
                 <label className="account-device-option check-line">
                   <input type="checkbox" checked={rememberThisDevice} onChange={(e) => setRememberLogin(e.target.checked)} />
                   <span><strong>{localDesktop() ? "记住我" : "记住登录"}</strong><small>{localDesktop() ? "信任此电脑，下次用当前系统用户打开时直接进入。手动锁定仍需验证。" : "下次打开直接进入。手动锁定后仍需验证。"}</small></span>
@@ -406,10 +432,17 @@ export function AccountGate({ children }) {
               )}
               <button
                 className="primary account-submit"
-                disabled={busy || !password || (creating && (!username.trim() || (!localDesktop() && nativeAvailable() && deviceSupport === null)))}
+                disabled={busy || !password || (resetting && !resetCode.trim()) || (creating && (!username.trim() || (!resetting && !localDesktop() && nativeAvailable() && deviceSupport === null)))}
               >
-                {busy ? "正在解锁…" : creating ? isRemoteClient() ? "创建云端账户" : "创建本地账户" : "解锁 CCBox"}
+                {busy ? creating ? "正在处理…" : "正在解锁…"
+                  : signingIn ? "登录" : resetting ? "重置密码" : online ? "注册" : creating ? isRemoteClient() ? "创建云端账户" : "创建本地账户" : "解锁 CCBox"}
               </button>
+              {online && <div className="account-mode-links">
+                {mode === "register" && <button type="button" className="text-button" onClick={() => switchMode("login")}>已有 CCBox 账户？登录</button>}
+                {mode === "login" && <><button type="button" className="text-button" onClick={() => switchMode("register")}>没有账户？注册</button>
+                  <button type="button" className="text-button" onClick={() => switchMode("reset")}>忘记密码？</button></>}
+                {mode === "reset" && <button type="button" className="text-button" onClick={() => switchMode("login")}>返回登录</button>}
+              </div>}
               {!creating && <button type="button" className="text-button" onClick={() => { setPassword(""); setError(""); setRecovering(true); }}>忘记密码？</button>}
             </fieldset>
           </form>
@@ -424,7 +457,7 @@ export function AccountGate({ children }) {
         )}
         <p className="account-local-note">
           <LockKeyhole size={14} />
-          {isRemoteClient() ? "账户资料保存在当前云端主机" : "账户资料仅保存在这台设备上"}
+          {isRemoteClient() ? "账户资料保存在当前云端主机" : online || account?.online_username ? "本机数据只保存在这台设备上，CCBox 服务器只保存账户与授权" : "账户资料仅保存在这台设备上"}
         </p>
         {!account?.trusted_local && <p className="account-recovery-note">
           {creating
@@ -838,9 +871,10 @@ export function AccountSettings({ busy: environmentBusy, onDirty }) {
       {!account.trusted_local && <AccountRecoverySettings disabled={busy || environmentBusy} onDirty={setRecoveryDirty} />}
       {localDesktop() && !account.trusted_local && <TrustedDeviceSettings />}
       {!account.trusted_local && <AccountDeviceSettings />}
+      {account.online_enabled && !account.trusted_local && <OnlineAccountSettings />}
       <p className="account-settings-note">
         <LockKeyhole size={15} />
-        {isRemoteClient() ? "账户、应用资料与登录凭据保存在当前云端主机。" : "一个本地账户，一个持久工作环境。资料与凭据不上传到 CCBox 服务器。"}
+        {isRemoteClient() ? "账户、应用资料与登录凭据保存在当前云端主机。" : account.online_enabled ? "本机资料与登录凭据只保存在这台设备上；CCBox 服务器只保存线上账户与授权。" : "一个本地账户，一个持久工作环境。资料与凭据不上传到 CCBox 服务器。"}
       </p>
     </div>
   );
@@ -919,7 +953,7 @@ function AccountDeviceSettings() {
 }
 
 // Brand panel beside the sign-in form on wide windows; hidden when narrow.
-function AccountShowcase() {
+function AccountShowcase({ online }) {
   return <aside className="account-showcase" aria-label="CCBox 简介">
     <div className="account-showcase-brand"><img src={logo} alt="" />CCBox</div>
     <div className="account-showcase-body">
@@ -928,8 +962,87 @@ function AccountShowcase() {
       <ul>
         <li><ShieldCheck size={17} aria-hidden="true" /><span><strong>隔离环境</strong>浏览器、终端和编辑器运行在独立的客户机系统里。</span></li>
         <li><Globe2 size={17} aria-hidden="true" /><span><strong>内置代理</strong>导入自己的订阅或节点即可联网，无需额外的代理软件。</span></li>
-        <li><LockKeyhole size={17} aria-hidden="true" /><span><strong>本机账户</strong>账户资料与凭据只保存在这台设备上。</span></li>
+        {online
+          ? <li><LockKeyhole size={17} aria-hidden="true" /><span><strong>一个账户，多台电脑</strong>授权跟随账户；本机数据与凭据只保存在这台设备上。</span></li>
+          : <li><LockKeyhole size={17} aria-hidden="true" /><span><strong>本机账户</strong>账户资料与凭据只保存在这台设备上。</span></li>}
       </ul>
     </div>
   </aside>;
+}
+
+const onlineDate = (seconds) => new Date(seconds * 1000).toLocaleDateString("zh-CN", { year: "numeric", month: "long", day: "numeric" });
+
+// Settings › 账户: the online CCBox account this device is signed in to.
+function OnlineAccountSettings() {
+  const { act } = useAccount();
+  const [view, setView] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [mode, setMode] = useState("login");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const load = async (body) => {
+    setView(await api("/account/online", body));
+  };
+  useEffect(() => { load().catch((e) => setError(e.message)); }, []);
+  const run = async (task, done) => {
+    setBusy(true); setError(""); setMessage("");
+    try { await task(); if (done) setMessage(done); }
+    catch (e) { setError(e.message); }
+    finally { setBusy(false); }
+  };
+  const link = (event) => {
+    event.preventDefault();
+    if (mode === "register" && password !== confirmation) { setError("两次密码不一致"); return; }
+    void run(async () => {
+      await act("link", { kind: mode, username, password, confirm_password: confirmation });
+      setPassword(""); setConfirmation("");
+      await load();
+    }, mode === "register" ? "已注册并登录线上账户" : "已登录线上账户");
+  };
+  if (!view) return <section className="account-online-settings" aria-label="线上账户"><h4>CCBox 线上账户</h4>
+    {error ? <p className="account-error" role="alert">{error}</p> : <p className="field-help" role="status">正在读取…</p>}</section>;
+  const info = view.account;
+  return <section className="account-online-settings" aria-label="线上账户">
+    <h4>CCBox 线上账户</h4>
+    {view.linked ? <>
+      <p className="field-help">
+        已登录 <strong>{view.username}</strong>。
+        {info ? info.active ? `授权有效至 ${onlineDate(info.expires)}。` : "账户暂无有效授权，请在「设置 → 授权」兑换激活码。" : view.error || ""}
+      </p>
+      {info?.devices?.length > 0 && <ul className="account-online-devices">
+        {info.devices.map((device) => <li key={device.id}>
+          <span><strong>{device.name || "未命名设备"}{device.current ? "（当前设备）" : ""}</strong>
+            <small>{[device.platform, device.seen ? `最近使用 ${onlineDate(device.seen)}` : ""].filter(Boolean).join(" · ")}</small></span>
+          {!device.current && <button type="button" className="quiet-button" disabled={busy}
+            onClick={() => run(() => load({ action: "remove-device", target: device.id }), "已移除该设备")}>移除</button>}
+        </li>)}
+      </ul>}
+      {info && <p className="field-help">每个账户最多同时登录 {info.max_devices} 台设备。</p>}
+      <div className="account-online-actions">
+        <button type="button" className="quiet-button" disabled={busy} onClick={() => run(() => load({ action: "refresh" }), "已同步授权")}>同步授权</button>
+        <button type="button" className="quiet-button" disabled={busy} onClick={() => run(async () => { await act("online-logout"); await load(); }, "已退出线上账户，本机授权在到期前仍可使用")}>退出线上账户</button>
+      </div>
+    </> : <form onSubmit={link}>
+      <fieldset disabled={busy}>
+        <p className="field-help">{view.error ? `${view.error}。` : ""}登录或注册 CCBox 账户后，授权跟随账户，可在其他电脑登录使用。本机解锁密码保持不变。</p>
+        <label className="account-field">
+          用户名
+          <input autoComplete="username" maxLength={32} required value={username} onChange={(e) => setUsername(e.target.value)} />
+        </label>
+        <PasswordField label={mode === "register" ? "设置账户密码" : "账户密码"} value={password} onChange={setPassword} autoComplete={mode === "register" ? "new-password" : "current-password"} />
+        {mode === "register" && <PasswordField label="确认账户密码" value={confirmation} onChange={setConfirmation} autoComplete="new-password" />}
+        <div className="account-online-actions">
+          <button className="quiet-button" disabled={!username.trim() || !password}>{mode === "register" ? "注册并登录" : "登录"}</button>
+          <button type="button" className="text-button" onClick={() => { setMode(mode === "register" ? "login" : "register"); setError(""); setConfirmation(""); }}>
+            {mode === "register" ? "已有账户？登录" : "没有账户？注册"}
+          </button>
+        </div>
+      </fieldset>
+    </form>}
+    {error && <p className="account-error" role="alert">{error}</p>}
+    {message && <p className="account-saved" role="status">{message}</p>}
+  </section>;
 }
