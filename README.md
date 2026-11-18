@@ -2,7 +2,7 @@
 
 <h1>CCBox</h1>
 
-**把 Claude 大小姐关起来，为了更好地保护我们的相遇**
+**更好地保护我们的相遇**
 
 <img src="assets/ccbox-logo.png" alt="CCBox" width="320" />
 
@@ -110,8 +110,6 @@ CCBox 通过安装包手动更新。更新前保存并停止任务。[升级与�
 本项目仍在快速迭代中，欢迎加入交流群提意见，欢迎社区大佬一起维护
 
 ## 来源与许可
-
-CCBox 基于 Claude Cage 开发。Claude Cage 基于 agent-vm。
 
 项目主许可为 [MIT](LICENSE)。随附组件保留各自许可，Mihomo 作为独立可执行文件按 GPL-3.0 分发；请同时参阅 [NOTICE](NOTICE) · [第三方许可](THIRD_PARTY_LICENSES) · [noVNC](ui/vendor/novnc/LICENSE.txt)。
 
