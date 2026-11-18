@@ -12,6 +12,10 @@ on:
         required: true
         default: all
         options: [all, windows, macos, linux, android]
+      unsigned_preview:
+        description: Build Windows and macOS without signing and publish them only as labelled previews
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -65,6 +69,7 @@ jobs:
     with:
       ref: ${{ inputs.ref }}
       release: true
+      unsigned_preview: ${{ inputs.unsigned_preview }}
       artifact_name: release-windows
   linux:
     needs: validate
@@ -82,6 +87,7 @@ jobs:
     with:
       ref: ${{ inputs.ref }}
       release: true
+      unsigned_preview: ${{ inputs.unsigned_preview }}
       artifact_name: release-macos
   android:
     needs: validate

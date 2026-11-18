@@ -203,7 +203,13 @@ function main([command, ...args]) {
   if (!/^[0-9a-f]{40}$/.test(commitSha)) throw new Error('Release metadata requires a 40-character Git commit SHA');
   const destination = resolve(output);
   mkdirSync(dirname(destination), { recursive: true });
-  writeFileSync(destination, `${JSON.stringify({ schema: 1, platform, version, commitSha }, null, 2)}\n`);
+  const record = { schema: 1, platform, version, commitSha };
+  // An explicitly requested unsigned preview is labelled as such on the site.
+  if (process.env.CCBOX_UNSIGNED_PREVIEW === '1') {
+    if (platform !== 'windows' && platform !== 'macos') throw new Error('Only Windows and macOS have unsigned previews');
+    record.unsigned = true;
+  }
+  writeFileSync(destination, `${JSON.stringify(record, null, 2)}\n`);
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {

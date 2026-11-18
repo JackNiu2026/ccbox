@@ -77,3 +77,31 @@ test('rejects an Android development APK even if the same directory includes a v
   await assert.rejects(stageDownloads({ inputs: [f.input], siteDirectory: f.site, notes: f.notes }), /Android development build/);
   assert.deepEqual(await readSiteRelease(f.site, { version }), { version });
 });
+
+test('an unsigned macOS package is listed only as a labelled preview', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'ccbox-preview-test-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const core = (await readFile(new URL('../../scripts/fetch-proxy-core.sh', import.meta.url), 'utf8')).match(/^version=(v[\d.]+)$/m)[1];
+  const dmg = `CCBox-${version}-macos-arm64.dmg`;
+  const assets = { [dmg]: 'dmg fixture', [`mihomo-${core}-source.tar.gz`]: 'core source', [`cage-macos-guest-${version}-source.tar.gz`]: 'guest source' };
+  const input = join(root, 'macos');
+  const site = join(root, 'site');
+  const notes = join(root, 'notes.md');
+  await mkdir(input);
+  await writeFile(notes, '# CCBox\n\nmacOS preview fixture.\n');
+  for (const [name, data] of Object.entries(assets)) await writeFile(join(input, name), data);
+  await writeFile(join(input, 'SHA256SUMS'), Object.entries(assets).map(([name, data]) => `${digest(data)}  ${name}\n`).join(''));
+  await writeFile(join(input, 'build-metadata.json'), JSON.stringify({ schema: 1, platform: 'macos', version, commitSha: 'a'.repeat(40), unsigned: true }));
+  await stageDownloads({ inputs: [input], siteDirectory: site, notes });
+  const base = `/downloads/${version}/`;
+  assert.deepEqual(await readSiteRelease(site, { version }), {
+    version, releaseURL: base + 'release-notes.txt',
+    macosPreview: { version, downloadURL: base + dmg, releaseURL: base + 'release-notes.txt' },
+  });
+});
+
+test('Linux packages cannot be marked unsigned', async t => {
+  const f = await fixture(t);
+  await writeFile(join(f.input, 'build-metadata.json'), JSON.stringify({ schema: 1, platform: 'linux', version, commitSha: 'a'.repeat(40), unsigned: true }));
+  await assert.rejects(stageDownloads({ inputs: [f.input], siteDirectory: f.site, notes: f.notes }), /not allowed for linux/);
+});

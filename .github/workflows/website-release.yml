@@ -84,10 +84,10 @@ jobs:
           node --input-type=module -e '
             import { readSiteRelease } from "./www/scripts/stage-downloads.mjs";
             const release = await readSiteRelease();
-            const platforms = {windows:"windowsDownloadURL", macos:"downloadURL", linux:"linuxDownloadURL", android:"androidDownloadURL"};
+            const platforms = {windows:["windowsDownloadURL","windowsPreview"], macos:["downloadURL","macosPreview"], linux:["linuxDownloadURL"], android:["androidDownloadURL"]};
             const expected = new Set(process.env.RELEASE_PLATFORMS.trim().split(/\s+/));
-            for (const [platform, field] of Object.entries(platforms)) {
-              if (Boolean(release[field]) !== expected.has(platform)) throw Error("Staged installer does not match the selected platforms: " + platform);
+            for (const [platform, fields] of Object.entries(platforms)) {
+              if (fields.some(field => release[field]) !== expected.has(platform)) throw Error("Staged installer does not match the selected platforms: " + platform);
             }
           '
           npm ci --prefix www --no-audit --no-fund

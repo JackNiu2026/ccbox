@@ -3,6 +3,9 @@
 param(
     [switch]$Release,
     [switch]$Sign,
+    # An unsigned preview has a release file name and complete corresponding
+    # sources, but no signature; the app keeps automatic updates disabled.
+    [switch]$UnsignedPreview,
     [switch]$SkipBuild,
     [string]$AppDirectory,
     [string]$OutputDirectory,
@@ -12,6 +15,7 @@ param(
 $repository = Split-Path $PSScriptRoot -Parent
 $version = Get-CageVersion $repository
 $signed = $Release -or $Sign
+if ($UnsignedPreview -and $signed) { throw 'An unsigned preview cannot also be signed.' }
 if (-not $AppDirectory) { $AppDirectory = Join-Path $repository '_output/windows-amd64/app' }
 if (-not $OutputDirectory) { $OutputDirectory = Join-Path $repository "_output/releases/$version/windows" }
 $AppDirectory = [IO.Path]::GetFullPath($AppDirectory)
@@ -52,7 +56,7 @@ New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
 # Verify source material before the expensive installer compression.
 $dependencies = Get-Content -LiteralPath (Join-Path $repository 'packaging/windows/dependencies.json') -Raw | ConvertFrom-Json
 $qemuTar = Get-VerifiedGitArchive $dependencies.qemuSource (Join-Path $repository '_output/windows-deps')
-$suffix = if ($Release) { '' } elseif ($Sign) { '-test-signed' } else { '-unsigned' }
+$suffix = if ($Release -or $UnsignedPreview) { '' } elseif ($Sign) { '-test-signed' } else { '-unsigned' }
 $artifact = Join-Path $OutputDirectory "CCBox-$version-windows-amd64-setup$suffix.exe"
 $manifest = Join-Path $AppDirectory 'Cage.install-files.json'
 $files = @(Get-ChildItem -LiteralPath $AppDirectory -File -Recurse -Force | Where-Object FullName -ne $manifest)
@@ -99,7 +103,8 @@ if (Test-Path (Join-Path $qemuRuntime 'cage-build.json')) {
         'scripts/build-qemu-windows.sh', '-C', $qemuRuntime, 'cage-build.json', 'build-packages.txt')
     $releaseFiles += @($keymapSource, $changesSource)
 }
-if ($Release) {
+if ($Release -or $UnsignedPreview) {
+    if (-not $QemuSourceArchive) { throw 'Release and preview packages require the complete QEMU source archive.' }
     $sourceExtension = if ($QemuSourceArchive.EndsWith('.tar.gz', [StringComparison]::OrdinalIgnoreCase)) { '.tar.gz' } else { [IO.Path]::GetExtension($QemuSourceArchive) }
     $qemuSourceTarget = Join-Path $OutputDirectory ('qemu-' + $dependencies.qemu.version + '-windows-full-source' + $sourceExtension)
     Copy-Item -LiteralPath $QemuSourceArchive -Destination $qemuSourceTarget -Force
@@ -108,4 +113,5 @@ if ($Release) {
 $sums = foreach ($file in $releaseFiles) { (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant() + '  ' + [IO.Path]::GetFileName($file) }
 [IO.File]::WriteAllLines((Join-Path $OutputDirectory 'SHA256SUMS'), $sums)
 Write-Host "Windows installer: $artifact"
-if (-not $signed) { Write-Warning 'Unsigned development installer. Do not publish it as an automatic update; Windows VM and installation acceptance are still required.' }
+if ($UnsignedPreview) { Write-Warning 'Unsigned preview installer: publish only as a labelled preview; automatic updates stay disabled in this build.' }
+elseif (-not $signed) { Write-Warning 'Unsigned development installer. Do not publish it as an automatic update; Windows VM and installation acceptance are still required.' }
