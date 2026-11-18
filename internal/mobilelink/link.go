@@ -23,7 +23,10 @@ import (
 	"golang.org/x/net/http2"
 )
 
-const OfficialRelay = "https://43.142.88.90"
+// OfficialRelay is the default relay for new pairings. CCBox does not run a
+// public relay yet, so it is empty and pairing needs a self-hosted relay set
+// in 设置 → 远程连接. Set it to the CCBox relay's HTTPS origin once deployed.
+const OfficialRelay = ""
 
 func relayOrigin(base string) (*url.URL, error) {
 	u, err := url.Parse(base)
