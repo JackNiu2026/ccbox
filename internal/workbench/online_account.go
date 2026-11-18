@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/sylvinus/agent-vm/internal/guestos"
 	"github.com/sylvinus/agent-vm/internal/host"
 	"github.com/sylvinus/agent-vm/internal/license"
 )
@@ -405,10 +406,12 @@ func (s *Server) createWithOnline(mode, username, password, avatar string, r *ht
 		if err := validAccountName(name); err != nil {
 			return "", err
 		}
-		if mac {
-			if err := validMacAccount(name, password); err != nil {
-				return "", err
-			}
+	}
+	if mac {
+		// Check the macOS password rule before the service sees the request,
+		// so a successful sign-in is never followed by a local failure.
+		if err := validMacAccount(macLocalName(name), password); err != nil {
+			return "", err
 		}
 	}
 	reply, err := onlineAuthenticate(r.Context(), mode, username, password)
@@ -416,6 +419,9 @@ func (s *Server) createWithOnline(mode, username, password, avatar string, r *ht
 		return "", err
 	}
 	name = reply.Account.Username
+	if mac {
+		name = macLocalName(name)
+	}
 	recovery, err := s.account.createAccount(name, password, avatar, mac)
 	if err != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -453,4 +459,29 @@ func (s *Server) changeOnlinePassword(ctx context.Context, oldPassword, newPassw
 	default:
 		return err
 	}
+}
+
+// macLocalName is the local account name for an online account on a Mac.
+// There the local name is also the shared macOS login, which allows only
+// lowercase letters, digits and underscores. Online names are case-insensitive
+// and may also contain hyphens and dots, so map them onto that set.
+func macLocalName(online string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(strings.TrimSpace(online)) {
+		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '_' {
+			b.WriteRune(r)
+		} else {
+			b.WriteByte('_')
+		}
+	}
+	local := b.String()
+	if local == "" || local[0] < 'a' || local[0] > 'z' {
+		local = "u" + local
+	}
+	local = local[:min(len(local), 31)]
+	if !guestos.ValidMacOSAccountName(local) {
+		local = "cage_" + local
+		local = local[:min(len(local), 31)]
+	}
+	return local
 }

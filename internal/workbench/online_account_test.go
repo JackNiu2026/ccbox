@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sylvinus/agent-vm/internal/guestos"
 	"github.com/sylvinus/agent-vm/internal/license"
 )
 
@@ -157,7 +158,11 @@ func TestOnlineAccountRegisterRedeemAndSignIn(t *testing.T) {
 	if _, err := other.createWithOnline("login", "ALICE-1", "password2", "", request); err != nil {
 		t.Fatal(err)
 	}
-	if other.account.view().Username != "Alice-1" {
+	wantLocal := "Alice-1"
+	if other.macAccountHost() {
+		wantLocal = "alice_1"
+	}
+	if other.account.view().Username != wantLocal {
 		t.Fatalf("local name: %q", other.account.view().Username)
 	}
 
@@ -185,5 +190,24 @@ func TestOnlineAccountsOffWithoutLicenseKey(t *testing.T) {
 	}
 	if _, err := os.Stat(s.onlinePath()); !os.IsNotExist(err) {
 		t.Fatal("local-only create wrote an online session")
+	}
+}
+
+func TestMacLocalNameIsAValidMacOSLogin(t *testing.T) {
+	for online, want := range map[string]string{
+		"alice":                                "alice",
+		"Alice-1":                              "alice_1",
+		"j.doe":                                "j_doe",
+		"7seas":                                "u7seas",
+		"_x":                                   "u_x",
+		"Root":                                 "cage_root",
+		"GUEST":                                "cage_guest",
+		"a.b-c_d9":                             "a_b_c_d9",
+		"abcdefghijklmnopqrstuvwxyz0123456789": "abcdefghijklmnopqrstuvwxyz01234",
+	} {
+		got := macLocalName(online)
+		if got != want || !guestos.ValidMacOSAccountName(got) {
+			t.Errorf("macLocalName(%q) = %q, want %q", online, got, want)
+		}
 	}
 }
