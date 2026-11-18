@@ -162,6 +162,8 @@ jobs:
           CAGE_MACOS_NOTARY_KEY_ID: ${{ secrets.CAGE_MACOS_NOTARY_KEY_ID }}
           CAGE_MACOS_NOTARY_ISSUER_ID: ${{ secrets.CAGE_MACOS_NOTARY_ISSUER_ID }}
           CAGE_MACOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.CAGE_MACOS_PROVISIONING_PROFILE_BASE64 }}
+          # Release builds require activation and online accounts.
+          CCBOX_LICENSE_PUBLIC_KEY: ${{ vars.CCBOX_LICENSE_PUBLIC_KEY }}
         run: bash scripts/ci-macos-signing.sh run
       - name: Remove temporary signing credentials
         if: ${{ always() }}

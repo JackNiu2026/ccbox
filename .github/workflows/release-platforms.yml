@@ -37,12 +37,17 @@ jobs:
       - name: Verify the exact main-branch source
         env:
           BUILD_REF: ${{ inputs.ref }}
-          MAINTAINER: ${{ vars.CCBOX_DEB_MAINTAINER }}
+          MAINTAINER: ${{ vars.CCBOX_DEB_MAINTAINER || 'CCBox <niuchen160@gmail.com>' }}
+          LICENSE_KEY: ${{ vars.CCBOX_LICENSE_PUBLIC_KEY }}
           PLATFORM: ${{ inputs.platform }}
         run: |
           set -euo pipefail
           node scripts/release-version.mjs source "$BUILD_REF"
           git merge-base --is-ancestor "$BUILD_REF" origin/main
+          if [[ ! "$LICENSE_KEY" =~ ^[A-Za-z0-9_-]{43}$ ]]; then
+            echo 'Set the repository variable CCBOX_LICENSE_PUBLIC_KEY to the production license public key (ccbox-license init-key output).' >&2
+            exit 1
+          fi
           if grep -Fq 'https://43.142.88.90' internal/mobilelink/link.go; then
             echo 'Replace the inherited default relay with the verified CCBox HTTPS relay before building public candidates.' >&2
             exit 1
