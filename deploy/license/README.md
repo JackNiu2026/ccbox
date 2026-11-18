@@ -23,6 +23,8 @@ ccbox-license issue /var/lib/ccbox-license/state /var/lib/ccbox-license/signing.
 
 命令只输出一个可发给用户的激活码。服务端保存码的哈希，同一设备重试已兑换的码会收到同一份授权。
 
+在 systemd 服务器上可以直接运行 `deploy/license/install-ccbox-license.sh`（`sudo bash install-ccbox-license.sh ./ccbox-license-linux-amd64`）。脚本会安装或原地升级服务，保留已有的签名密钥、账本和后台密码，打印公钥，并尝试为 Caddy 加上账户路径的转发。
+
 ## 网页管理后台
 
 设置环境变量 `CCBOX_LICENSE_ADMIN_PASSWORD_FILE` 为专用密码文件的绝对路径。密码使用至少 24 个字符，文件仅对授权服务账户可读。服务未配置此文件时，管理路由全部关闭。管理员账号由 `CCBOX_LICENSE_ADMIN_USER` 设置（1 至 64 个不含空格的字符），未设置时为 `admin`。开启后访问 `http://127.0.0.1:8791/admin/license/`，用管理员账号和密码登录。账号或密码任一不符时只提示“账号或密码不正确”。
