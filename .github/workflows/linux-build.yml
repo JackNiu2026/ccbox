@@ -156,7 +156,15 @@ jobs:
         with:
           node-version: 24
       - name: Ubuntu guest browser, extensions and noVNC dependencies
-        run: bash scripts/test-ubuntu-guest.sh
+        # The Snap Store sometimes resets downloads from hosted runners. The
+        # installer accepts an existing snap, so a rerun repeats the same checks.
+        run: |
+          for attempt in 1 2 3; do
+            bash scripts/test-ubuntu-guest.sh && exit 0
+            echo "::warning::Ubuntu guest test attempt $attempt failed"
+            sleep $((attempt * 20))
+          done
+          exit 1
   package-compatibility:
     needs: debian
     runs-on: ubuntu-22.04
