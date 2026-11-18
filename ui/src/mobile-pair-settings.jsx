@@ -175,7 +175,7 @@ export function MobilePairSettings({ relay, savedRelay, onChange, onConfirm }) {
           <div>
             <h4>中继服务</h4>
             <p className="field-help">
-              通过中继连接手机与电脑，可使用官方或自建服务。
+              通过中继连接手机与电脑。CCBox 暂未提供官方中继，请部署自建中继后填写地址。
             </p>
           </div>
           <div
@@ -193,7 +193,7 @@ export function MobilePairSettings({ relay, savedRelay, onChange, onConfirm }) {
                 setCode(null);
               }}
             >
-              默认中继
+              未设置
             </button>
             <button
               type="button"

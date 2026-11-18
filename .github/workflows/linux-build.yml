@@ -78,7 +78,10 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.3
       - name: Build Linux application and package
         env:
-          CCBOX_DEB_MAINTAINER: ${{ vars.CCBOX_DEB_MAINTAINER }}
+          CCBOX_DEB_MAINTAINER: ${{ vars.CCBOX_DEB_MAINTAINER || 'CCBox <niuchen160@gmail.com>' }}
+          # Release builds require activation and online accounts; development
+          # builds stay unlicensed so their install tests run offline.
+          CCBOX_LICENSE_PUBLIC_KEY: ${{ inputs.release && vars.CCBOX_LICENSE_PUBLIC_KEY || '' }}
         run: |
           node scripts/check-version.mjs
           bash scripts/build-linux.sh
@@ -100,8 +103,6 @@ jobs:
           runuser -u cage -- go vet ./internal/managedproxy ./internal/workbench ./cmd/cage
           runuser -u cage -- uv run --no-project --python 3.11 internal/cage/desktop-downloads.test.py
           runuser -u cage -- uv run --no-project --python 3.11 internal/cage/display-governor.test.py
-      - name: Ubuntu guest browser, extensions and noVNC dependencies
-        run: runuser -u cage -- bash scripts/test-ubuntu-guest.sh
       - name: Install, render native workbench, reinstall and remove
         run: |
           runuser -u cage -- bwrap --unshare-user --unshare-pid --ro-bind / / --proc /proc --dev /dev -- true
@@ -140,6 +141,30 @@ jobs:
           retention-days: 14
       # KVM and physical desktop acceptance remain separate real-machine checks.
 
+  ubuntu-guest:
+    # The Ubuntu guest browser is the Chromium snap, which needs systemd and
+    # snapd. Containers have neither, so this runs on the runner VM itself as
+    # its ordinary user, mirroring a fresh Ubuntu guest.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Ubuntu guest browser, extensions and noVNC dependencies
+        # The Snap Store sometimes resets downloads from hosted runners. The
+        # installer accepts an existing snap, so a rerun repeats the same checks.
+        run: |
+          for attempt in 1 2 3; do
+            bash scripts/test-ubuntu-guest.sh && exit 0
+            echo "::warning::Ubuntu guest test attempt $attempt failed"
+            sleep $((attempt * 20))
+          done
+          exit 1
   package-compatibility:
     needs: debian
     runs-on: ubuntu-22.04

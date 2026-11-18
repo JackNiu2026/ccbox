@@ -18,6 +18,25 @@ export async function readSiteRelease(siteDirectory = site, baseline) {
   }
 }
 
+// Platforms whose build-metadata.json marks an unsigned preview.
+async function unsignedPlatforms(inputs) {
+  const found = new Set();
+  for (const input of inputs) {
+    let record;
+    try {
+      record = JSON.parse(await readFile(join(resolve(input), 'build-metadata.json'), 'utf8'));
+    } catch (error) {
+      if (error.code === 'ENOENT') continue;
+      throw error;
+    }
+    if (record.unsigned === true) {
+      if (record.platform !== 'windows' && record.platform !== 'macos') throw new Error(`Unsigned preview is not allowed for ${record.platform}`);
+      found.add(record.platform);
+    }
+  }
+  return found;
+}
+
 export async function stageDownloads({ inputs, notes, siteDirectory = site }) {
   const version = (await readFile(new URL('../../VERSION', import.meta.url), 'utf8')).trim();
   if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) throw new Error('Invalid repository VERSION');
@@ -42,8 +61,14 @@ export async function stageDownloads({ inputs, notes, siteDirectory = site }) {
       linuxDownloadURL: `CCBox-${version}-linux-amd64.deb`,
       androidDownloadURL: `CCBox-${version}-android-arm64.apk`,
     };
+    // Unsigned Windows and macOS packages are listed as labelled previews.
+    const unsigned = await unsignedPlatforms(inputs);
+    const previewKeys = { downloadURL: ['macos', 'macosPreview'], windowsDownloadURL: ['windows', 'windowsPreview'] };
     for (const [key, name] of Object.entries(installers)) {
-      if (result.assets.includes(name)) metadata[key] = base + name;
+      if (!result.assets.includes(name)) continue;
+      const [platform, previewKey] = previewKeys[key] ?? [];
+      if (platform && unsigned.has(platform)) metadata[previewKey] = { version, downloadURL: base + name, releaseURL: base + notesName };
+      else metadata[key] = base + name;
     }
     const listing = result.assets.map(name => base + name).join('\n');
     await writeFile(join(output, notesName), `${releaseNotes}\n\n${listing}\n${base}SHA256SUMS\n\n${sums}`, { flag: 'wx' });

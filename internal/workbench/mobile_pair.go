@@ -264,6 +264,10 @@ func (s *Server) pairPhone(w http.ResponseWriter, r *http.Request) {
 	if origin == "" {
 		origin = mobilelink.OfficialRelay
 	}
+	if origin == "" {
+		requestError(w, errNoMobileRelay)
+		return
+	}
 	if input.Admin != "" && (origin == mobilelink.OfficialRelay || origin != input.Relay) {
 		requestError(w, errors.New("请先保存自建中继地址"))
 		return
@@ -348,3 +352,5 @@ func (s *Server) pairPhone(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	jsonReply(w, map[string]any{"image": "data:image/png;base64," + base64.StdEncoding.EncodeToString(png), "expires": room.ExpiresAt, "manual": "CAGE-" + base64.RawURLEncoding.EncodeToString([]byte(raw))})
 }
+
+var errNoMobileRelay = errors.New("CCBox 暂未提供官方中继。请先部署自建中继，在「设置 → 远程连接」选择「自建中继」并保存地址，再生成配对码")

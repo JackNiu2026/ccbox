@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # Validate the actual downloaded distribution without installing or launching it.
 set -euo pipefail
-directory="${1:?Usage: scripts/verify-macos-release.sh <release-directory>}"
+directory="${1:?Usage: scripts/verify-macos-release.sh <release-directory> [--unsigned-preview]}"
+# An unsigned preview has no Developer ID, notarization or Gatekeeper approval;
+# everything else (checksums, version and corresponding source) is verified.
+preview=0
+case "${2:-}" in '') ;; --unsigned-preview) preview=1 ;; *) echo 'Unknown option.' >&2; exit 2 ;; esac
 # stapler contacts Apple's CloudKit even for a stapled artifact. Hosted runners
 # can lose this connection; retry service failures without bypassing validation.
 validate_ticket() {
@@ -36,21 +40,31 @@ awk -v archive="${archive##*/}" -v source="${sources[0]##*/}" -v guest="${guest_
 (cd "$directory" && shasum -a 256 --check "$checksum_input")
 rm -f "$checksum_input"
 trap - EXIT
-codesign --verify --strict --verbose=2 "$archive"
-validate_ticket "$archive"
-spctl --assess --type open --context context:primary-signature --verbose=2 "$archive"
+if [[ $preview == 0 ]]; then
+  codesign --verify --strict --verbose=2 "$archive"
+  validate_ticket "$archive"
+  spctl --assess --type open --context context:primary-signature --verbose=2 "$archive"
+fi
 mount="$(mktemp -d)"
 cleanup() { hdiutil detach "$mount" >/dev/null 2>&1 || true; rmdir "$mount" 2>/dev/null || true; }
 trap cleanup EXIT
 hdiutil attach -readonly -nobrowse -mountpoint "$mount" "$archive" >/dev/null
 bundle="$mount/ccBox.app"
 test "$(/usr/libexec/PlistBuddy -c 'Print :CageVersion' "$bundle/Contents/Info.plist")" = "$version"
-codesign --verify --deep --strict --verbose=2 \
-  -R='anchor apple generic and identifier "org.ccbox.desktop" and certificate 1[field.1.2.840.113635.100.6.2.6] exists and certificate leaf[field.1.2.840.113635.100.6.1.13] exists' "$bundle"
-validate_ticket "$bundle"
-spctl --assess --type execute --verbose=2 "$bundle"
+if [[ $preview == 0 ]]; then
+  codesign --verify --deep --strict --verbose=2 \
+    -R='anchor apple generic and identifier "org.ccbox.desktop" and certificate 1[field.1.2.840.113635.100.6.2.6] exists and certificate leaf[field.1.2.840.113635.100.6.1.13] exists' "$bundle"
+  validate_ticket "$bundle"
+  spctl --assess --type execute --verbose=2 "$bundle"
+else
+  codesign --verify --deep --strict --verbose=2 "$bundle"
+fi
 cmp "$guest_source" "$bundle/Contents/Resources/guest-os/sources/${guest_source##*/}"
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 node "$script_dir/guest-os/collect-macos-sshfs-sources.mjs" verify "$guest_source" \
   "$bundle/Contents/Resources/guest-os/project/cage-sshfs" "$version"
-echo "Verified Developer ID, notarization, Gatekeeper, version and corresponding source: CCBox $version"
+if [[ $preview == 1 ]]; then
+  echo "Verified unsigned preview checksums, ad-hoc signature, version and corresponding source: CCBox $version"
+else
+  echo "Verified Developer ID, notarization, Gatekeeper, version and corresponding source: CCBox $version"
+fi

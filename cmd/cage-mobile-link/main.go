@@ -53,7 +53,7 @@ func profileRelay(config string) (string, error) {
 	}
 	b, err := os.ReadFile(filepath.Join(filepath.Dir(config), "workbench.json"))
 	if errors.Is(err, os.ErrNotExist) {
-		return mobilelink.OfficialRelay, nil
+		return defaultRelay()
 	}
 	if err != nil {
 		return "", err
@@ -62,7 +62,7 @@ func profileRelay(config string) (string, error) {
 		return "", err
 	}
 	if prefs.MobileRelay == "" {
-		return mobilelink.OfficialRelay, nil
+		return defaultRelay()
 	}
 	if !strings.HasPrefix(prefs.MobileRelay, "https://") || !mobilelink.ValidRelayOrigin(prefs.MobileRelay) {
 		return "", errors.New("invalid mobile relay in Cage settings")
@@ -291,4 +291,13 @@ func localWorkbench(ctx context.Context, cageBinary, config string) (*mobilelink
 		return nil, errors.New("Cage returned an invalid local entry")
 	}
 	return mobilelink.OpenWorkbench(ctx, entry.Origin, entry.Ticket)
+}
+
+// defaultRelay is used when the desktop has no relay preference. Without a
+// CCBox relay a self-hosted one must be configured first.
+func defaultRelay() (string, error) {
+	if mobilelink.OfficialRelay == "" {
+		return "", errors.New("no mobile relay configured: set a self-hosted relay in CCBox 设置 → 远程连接")
+	}
+	return mobilelink.OfficialRelay, nil
 }

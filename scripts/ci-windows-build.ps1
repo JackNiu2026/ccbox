@@ -1,7 +1,11 @@
 #requires -Version 7.0
 # CI orchestration only. Builds the checked-out version and never publishes it.
 [CmdletBinding()]
-param([switch]$Release)
+param([switch]$Release, [switch]$UnsignedPreview)
+if ($Release -and $UnsignedPreview) { throw 'Choose either a signed release or an unsigned preview.' }
+# Both are release candidates: corresponding sources, the release file name and
+# release metadata. Only a signed release imports and uses signing credentials.
+$candidate = $Release -or $UnsignedPreview
 . (Join-Path $PSScriptRoot 'windows-common.ps1')
 if (-not $IsWindows) { throw 'This CI entry point requires a disposable Windows runner.' }
 if ($env:CAGE_BUILD_REF -notmatch '^[0-9A-Fa-f]{40}$') { throw 'CAGE_BUILD_REF must be a complete commit SHA.' }
@@ -59,9 +63,9 @@ try {
     Invoke-BuildTool 'node' @('scripts/check-version.mjs')
     Invoke-BuildTool 'uv' @('run', '--no-project', '--python', '3.13', 'internal/workbench/cache_maintenance_test.py')
     Invoke-BuildTool 'node' @('--test', 'internal/cage/browser-clipboard.test.mjs', 'scripts/windows-native-bridge.test.mjs')
+    if ($candidate -and $env:GITHUB_EVENT_NAME -ne 'workflow_dispatch') { throw 'Release candidates require an explicitly dispatched release workflow.' }
     if ($Release) {
         Enter-CiPhase 'Release signing configuration'
-        if ($env:GITHUB_EVENT_NAME -ne 'workflow_dispatch') { throw 'Release candidates require an explicitly dispatched release workflow.' }
         if ($env:CAGE_WINDOWS_SIGNING_PROVIDER -eq 'esigner') {
             foreach ($name in @('CAGE_ESIGNER_USERNAME', 'CAGE_ESIGNER_PASSWORD', 'CAGE_ESIGNER_CREDENTIAL_ID', 'CAGE_ESIGNER_CERTIFICATE_SERIAL', 'CAGE_ESIGNER_TOTP_SECRET')) {
                 if (-not [Environment]::GetEnvironmentVariable($name)) { throw "Missing cage-release setting: $name" }
@@ -96,7 +100,7 @@ try {
     # NSIS is x86 and resolves $SYSDIR to SysWOW64. Match its real helper host.
     $installationPowerShell = Join-Path $env:SystemRoot 'SysWOW64/WindowsPowerShell/v1.0/powershell.exe'
     & (Join-Path $PSScriptRoot 'test-windows-installation-files.ps1') -HelperShell $installationPowerShell -InstallerSmoke
-    if ($Release) {
+    if ($candidate) {
         Enter-CiPhase 'Corresponding sources'
         & (Join-Path $PSScriptRoot 'prepare-qemu-release.ps1')
         $qemuSource = Join-Path $repository '_output/windows-qemu-sources/full-source.tar.gz'
@@ -134,17 +138,21 @@ try {
         Invoke-BuildTool 'go' @('vet', './cmd/cage', './internal/cage', './internal/workbench', './internal/appupdate', './internal/host')
     }
     Enter-CiPhase 'Package the installer'
-    $packageArguments = @{ Release = $Release; SkipBuild = $true }
-    if ($Release) { $packageArguments.QemuSourceArchive = $qemuSource }
+    $packageArguments = @{ Release = $Release; UnsignedPreview = $UnsignedPreview; SkipBuild = $true }
+    if ($candidate) { $packageArguments.QemuSourceArchive = $qemuSource }
     & (Join-Path $PSScriptRoot 'package-windows.ps1') @packageArguments
     $version = Get-CageVersion $repository
-    $suffix = if ($Release) { '' } else { '-unsigned' }
+    $suffix = if ($candidate) { '' } else { '-unsigned' }
     Enter-CiPhase 'Install, update and uninstall with isolated data'
     & (Join-Path $PSScriptRoot 'test-windows-install.ps1') -Installer "$repository/_output/releases/$version/windows/CCBox-$version-windows-amd64-setup$suffix.exe"
     if ($Release) {
         Enter-CiPhase 'Signed automatic update and rollback transactions'
         & (Join-Path $PSScriptRoot 'test-windows-update-flow.ps1')
-        Invoke-BuildTool 'node' @('scripts/release-version.mjs', 'metadata', 'windows', "_output/releases/$version/windows/build-metadata.json")
+    }
+    if ($candidate) {
+        if ($UnsignedPreview) { $env:CCBOX_UNSIGNED_PREVIEW = '1' }
+        try { Invoke-BuildTool 'node' @('scripts/release-version.mjs', 'metadata', 'windows', "_output/releases/$version/windows/build-metadata.json") }
+        finally { Remove-Item Env:CCBOX_UNSIGNED_PREVIEW -ErrorAction SilentlyContinue }
     }
     Complete-CiPhase
 } catch {

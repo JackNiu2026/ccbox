@@ -142,6 +142,7 @@ func writePublicError(w http.ResponseWriter, err error) {
 		{license.ErrUsernameTaken, http.StatusConflict, "username_taken"},
 		{license.ErrDeviceLimit, http.StatusConflict, "device_limit"},
 		{license.ErrUsed, http.StatusConflict, "code_used"},
+		{license.ErrRedeemedHere, http.StatusConflict, "code_used"},
 		{license.ErrInvalid, http.StatusBadRequest, "code_invalid"},
 		{license.ErrRevoked, http.StatusBadRequest, "code_revoked"},
 		{license.ErrResetInvalid, http.StatusBadRequest, "reset_invalid"},

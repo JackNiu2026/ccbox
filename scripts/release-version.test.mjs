@@ -179,3 +179,19 @@ test('metadata CLI reads the repository root even from a different working direc
   assert.notEqual(invalid.status, 0);
   assert.equal(existsSync(invalidOutput), false);
 });
+
+test('metadata marks an explicitly requested unsigned preview, only for Windows and macOS', t => {
+  const directory = mkdtempSync(join(tmpdir(), 'ccbox-unsigned-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const modulePath = fileURLToPath(new URL('./release-version.mjs', import.meta.url));
+  const env = { ...process.env, CCBOX_UNSIGNED_PREVIEW: '1' };
+  const output = join(directory, 'windows.json');
+  const result = spawnSync(process.execPath, [modulePath, 'metadata', 'windows', output], { env, encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(readFileSync(output, 'utf8')).unsigned, true);
+  const linux = spawnSync(process.execPath, [modulePath, 'metadata', 'linux', join(directory, 'linux.json')], { env, encoding: 'utf8' });
+  assert.notEqual(linux.status, 0);
+  const signed = spawnSync(process.execPath, [modulePath, 'metadata', 'macos', join(directory, 'macos.json')], { encoding: 'utf8', env: { ...process.env, CCBOX_UNSIGNED_PREVIEW: '' } });
+  assert.equal(signed.status, 0, signed.stderr);
+  assert.equal(JSON.parse(readFileSync(join(directory, 'macos.json'), 'utf8')).unsigned, undefined);
+});

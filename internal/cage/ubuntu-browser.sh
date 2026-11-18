@@ -4,6 +4,51 @@ cage_is_ubuntu() (
   [ "$ID" = ubuntu ]
 )
 
+# snapd can finish installing a snap while one of its runtime providers failed
+# to download, and later refreshes do not retry the provider. Install each
+# default provider that is missing and connect its plug, so an interrupted
+# installation is repaired the next time it runs.
+cage_snap_content_providers() {
+  awk '
+    /^plugs:/ { inplugs = 1; next }
+    inplugs && /^[^[:space:]]/ { inplugs = 0 }
+    !inplugs { next }
+    {
+      match($0, /^[[:space:]]*/); depth = RLENGTH
+      line = substr($0, depth + 1)
+      if (line == "" || line ~ /^#/) next
+      if (!base) base = depth
+      if (depth == base) { plug = line; sub(/:.*/, "", plug); next }
+      if (line ~ /^default-provider:/) {
+        provider = line; sub(/^default-provider:[[:space:]]*/, "", provider)
+        gsub(/["\047]/, "", provider); sub(/:.*/, "", provider)
+        if (plug != "" && provider != "") print plug, provider
+      }
+    }' "/snap/$1/current/meta/snap.yaml"
+}
+
+cage_snap_plug_connected() {
+  LC_ALL=C snap connections "$1" 2>/dev/null | awk -v plug="$1:$2" '$2 == plug && $3 != "-" { found = 1 } END { exit !found }'
+}
+
+cage_repair_snap_providers() {
+  local snap=$1 plug provider attempt missing=0
+  while read -r plug provider; do
+    cage_snap_plug_connected "$snap" "$plug" && continue
+    for attempt in 1 2 3; do
+      snap list "$provider" >/dev/null 2>&1 || sudo snap install "$provider" || true
+      sudo snap connect "$snap:$plug" "$provider" 2>/dev/null || true
+      cage_snap_plug_connected "$snap" "$plug" && break
+      sleep $((attempt * 10))
+    done
+    if ! cage_snap_plug_connected "$snap" "$plug"; then
+      echo "$snap needs the $provider snap for $plug, and it could not be installed. Check the network and run the setup again." >&2
+      missing=1
+    fi
+  done < <(cage_snap_content_providers "$snap")
+  return "$missing"
+}
+
 cage_install_ubuntu_browser() (
   set -euo pipefail
   sudo env DEBIAN_FRONTEND=noninteractive APT_CONFIG="${CAGE_APT_CONFIG:-/dev/null}" apt-get install -y --no-install-recommends \
@@ -35,6 +80,7 @@ cage_install_ubuntu_browser() (
   else
     sudo snap install chromium --channel=latest/stable
   fi
+  cage_repair_snap_providers chromium
 
   # Chrome for Testing wrote this directory in place. Do not give a browser
   # older than that profile an opportunity to downgrade its database schemas.

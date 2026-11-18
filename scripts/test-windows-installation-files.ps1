@@ -98,12 +98,18 @@ function Test-InstallerTransaction {
     if ($LASTEXITCODE -ne 0) { throw 'The production NSIS fixture did not compile.' }
     function Run-Fixture([string]$Executable, [string[]]$Arguments, [int]$ExpectedExit = 0) {
         $process = Start-Process -FilePath $Executable -ArgumentList $Arguments -PassThru
+        $diagnose = {
+            foreach ($path in @($report, "$report.helper.json", "$report.foreign.json", "$report.foreign.json.helper.json", "$report.uninstall.json", "$report.uninstall.json.helper.json")) {
+                if ((Test-Path -LiteralPath $path) -and (Get-Item -LiteralPath $path).Length -le 8192) { Write-Output ('Quick NSIS diagnostic: ' + (Get-Content -LiteralPath $path -Raw)) }
+            }
+        }
         try {
-            if (!$process.WaitForExit(30000)) { $process.Kill($true); $process.WaitForExit(); throw 'The owned NSIS fixture exceeded 30 seconds.' }
+            # The silent installer starts a Windows PowerShell 5.1 helper; a cold
+            # hosted runner can take well over 30 seconds for that, as uninstall
+            # cleanup below already allows. Match that budget.
+            if (!$process.WaitForExit(120000)) { $process.Kill($true); $process.WaitForExit(); & $diagnose; throw 'The owned NSIS fixture exceeded 120 seconds.' }
             if ($process.ExitCode -ne $ExpectedExit) {
-                foreach ($path in @($report, "$report.helper.json", "$report.uninstall.json", "$report.uninstall.json.helper.json")) {
-                    if ((Test-Path -LiteralPath $path) -and (Get-Item -LiteralPath $path).Length -le 8192) { Write-Output ('Quick NSIS diagnostic: ' + (Get-Content -LiteralPath $path -Raw)) }
-                }
+                & $diagnose
                 throw "The NSIS fixture returned $($process.ExitCode)."
             }
         } finally { $process.Dispose() }

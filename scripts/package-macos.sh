@@ -5,19 +5,30 @@ cd "$(dirname "$0")/.."
 if [[ "$(uname -s)" != Darwin || "$(uname -m)" != arm64 ]]; then
   echo 'The supported release target is Apple Silicon macOS 14+.' >&2; exit 1
 fi
-case "${1:-}" in ''|--from-notarized-app) ;; *) echo 'Usage: scripts/package-macos.sh [--from-notarized-app]' >&2; exit 2 ;; esac
-: "${CAGE_SIGNING_IDENTITY:?Set CAGE_SIGNING_IDENTITY to your Developer ID Application identity.}"
-: "${CAGE_NOTARY_PROFILE:?Set CAGE_NOTARY_PROFILE to a notarytool keychain profile.}"
-notary_credentials=(--keychain-profile "$CAGE_NOTARY_PROFILE")
-if [[ -n "${CAGE_NOTARY_KEYCHAIN:-}" ]]; then
-  notary_credentials+=(--keychain "$CAGE_NOTARY_KEYCHAIN")
+case "${1:-}" in ''|--from-notarized-app|--unsigned-preview) ;; *) echo 'Usage: scripts/package-macos.sh [--from-notarized-app | --unsigned-preview]' >&2; exit 2 ;; esac
+# An unsigned preview is ad-hoc signed and not notarized. Gatekeeper asks the
+# user to allow it in System Settings, and in-app updates stay unavailable.
+preview=0
+if [[ "${1:-}" == --unsigned-preview ]]; then
+  preview=1
+  export CAGE_SIGNING_IDENTITY=-
+  unset CAGE_PROVISIONING_PROFILE
+else
+  : "${CAGE_SIGNING_IDENTITY:?Set CAGE_SIGNING_IDENTITY to your Developer ID Application identity.}"
+  : "${CAGE_NOTARY_PROFILE:?Set CAGE_NOTARY_PROFILE to a notarytool keychain profile.}"
+  notary_credentials=(--keychain-profile "$CAGE_NOTARY_PROFILE")
+  if [[ -n "${CAGE_NOTARY_KEYCHAIN:-}" ]]; then
+    notary_credentials+=(--keychain "$CAGE_NOTARY_KEYCHAIN")
+  fi
+  if [[ "$CAGE_SIGNING_IDENTITY" == - ]]; then echo 'Release packages require a Developer ID identity.' >&2; exit 1; fi
 fi
-if [[ "$CAGE_SIGNING_IDENTITY" == - ]]; then echo 'Release packages require a Developer ID identity.' >&2; exit 1; fi
 version="$(tr -d '\n\r' < VERSION)"
 release="$PWD/_output/releases/$version"
 bundle="$PWD/_output/ccBox.app"
 mkdir -p "$release"
-if [[ "${1:-}" != --from-notarized-app ]]; then
+if [[ $preview == 1 ]]; then
+  bash scripts/build-app.sh
+elif [[ "${1:-}" != --from-notarized-app ]]; then
   bash scripts/build-app.sh
   ditto -c -k --keepParent "$bundle" "$release/CCBox-notarization.zip"
   xcrun notarytool submit "$release/CCBox-notarization.zip" \
@@ -29,8 +40,10 @@ fi
 actual_version="$(/usr/libexec/PlistBuddy -c 'Print :CageVersion' "$bundle/Contents/Info.plist")"
 if [[ "$actual_version" != "$version" ]]; then echo 'App version differs from VERSION; rebuild before packaging.' >&2; exit 1; fi
 codesign --verify --deep --strict --verbose=2 "$bundle"
-xcrun stapler validate "$bundle"
-spctl --assess --type execute --verbose=2 "$bundle"
+if [[ $preview == 0 ]]; then
+  xcrun stapler validate "$bundle"
+  spctl --assess --type execute --verbose=2 "$bundle"
+fi
 guest_source="cage-macos-guest-$version-source.tar.gz"
 guest_materials="$bundle/Contents/Resources/guest-os/sources/$guest_source"
 node scripts/guest-os/collect-macos-sshfs-sources.mjs verify "$guest_materials" \
@@ -66,13 +79,15 @@ Requires Apple Silicon and macOS 14+. Your own proxy and Claude account are requ
 EOF
 artifact="CCBox-$version-macos-arm64.dmg"
 hdiutil create -volname CCBox -srcfolder "$stage" -ov -format UDZO "$release/$artifact"
-codesign --force --sign "$CAGE_SIGNING_IDENTITY" --timestamp "$release/$artifact"
-xcrun notarytool submit "$release/$artifact" "${notary_credentials[@]}" \
-  --wait --timeout 20m --output-format json > "$release/dmg-notarization.json"
-node -e 'const r=JSON.parse(require("fs").readFileSync(process.argv[1])); if(r.status!=="Accepted") throw new Error(`Apple notarization: ${r.status}; submission ${r.id}`)' "$release/dmg-notarization.json"
-xcrun stapler staple "$release/$artifact"
-xcrun stapler validate "$release/$artifact"
-spctl --assess --type open --context context:primary-signature --verbose=2 "$release/$artifact"
+if [[ $preview == 0 ]]; then
+  codesign --force --sign "$CAGE_SIGNING_IDENTITY" --timestamp "$release/$artifact"
+  xcrun notarytool submit "$release/$artifact" "${notary_credentials[@]}" \
+    --wait --timeout 20m --output-format json > "$release/dmg-notarization.json"
+  node -e 'const r=JSON.parse(require("fs").readFileSync(process.argv[1])); if(r.status!=="Accepted") throw new Error(`Apple notarization: ${r.status}; submission ${r.id}`)' "$release/dmg-notarization.json"
+  xcrun stapler staple "$release/$artifact"
+  xcrun stapler validate "$release/$artifact"
+  spctl --assess --type open --context context:primary-signature --verbose=2 "$release/$artifact"
+fi
 
 # Distribute the corresponding unmodified Mihomo source beside its executable.
 core_version="$(sed -n 's/^version=//p' scripts/fetch-proxy-core.sh)"

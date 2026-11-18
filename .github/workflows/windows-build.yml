@@ -10,6 +10,10 @@ on:
         description: Require trusted signing and reviewed corresponding sources
         type: boolean
         default: false
+      unsigned_preview:
+        description: Build the release candidate without signing, published only as a labelled preview
+        type: boolean
+        default: false
       artifact_name:
         description: Release artifact name, or development artifact prefix
         required: true
@@ -207,7 +211,9 @@ jobs:
           CAGE_ESIGNER_TOTP_SECRET: ${{ secrets.CAGE_ESIGNER_TOTP_SECRET }}
           CAGE_WINDOWS_PFX_BASE64: ${{ secrets.CAGE_WINDOWS_PFX_BASE64 }}
           CAGE_WINDOWS_PFX_PASSWORD: ${{ secrets.CAGE_WINDOWS_PFX_PASSWORD }}
-        run: ./scripts/ci-windows-build.ps1 -Release
+          # Release builds require activation and online accounts.
+          CCBOX_LICENSE_PUBLIC_KEY: ${{ vars.CCBOX_LICENSE_PUBLIC_KEY }}
+        run: ./scripts/ci-windows-build.ps1 ${{ inputs.unsigned_preview && '-UnsignedPreview' || '-Release' }}
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.artifact_name }}
