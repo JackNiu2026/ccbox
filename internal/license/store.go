@@ -16,10 +16,12 @@ import (
 )
 
 var (
-	ErrInvalid  = errors.New("激活码无效")
-	ErrUsed     = errors.New("激活码已被其他设备使用")
-	ErrRevoked  = errors.New("激活码已停用")
-	ErrNotFound = errors.New("未找到对应记录")
+	ErrInvalid = errors.New("激活码无效")
+	ErrUsed    = errors.New("激活码已被其他设备使用")
+	// ErrRedeemedHere is a code already counted in the same online account.
+	ErrRedeemedHere = errors.New("此激活码已兑换到当前账户，期限已计入")
+	ErrRevoked      = errors.New("激活码已停用")
+	ErrNotFound     = errors.New("未找到对应记录")
 )
 
 const MaxIssueBatch = 500

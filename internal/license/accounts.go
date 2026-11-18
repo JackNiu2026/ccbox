@@ -497,6 +497,8 @@ func (s *Store) RedeemToAccount(token, device, code string, now time.Time) (Acco
 		case kind != KindCode && record.Device == device && record.Redeemed == 0:
 			// A support code bound to this device carries its term over.
 			user.raiseTo(now, record.Expires, SourceCode, digest[:12])
+		case record.Account == id:
+			return false, ErrRedeemedHere
 		default:
 			return false, ErrUsed
 		}

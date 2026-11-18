@@ -86,11 +86,18 @@ func TestRedeemIntoAccountAndGrant(t *testing.T) {
 	if err != nil || !info.Active || info.Expires != t0.Add(Duration).Unix() {
 		t.Fatalf("redeem: %+v %v", info, err)
 	}
-	if _, err := store.RedeemToAccount(token, deviceA, code, t0); !errors.Is(err, ErrUsed) {
-		t.Fatalf("code reused: %v", err)
+	if _, err := store.RedeemToAccount(token, deviceA, code, t0); !errors.Is(err, ErrRedeemedHere) {
+		t.Fatalf("code reused in the same account: %v", err)
 	}
 	if _, err := store.Redeem(code, deviceB, t0); !errors.Is(err, ErrUsed) {
 		t.Fatalf("account code redeemed again by a device: %v", err)
+	}
+	other, _, err := store.Register("dave", "password1", deviceB, DeviceMeta{}, t0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.RedeemToAccount(other, deviceB, code, t0); !errors.Is(err, ErrUsed) {
+		t.Fatalf("code used by another account: %v", err)
 	}
 	second, _ := store.Issue()
 	info, _ = store.RedeemToAccount(token, deviceA, second, t0.Add(time.Hour))
