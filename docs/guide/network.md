@@ -138,7 +138,7 @@ macOS 主机只从 `networksetup` 报告的硬件端口中选择具有可用 IPv
 
 从 V2rayN 等客户端迁入 VLESS + TCP + REALITY 节点后，可能出现配置校验通过、真实 HTTPS 请求失败，核心日志报 `REALITY authentication failed` 的情况。先逐项对照原客户端与服务端参数，包括服务器、端口、UUID、传输方式、SNI、客户端指纹、flow、公钥和 short-id；配置语法正确仍可能存在握手兼容问题。
 
-参数核对一致后，可按 [Mihomo 官方 TLS 文档](https://wiki.metacubex.one/config/proxies/tls/#reality-optssupport-x25519mlkem768)检查 `reality-opts.support-x25519mlkem768`，该选项用于支持 X25519-MLKEM768 密钥交换。对于需要此兼容选项的节点，在该节点现有的 `reality-opts` 中保留原公钥和 short-id，并添加：
+参数核对一致后，检查节点的 Mihomo TLS 配置项 `reality-opts.support-x25519mlkem768`，该选项用于支持 X25519-MLKEM768 密钥交换。对于需要此兼容选项的节点，在该节点现有的 `reality-opts` 中保留原公钥和 short-id，并添加：
 
 ```yaml
 reality-opts:

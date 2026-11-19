@@ -69,7 +69,7 @@ sudo apt update
 sudo apt install --only-upgrade claude-desktop
 ```
 
-安装完成后从侧栏重新打开 Desktop。使用相同软件源重复更新会保留当前已安装版本。Linux 更新方式见 [Anthropic 安装说明](https://support.claude.com/en/articles/10065433-install-claude-desktop)。
+安装完成后从侧栏重新打开 Desktop。使用相同软件源重复更新会保留当前已安装版本。
 
 CCBox 为内部系统密钥环创建和解锁所需凭据，不必再设一份密钥环密码。修改 CCBox 密码会保留 Desktop 登录数据。
 

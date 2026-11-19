@@ -92,6 +92,11 @@ jobs:
               if (fields.some(field => release[field]) !== expected.has(platform)) throw Error("Staged installer does not match the selected platforms: " + platform);
             }
           '
+          # Apply the first-party website guide edits without changing the tagged package inputs.
+          for guide in docs/guide/network.md docs/guide/desktop.md; do
+            git show "$GITHUB_WORKFLOW_SHA:$guide" > "$RUNNER_TEMP/ccbox-guide.md"
+            cp "$RUNNER_TEMP/ccbox-guide.md" "$guide"
+          done
           npm ci --prefix www --no-audit --no-fund
           npm run --prefix www check
           npm run --prefix www build
