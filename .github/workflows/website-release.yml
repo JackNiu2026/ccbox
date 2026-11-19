@@ -59,7 +59,9 @@ jobs:
             gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run" \
               --jq '[.event,.head_branch,.path,.conclusion] | @tsv' |
               grep -Fx $'workflow_dispatch\tmain\t.github/workflows/release-platforms.yml\tsuccess'
-            gh run download "$run" --repo "$GITHUB_REPOSITORY" --pattern 'release-*' --dir "$RUNNER_TEMP/ccbox-release/$run"
+            gh run download "$run" --repo "$GITHUB_REPOSITORY" \
+              --pattern release-windows --pattern release-macos --pattern release-linux --pattern release-android \
+              --dir "$RUNNER_TEMP/ccbox-release/$run"
           done
       - name: Verify package identities and build the website
         run: |
