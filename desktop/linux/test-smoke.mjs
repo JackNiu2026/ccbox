@@ -135,6 +135,18 @@ try {
   if (current.mode !== 'local' || current.connection_id === original) throw new Error('Local workbench generation was not selected.');
   const account = await api('account/unlock', { password }, current.connection_id);
   if (!account.unlocked) throw new Error('Could not prepare the isolated unlocked test account.');
+  const generation = current.connection_id;
+  const firstRun = await api('environment/initialization', undefined, generation);
+  if (!firstRun.required || firstRun.tracked) throw new Error('A new profile must require first-time setup.');
+  const activation = await api('desktop-license', undefined, generation);
+  const expectedActivation = process.env.CAGE_RELEASE === 'true' ? 'inactive' : 'disabled';
+  if (activation.state !== expectedActivation) throw new Error('First-run activation state did not match the package type.');
+
+  // The rest of the package smoke tests use a returning user's profile.
+  // Guest installation and license redemption require separate acceptance.
+  await writeFile(join(profile, 'initialization.json'), JSON.stringify({ version: 1, completed: true }), { mode: 0o600, flag: 'wx' });
+  const returning = await api('environment/initialization', undefined, generation);
+  if (returning.required || !returning.tracked) throw new Error('Returning-user setup state was not recognized.');
   env.CAGE_SMOKE_STORAGE_MARKER = randomBytes(24).toString('hex');
   for (const phase of ['seed', 'verify']) {
     env.CAGE_SMOKE_STORAGE_PHASE = phase;
