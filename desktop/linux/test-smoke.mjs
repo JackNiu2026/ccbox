@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // Run under a real Linux display or xvfb-run + dbus-run-session.
-import { mkdtemp, mkdir, readFile, rm, stat } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
-import { randomBytes } from 'node:crypto';
+import { argon2Sync, createCipheriv, randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
 
 const [nativeArgument, outputArgument] = process.argv.slice(2);
@@ -59,9 +59,35 @@ function parseBackend(run) {
   return data;
 }
 
+async function seedLocalAccount(profile, password) {
+  // The release backend uses the production account service for registration.
+  // Test startup with an existing offline account, using the v1 profile format.
+  const salt = randomBytes(16);
+  const nonce = randomBytes(12);
+  const key = argon2Sync('argon2id', {
+    message: Buffer.from(password), nonce: salt,
+    parallelism: 2, tagLength: 32, memory: 64 * 1024, passes: 3,
+  });
+  const cipher = createCipheriv('aes-256-gcm', key, nonce);
+  cipher.setAAD(Buffer.from('Cage local account v1'));
+  const sealedKey = Buffer.concat([cipher.update(randomBytes(32)), cipher.final(), cipher.getAuthTag()]);
+  key.fill(0);
+  const account = {
+    version: 1,
+    username: 'linux-smoke',
+    salt: salt.toString('base64'),
+    nonce: nonce.toString('base64'),
+    sealed_key: sealedKey.toString('base64'),
+  };
+  await writeFile(join(profile, 'account.json'), JSON.stringify(account), { mode: 0o600, flag: 'wx' });
+}
+
 try {
   if (!isAbsolute(output)) throw new Error('Report path must be absolute.');
-  await mkdir(join(root, 'profile'), { mode: 0o700 });
+  const profile = join(root, 'profile');
+  await mkdir(profile, { mode: 0o700 });
+  const password = randomBytes(24).toString('base64url');
+  await seedLocalAccount(profile, password);
   await mkdir(dirname(output), { recursive: true });
   await rm(output, { force: true });
   await rm(output + '.png', { force: true });
@@ -107,8 +133,7 @@ try {
   }
   current = await api('client/commit', { connection_id: original, candidate_id: pending.id, local_action: 'auto' });
   if (current.mode !== 'local' || current.connection_id === original) throw new Error('Local workbench generation was not selected.');
-  const password = randomBytes(24).toString('base64url');
-  const account = await api('account/create', { username: 'Linux Smoke', password, confirm_password: password }, current.connection_id);
+  const account = await api('account/unlock', { password }, current.connection_id);
   if (!account.unlocked) throw new Error('Could not prepare the isolated unlocked test account.');
   env.CAGE_SMOKE_STORAGE_MARKER = randomBytes(24).toString('hex');
   for (const phase of ['seed', 'verify']) {

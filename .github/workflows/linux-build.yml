@@ -103,8 +103,22 @@ jobs:
           runuser -u cage -- go vet ./internal/managedproxy ./internal/workbench ./cmd/cage
           runuser -u cage -- uv run --no-project --python 3.11 internal/cage/desktop-downloads.test.py
           runuser -u cage -- uv run --no-project --python 3.11 internal/cage/display-governor.test.py
+      - name: Check out the Linux release test from the workflow revision
+        if: ${{ inputs.release }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .linux-release-tests
+          sparse-checkout: desktop/linux/test-smoke.mjs
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
       - name: Install, render native workbench, reinstall and remove
+        env:
+          CAGE_RELEASE: ${{ inputs.release }}
         run: |
+          if [[ "$CAGE_RELEASE" == true ]]; then
+            cp .linux-release-tests/desktop/linux/test-smoke.mjs desktop/linux/test-smoke.mjs
+          fi
           runuser -u cage -- bwrap --unshare-user --unshare-pid --ro-bind / / --proc /proc --dev /dev -- true
           version=$(cat VERSION)
           bash scripts/test-linux-install.sh "_output/releases/$version/linux/CCBox-$version-linux-amd64.deb"
@@ -192,9 +206,23 @@ jobs:
         with:
           name: ${{ inputs.artifact_name }}
           path: _output/compatibility
+      - name: Check out the Linux release test from the workflow revision
+        if: ${{ inputs.release }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .linux-release-tests
+          sparse-checkout: desktop/linux/test-smoke.mjs
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
       - name: Test the Ubuntu 22.04-built package unchanged
         shell: bash
+        env:
+          CAGE_RELEASE: ${{ inputs.release }}
         run: |
+          if [[ "$CAGE_RELEASE" == true ]]; then
+            cp .linux-release-tests/desktop/linux/test-smoke.mjs desktop/linux/test-smoke.mjs
+          fi
           package=$(find _output/compatibility -name 'CCBox-*-linux-amd64.deb' -print -quit)
           test -n "$package"
           bash scripts/test-linux-install.sh "$package"
