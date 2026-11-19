@@ -95,6 +95,9 @@ jobs:
           npm ci --prefix www --no-audit --no-fund
           npm run --prefix www check
           npm run --prefix www build
+          # Run the checker at the workflow revision after building from the immutable release tag.
+          git show "$GITHUB_WORKFLOW_SHA:www/scripts/check-site.mjs" > "$RUNNER_TEMP/ccbox-check-site.mjs"
+          cp "$RUNNER_TEMP/ccbox-check-site.mjs" www/scripts/check-site.mjs
           node www/scripts/check-site.mjs
       - uses: actions/upload-artifact@v4
         with:
