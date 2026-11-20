@@ -196,10 +196,11 @@ for (const relative of guideFiles) {
   assert.ok(!html.includes('<select'), `${relative}: system popup selector remains`);
   assert.equal([...html.matchAll(/<h1\b/g)].length, 1, `${relative}: expected one page title`);
   const current = `/docs/${relative.replace(/index\.html$/, '').replaceAll(path.sep, '/')}`;
-  for (const match of html.matchAll(/href="([^\"]+)"/g)) {
-    const href = match[1].replaceAll('&amp;', '&');
-    if (!href.startsWith('/') && !href.startsWith('#')) continue;
-    const url = new URL(href, `https://example.test${current}`);
+  const pageURL = new URL(current, site ?? 'https://example.test');
+  for (const [, reference] of html.matchAll(/<a\b[^>]*\bhref="([^"]+)"/gi)) {
+    const href = reference.replaceAll('&amp;', '&');
+    const url = new URL(href, pageURL);
+    if (url.origin !== pageURL.origin) continue;
     const local = decodeURIComponent(url.pathname.slice(1));
     const target = path.join(dist, !local || local.endsWith('/') ? local + 'index.html' : local);
     assert.ok(fs.existsSync(target), `${relative}: broken guide link ${href}`);

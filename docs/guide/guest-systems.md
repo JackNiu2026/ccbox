@@ -16,7 +16,7 @@ keywords: 客机 客户机 克隆 本机 系统选择 macOS Windows Debian Ubunt
 | 你的电脑 | 可选客机 | 适合的工作 |
 | --- | --- | --- |
 | Apple Silicon Mac，macOS 14+ | macOS、Debian 13 或 Ubuntu 22.04，均为 ARM64 | macOS 原生开发、Mac 版 Claude Desktop，或 Linux 工具与服务。macOS 客机版本需与硬件和主机兼容。 |
-| Intel Mac，macOS 14+，独立实验构建 | Debian 13、Ubuntu 22.04 或 macOS，均为 x86_64 | Linux 沿用现有工作台；macOS 客机要求主机与客机均为 15.4+，使用本机硬件虚拟化与加速图形。条件与验证范围见 [Intel 开发说明](../intel-macos-development.md)。 |
+| Intel Mac，macOS 14+，独立实验构建 | Debian 13、Ubuntu 22.04 或 macOS，均为 x86_64 | Linux 沿用现有工作台；macOS 客机要求主机与客机均为 15.4+，使用本机硬件虚拟化与加速图形。官网的 CCBox 0.1.8 macOS 安装包仅支持 Apple Silicon。 |
 | Windows 11 x64 专业版、企业版或教育版，具备完整 Hyper-V | Windows 11、Debian 13 或 Ubuntu 22.04，均为 x86_64 | PowerShell、Windows 原生编译与调试、Windows 版 Claude Desktop，或 Linux 开发。 |
 | 其他受支持的 Windows 10 22H2 / 11 x64 主机 | Debian 13 或 Ubuntu 22.04 x86_64 | 在独立 Linux 环境中使用 Claude Code、浏览器与开发工具。需要 Windows 虚拟机监控程序平台。 |
 | Debian 12/13、Ubuntu 22.04/24.04 x86_64 主机 | Debian 13、Ubuntu 22.04，或与本机同发行版的 Linux | Linux 开发与服务。需要 KVM 和当前用户的访问权限。 |
@@ -180,4 +180,4 @@ macOS 项目连接遇到权限问题时，按提示打开对应的文件共享�
 
 图形设置按客机系统提供 ANGLE 后端选择；Linux 主机的 QEMU 客机还可尝试 VirGL 加速。依赖客机实际设备与驱动，不能仅靠选择一个型号就获得对应的实体显卡。浏览器也可手动关闭 WebGL 或阻止 Canvas 图像读取，可能影响部分网站。
 
-启动后可在安全检查面板检测浏览器和 Claude Desktop；Desktop 工具栏也有“检测环境”。检测会列出实际证据、软件回退及未观测项，Claude Desktop 内部渲染器尚无受支持的自检接口。设置随环境保存，详见[客机创建配置](../guest-profile.md)。
+启动后可在安全检查面板检测浏览器和 Claude Desktop；Desktop 工具栏也有“检测环境”。检测会列出实际证据、软件回退及未观测项，Claude Desktop 内部渲染器尚无受支持的自检接口。安装开始时，这些设置会写入当前环境的 `guest-profile.json`。继续安装、重启或重连时会复用原配置。如需使用不同的名称或设备设置，请新建独立环境。
