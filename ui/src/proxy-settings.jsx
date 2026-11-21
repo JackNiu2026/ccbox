@@ -43,6 +43,11 @@ function usageLabel(raw) {
     .filter(Boolean)
     .join(" · ");
 }
+const proxySteps = [
+  ["import", "导入来源"],
+  ["nodes", "选择节点"],
+  ["apply", "应用代理"],
+];
 const emptyForm = {
   name: "",
   url: "",
@@ -64,10 +69,10 @@ const emptyManual = {
 };
 export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializing = false }) {
   const [proxy, setProxy] = useState(null),
-    [tab, setTab] = useState("nodes"),
+    [chosenTab, setTab] = useState(null),
     [search, setSearch] = useState(""),
     [source, setSource] = useState(""),
-    [form, setForm] = useState(null),
+    [formDraft, setForm] = useState(null),
     [mode, setMode] = useState("url"),
     [error, setError] = useState(""),
     [pending, setPending] = useState(""),
@@ -82,6 +87,21 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
   const [hostRefresh, setHostRefresh] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [readingFile, setReadingFile] = useState(false);
+  const tab = chosenTab ?? (proxy?.sources.some((item) => item.nodes.length) ? "nodes" : "import");
+  const form = formDraft ?? (tab === "import" ? emptyForm : null);
+  const stepIndex = proxySteps.findIndex(([id]) => id === tab);
+  const stepHeading = useRef(null);
+  const previousTab = useRef(tab);
+  useEffect(() => {
+    if (previousTab.current !== tab) stepHeading.current?.focus();
+    previousTab.current = tab;
+  }, [tab]);
+  const openImport = () => {
+    setTab("import");
+    setForm(null);
+    setMode("url");
+    setManual(emptyManual);
+  };
   const alive = useRef(true),
     loading = useRef(false),
     latest = useRef(null),
@@ -185,6 +205,12 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
             : action === "refresh"
               ? updated.sources.find((source) => source.id === input.id)
               : null;
+        if (action === "import" && tab === "import" && importedSource?.nodes.length) {
+          setSource(importedSource.id);
+          setSearch("");
+          setRouteDraft([""]);
+          setTab("nodes");
+        }
         setNotice(
           importedSource
             ? `已导入 ${importedSource.nodes.length} 个节点，跳过 ${importedSource.skipped?.length || 0} 个${importedSource.skipped?.length ? "；可在来源下查看跳过原因" : ""}`
@@ -305,6 +331,20 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
   const routeName = (id) => allNodes.find((n) => n.id === id)?.name || "待选择";
   const updateHop = (index, id) =>
     setRouteDraft(route.map((current, i) => (i === index ? id : current)));
+  const routePreview = (
+    <div className="proxy-route-preview" aria-label="待应用链路">
+      <Route size={16} aria-hidden="true" />
+      <span>CCBox</span>
+      {route.map((id, index) => (
+        <React.Fragment key={index}>
+          <ArrowRight size={13} aria-hidden="true" />
+          <strong>{routeName(id)}</strong>
+        </React.Fragment>
+      ))}
+      <ArrowRight size={13} aria-hidden="true" />
+      <span>目标网站</span>
+    </div>
+  );
   const nodes = allNodes.filter(
     (n) =>
       (!source || n.sourceID === source) &&
@@ -329,7 +369,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
             <CircleHelp size={17} aria-hidden="true" />
           </button>
         </div>
-        <p>选择最终出口，按需添加中转，供 CCBox 内所有程序共用。</p>
+        <p>为 CCBox 导入代理来源，选择要使用的节点。</p>
       </div>
       {helpOpen && (
         <section
@@ -345,7 +385,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           <ol className="proxy-help-steps">
             <li>
               <strong>导入你的代理</strong>
-              <p>打开「订阅」→「添加来源」，填写来源名称，再选择一种方式：</p>
+              <p>在「导入来源」填写来源名称，再选择一种方式：</p>
               <ul>
                 <li>
                   <strong>订阅链接：</strong>从代理服务商处复制 Clash/Mihomo
@@ -364,7 +404,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
             <li>
               <strong>选择节点并启用</strong>
               <p>
-                导入完成后切到「节点」，选择最终出口，再点击「应用代理」。住宅代理无法从国内连接时，选择「链式代理」，在它前面添加可连接的中转节点；节点可以来自不同订阅。首次启用时若环境正在运行，需要重启；后续切换只重建网络连接。
+                导入后选择最终出口，前往确认步骤，再点击「应用代理」。住宅代理无法从国内连接时，选择「链式代理」，在它前面添加可连接的中转节点；节点可以来自不同订阅。首次启用时若环境正在运行，需要重启；后续切换只重建网络连接。
               </p>
             </li>
             <li>
@@ -439,13 +479,31 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           <button
             key={id}
             role="tab"
-            aria-selected={tab === id}
-            onClick={() => setTab(id)}
+            aria-selected={tab === id || id === "nodes" && stepIndex >= 0}
+            onClick={() => id === "nodes" && !allNodes.length ? openImport() : setTab(id)}
           >
             {label}
           </button>
         ))}
       </div>
+      {stepIndex >= 0 && (
+        <div className="proxy-wizard">
+          <ol className="proxy-wizard-steps" role="list" aria-label="代理配置步骤">
+            {proxySteps.map(([id, title], index) => (
+              <li key={id} aria-current={index === stepIndex ? "step" : undefined}>
+                <span className="proxy-step-number" aria-hidden="true">{index + 1}</span>
+                <span>{title}</span>
+              </li>
+            ))}
+          </ol>
+          <h4 ref={stepHeading} tabIndex={-1}>{proxySteps[stepIndex][1]}</h4>
+          <p className="field-help">
+            {tab === "import" ? "粘贴订阅链接，或导入本地 YAML 配置。"
+              : tab === "nodes" ? "选择要作为最终出口的节点。有中转需求时可配置链式代理。"
+                : "核对将要使用的节点。应用后仍需通过网络与隔离检查。"}
+          </p>
+        </div>
+      )}
       {tab === "nodes" && (
         <>
           {allNodes.length > 0 && (
@@ -564,53 +622,13 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                   添加中转
                 </button>
               )}
-              <div className="proxy-route-preview" aria-label="待应用链路">
-                <Route size={16} aria-hidden="true" />
-                <span>CCBox</span>
-                {route.map((id, index) => (
-                  <React.Fragment key={index}>
-                    <ArrowRight size={13} aria-hidden="true" />
-                    <strong>{routeName(id)}</strong>
-                  </React.Fragment>
-                ))}
-                <ArrowRight size={13} aria-hidden="true" />
-                <span>目标网站</span>
-              </div>
-              <div className="proxy-route-actions">
-                <span aria-live="polite">
-                  {routeChanged
-                    ? "有未应用的代理修改"
-                    : proxy.active
-                      ? "当前配置已应用"
-                      : "选择完成后应用代理"}
-                </span>
-                <div>
-                  {routeDraft !== null && (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => setRouteDraft(null)}
-                    >
-                      撤销修改
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className={routeChanged || !proxy.active ? "primary" : ""}
-                    disabled={busy || !proxy.core_available || !routeValid}
-                    onClick={() => applyRoute(route)}
-                  >
-                    {pending === "route" ? (
-                      <LoaderCircle size={14} className="spin" />
-                    ) : !routeChanged && proxy.active ? (
-                      <RefreshCw size={14} />
-                    ) : (
-                      <Check size={14} />
-                    )}
-                    {routeChanged || !proxy.active ? "应用代理" : "重新应用"}
-                  </button>
+              {routePreview}
+              {routeDraft !== null && (
+                <div className="proxy-route-actions">
+                  <span>有未应用的代理修改</span>
+                  <button type="button" disabled={busy} onClick={() => setRouteDraft(null)}>撤销修改</button>
                 </div>
-              </div>
+              )}
               {proxy.route_error && (
                 <p role="alert" className="proxy-source-error">
                   <SafetyMessage message={proxy.route_error} />
@@ -629,11 +647,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => {
-                  setTab("sources");
-                  setForm({ ...emptyForm });
-                  setMode("url");
-                }}
+                onClick={openImport}
               >
                 <Plus size={14} />
                 添加来源
@@ -677,11 +691,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
               <strong>添加第一份节点来源</strong>
               <p>支持 Clash/Mihomo YAML 订阅、本地配置或手动节点。</p>
               <button
-                onClick={() => {
-                  setTab("sources");
-                  setForm({ ...emptyForm });
-                  setMode("url");
-                }}
+                onClick={openImport}
               >
                 <Plus size={15} />
                 添加来源
@@ -704,7 +714,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                     title={
                       route.slice(0, -1).includes(n.id)
                         ? "此节点已用作中转"
-                        : "选为最终出口，点击应用代理后生效"
+                        : "选为最终出口，确认应用后生效"
                     }
                     onClick={() => updateHop(route.length - 1, n.id)}
                     aria-pressed={n.id === route.at(-1)}
@@ -743,10 +753,31 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
               )}
             </div>
           )}
+          {allNodes.length > 0 && <div className="proxy-wizard-actions">
+            <button type="button" disabled={busy} onClick={openImport}>返回导入</button>
+            <button type="button" className="primary" disabled={busy || !routeValid} onClick={() => setTab("apply")}>下一步：确认应用</button>
+          </div>}
         </>
       )}
-      {tab === "sources" && (
+      {tab === "apply" && (
+        <section className="proxy-route proxy-wizard-review" aria-label="确认待应用代理">
+          <p className="field-help">
+            {routeValid ? `最终出口 · ${routeName(route.at(-1))}` : "节点已不可用，请返回重新选择。"}
+          </p>
+          {routePreview}
+          {proxy.active && !routeChanged && <p className="field-help">当前配置已应用</p>}
+          <div className="proxy-wizard-actions">
+            <button type="button" disabled={busy} onClick={() => setTab("nodes")}>返回选择节点</button>
+            <button type="button" className="primary" disabled={busy || !proxy.core_available || !routeValid} onClick={() => applyRoute(route)}>
+              {pending === "route" ? <LoaderCircle size={14} className="spin" /> : <Check size={14} />}
+              {routeChanged || !proxy.active ? "应用代理" : "重新应用"}
+            </button>
+          </div>
+        </section>
+      )}
+      {(tab === "import" || tab === "sources") && (
         <>
+          {tab === "sources" && <>
           <label className="check-line">
             <input
               type="checkbox"
@@ -860,9 +891,10 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
               </div>
             </div>
           ))}
+          </>}
           {form && (
             <div className="proxy-import">
-              <h4>{form.id ? "编辑来源" : "添加节点来源"}</h4>
+              {tab === "sources" && <h4>{form.id ? "编辑来源" : "添加节点来源"}</h4>}
               {!form.id && (
                 <div className="proxy-tabs">
                   {[
@@ -875,7 +907,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                       className={mode === id ? "selected" : ""}
                       onClick={() => {
                         setMode(id);
-                        setForm((old) => ({ ...old, content: "", url: "" }));
+                        setForm({ ...form, content: "", url: "" });
                       }}
                     >
                       {label}
@@ -954,14 +986,14 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                   disabled={busy}
                   onReadingChange={setReadingFile}
                   onContentChange={(content) =>
-                    setForm((old) => ({ ...old, content }))
+                    setForm((old) => ({ ...(old ?? emptyForm), content }))
                   }
                   onFileRead={(value, content) =>
                     setForm((old) => ({
-                      ...old,
+                      ...(old ?? emptyForm),
                       content,
                       name:
-                        old.name ||
+                        old?.name ||
                         value.name.replace(/\.[^.]+$/, "").slice(0, 100),
                       interval_hours: 0,
                     }))
@@ -1109,9 +1141,15 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                 </>
               )}
               <div className="proxy-form-actions">
-                <button disabled={busy} onClick={() => { setForm(null); setManual(emptyManual); }}>
+                {tab === "sources" && <button disabled={busy} onClick={() => { setForm(null); setManual(emptyManual); }}>
                   取消
-                </button>
+                </button>}
+                {tab === "import" && allNodes.length > 0 &&
+                  <button type="button" disabled={busy} onClick={() => {
+                    setForm(null);
+                    setManual(emptyManual);
+                    setTab("nodes");
+                  }}>使用已有节点</button>}
                 <button
                   className="primary"
                   disabled={

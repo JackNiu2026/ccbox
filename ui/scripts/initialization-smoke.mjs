@@ -312,7 +312,6 @@ for (const [platform, system] of [["darwin", "macos"], ["windows", "windows-11"]
     await page.getByRole("button", { name: "下一步：配置代理" }).click();
     const start = page.getByRole("button", { name: "开始安装", exact: true });
     assert.ok(await start.isDisabled());
-    await page.getByRole("button", { name: "添加来源", exact: true }).click();
     await page.getByRole("button", { name: "手动节点", exact: true }).click();
     await page.getByLabel("来源名称", { exact: true }).fill("自有节点");
     await page.getByLabel("节点名称", { exact: true }).fill("本机测试代理");
@@ -320,6 +319,7 @@ for (const [platform, system] of [["darwin", "macos"], ["windows", "windows-11"]
     await page.getByRole("button", { name: "导入并验证", exact: true }).click();
     await page.getByRole("tab", { name: "节点", exact: true }).click();
     await page.getByRole("button", { name: "选择节点 本机测试代理", exact: true }).click();
+    await page.getByRole("button", { name: "下一步：确认应用", exact: true }).click();
     await page.getByRole("button", { name: "应用代理", exact: true }).click();
     await page.getByText("已完成", { exact: true }).waitFor();
     await page.waitForFunction(() => [...document.querySelectorAll('button')].some(button => button.textContent === '开始安装' && !button.disabled));

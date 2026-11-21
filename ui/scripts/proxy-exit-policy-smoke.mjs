@@ -32,7 +32,10 @@ try {
  const dns=page.getByLabel('加密 DNS',{exact:true});
  await dns.fill('https://dns.google/dns-query');
  const select=async(id)=>{
+  const back=page.getByRole('button',{name:'返回选择节点',exact:true});
+  if (await back.isVisible()) await back.click();
   await chooseInline(page.getByRole('combobox',{name:'最终出口',exact:true}),id);
+  await page.getByRole('button',{name:'下一步：确认应用',exact:true}).click();
   await page.getByRole('button',{name:'应用代理',exact:true}).click();
   await page.waitForFunction(()=>!document.querySelector('.proxy-progress'));
  };

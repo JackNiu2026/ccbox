@@ -86,6 +86,7 @@ try{
  };
  await choose('最终出口','住宅出口');
  await choose('中转节点','本地中转');
+ await page.getByRole('button',{name:'下一步：确认应用',exact:true}).click();
  await page.getByRole('button',{name:'应用代理',exact:true}).click();await idle();
  await page.getByText('当前配置已应用',{exact:true}).waitFor();
  const state=()=>page.evaluate(()=>fetch('/api/proxy').then(r=>r.json()));
@@ -106,12 +107,15 @@ try{
  // Single-node explicitly bypasses the intermediate, without editing its source.
  const entryCount=entry.destinations.length;
  await page.getByRole('button',{name:'单节点',exact:true}).click();
+ await page.getByRole('button',{name:'下一步：确认应用',exact:true}).click();
  await page.getByRole('button',{name:'应用代理',exact:true}).click();await idle();
  await page.getByText('当前配置已应用',{exact:true}).waitFor();
  assert.equal((await through()).stdout,'residential-exit-verified');
  assert.equal(entry.destinations.length,entryCount);
  // Re-enable the chain, then break its exit: no direct target request may occur.
+ await page.getByRole('button',{name:'返回选择节点',exact:true}).click();
  await page.getByRole('button',{name:'链式代理',exact:true}).click();await choose('中转节点','本地中转');
+ await page.getByRole('button',{name:'下一步：确认应用',exact:true}).click();
  await page.getByRole('button',{name:'应用代理',exact:true}).click();await idle();
  await page.getByText('当前配置已应用',{exact:true}).waitFor();
  for(const socket of sockets)socket.destroy();

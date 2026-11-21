@@ -65,17 +65,17 @@ try {
   await page.getByRole("button", { name: "网络与代理", exact: true }).click();
   await page.getByRole("heading", { name: "内置代理", exact: true }).waitFor();
   await page.screenshot({ path: path.join(output, "empty.png") });
-  await page.getByRole("button", { name: "添加来源", exact: true }).click();
   await page.getByRole("button", { name: "本地 YAML", exact: true }).click();
   await page.locator('input[type="file"]').setInputFiles(file);
   await page.getByRole("button", { name: "导入并验证", exact: true }).click();
-  await page.getByText("nodes", { exact: true }).waitFor(); console.log("QA: file imported");
+  await page.getByRole("button", { name: "选择节点 QA A", exact: true }).waitFor(); console.log("QA: file imported");
   await page.getByRole("tab", { name: "节点", exact: true }).click();
   await page.getByRole("button", { name: "选择节点 QA A", exact: true }).waitFor();
   await page.getByRole("tab", { name: "诊断", exact: true }).click();
   await page.getByLabel("独立代理端口", { exact: true }).fill(String(port));
   await page.getByRole("tab", { name: "节点", exact: true }).click();
   await page.getByRole("button", { name: "选择节点 QA A", exact: true }).click();
+  await page.getByRole("button", { name: "下一步：确认应用", exact: true }).click();
   await page.getByRole("button", { name: "应用代理", exact: true }).click();
   await page.getByText("核心运行中", { exact: false }).waitFor();
   await page.waitForFunction(() => !document.querySelector(".proxy-progress"));
@@ -89,11 +89,13 @@ try {
     return (await run("curl", ["--config",file,"--noproxy", "", "--fail", "--silent", "--show-error", "--max-time", "10", "http://example.com/"])).stdout;
   }
   console.log("QA: core selected A"); assert.equal(await through(), "via-A"); assert.ok(a.requests() > 0);
+  await page.getByRole("button", { name: "返回选择节点", exact: true }).click();
   await page.getByLabel("搜索节点", { exact: true }).fill("QA B");
   assert.equal(await page.getByRole("button", { name: "选择节点 QA A", exact: true }).count(), 0);
   await page.getByLabel("搜索节点", { exact: true }).fill("");
   await page.screenshot({ path: path.join(output, "nodes.png") });
   await page.getByRole("button", { name: "选择节点 QA B", exact: true }).click();
+  await page.getByRole("button", { name: "下一步：确认应用", exact: true }).click();
   await page.getByRole("button", { name: "应用代理", exact: true }).click();
   await page.waitForFunction(() => !document.querySelector(".proxy-progress"));
   p = await state(); assert.notEqual(p.revision, firstRevision);
@@ -137,6 +139,7 @@ try {
     const imported = (await state()).sources.find((s) => s.name === "Real egress QA");
     await page.getByRole("tab", { name: "节点", exact: true }).click();
     await page.getByRole("button", { name: `选择节点 ${imported.nodes.at(-1).name}`, exact: true }).click();
+  await page.getByRole("button", { name: "下一步：确认应用", exact: true }).click();
   await page.getByRole("button", { name: "应用代理", exact: true }).click();
     await page.waitForFunction(() => !document.querySelector(".proxy-progress"));
     const stored = JSON.parse(await fs.readFile(path.join(profile, "proxy/sources.json")));

@@ -40,7 +40,7 @@ try {
  await page.getByRole('heading',{name:'内置代理',exact:true}).waitFor();
  await page.getByRole('region',{name:'IP 变化规则',exact:true}).waitFor();
  await page.getByRole('button',{name:'链式代理',exact:true}).click();
- assert.equal(await page.getByRole('button',{name:'应用代理',exact:true}).isDisabled(),true);
+ assert.equal(await page.getByRole('button',{name:'下一步：确认应用',exact:true}).isDisabled(),true);
  await chooseInline(page.getByRole('combobox',{name:'最终出口',exact:true}),'exit');
  const exit = page.getByRole('combobox',{name:'最终出口',exact:true});
  const via = page.getByRole('combobox',{name:'中转节点',exact:true});
@@ -59,7 +59,7 @@ try {
  assert.equal(await via.evaluate(el=>el===document.activeElement),true);
  assert.ok(Math.abs((await relativeExit())-before)<2,'collapsed dropdown did not restore layout');
  assert.equal(submissions.length,0,'editing a chain applied it early');
- await page.getByText('代理修改待应用，请点击「应用代理」',{exact:true}).waitFor();
+ await page.getByText('代理修改待应用，请前往确认步骤',{exact:true}).waitFor();
  await page.getByRole('button',{name:'返回工作台',exact:true}).last().click();
  await page.getByRole('dialog',{name:'放弃尚未保存的修改？',exact:true}).waitFor();
  await page.getByRole('dialog').getByRole('button',{name:'取消',exact:true}).click();
@@ -77,6 +77,7 @@ try {
 
  await page.locator('.settings-content').evaluate(el=>el.scrollTop=0);
  await page.screenshot({path:path.join(output,'chain-draft.png')});
+ if (await page.getByRole('button',{name:'下一步：确认应用',exact:true}).isVisible()) await page.getByRole('button',{name:'下一步：确认应用',exact:true}).click();
  await page.getByRole('button',{name:'应用代理',exact:true}).click(); await idle();
  await page.getByText('当前配置已应用',{exact:true}).waitFor();
  await page.getByRole('button',{name:'重新应用',exact:true}).waitFor();
@@ -90,29 +91,36 @@ try {
  await extra.focus();await extra.press('ArrowDown');await extra.press('End');await extra.press('Enter');
  assert.match(await extra.innerText(),/Tokyo/);
  failRoute=true;
+ if (await page.getByRole('button',{name:'下一步：确认应用',exact:true}).isVisible()) await page.getByRole('button',{name:'下一步：确认应用',exact:true}).click();
  await page.getByRole('button',{name:'应用代理',exact:true}).click(); await idle();
  await page.getByRole('alert').filter({hasText:'代理核心拒绝该配置'}).waitFor();
  assert.deepEqual(saved.route,['entry','exit'],'failed route replaced persisted selection');
- assert.match(await extra.innerText(),/Tokyo/,'failed save lost the draft');
+ assert.match(await page.getByLabel('待应用链路',{exact:true}).innerText(),/Tokyo/,'failed save lost the draft');
  await page.screenshot({path:path.join(output,'failed-apply.png')});
  failRoute=false;
+ if (await page.getByRole('button',{name:'下一步：确认应用',exact:true}).isVisible()) await page.getByRole('button',{name:'下一步：确认应用',exact:true}).click();
  await page.getByRole('button',{name:'应用代理',exact:true}).click(); await idle();
  await page.getByText('当前配置已应用',{exact:true}).waitFor();
  assert.deepEqual(saved.route,['entry','extra','exit']);
+ await page.getByRole('button',{name:'返回选择节点',exact:true}).click();
  await page.getByRole('button',{name:'移除中转节点 2',exact:true}).click();
  await page.getByRole('button',{name:'撤销修改',exact:true}).click();
  assert.equal(await page.locator('.proxy-route-hop').count(),3);
  await page.getByRole('button',{name:'单节点',exact:true}).click();
  assert.equal(await page.locator('.proxy-route-hop').count(),1);
+ if (await page.getByRole('button',{name:'下一步：确认应用',exact:true}).isVisible()) await page.getByRole('button',{name:'下一步：确认应用',exact:true}).click();
  await page.getByRole('button',{name:'应用代理',exact:true}).click(); await idle();
  await page.getByText('当前配置已应用',{exact:true}).waitFor();
  assert.deepEqual(saved.route,['exit']);
+ await page.getByRole('button',{name:'返回选择节点',exact:true}).click();
  // A changed backend list cannot silently shorten a pending route.
  saved.sources[0].nodes=saved.sources[0].nodes.filter(n=>n.id!=='extra');
  await page.getByRole('button',{name:'链式代理',exact:true}).click();
  await chooseInline(page.getByRole('combobox',{name:'中转节点',exact:true}),'entry');
+ if (await page.getByRole('button',{name:'下一步：确认应用',exact:true}).isVisible()) await page.getByRole('button',{name:'下一步：确认应用',exact:true}).click();
  await page.getByRole('button',{name:'应用代理',exact:true}).click(); await idle();
  await page.getByText('当前配置已应用',{exact:true}).waitFor();
+ await page.getByRole('button',{name:'返回选择节点',exact:true}).click();
  await page.locator('.settings-content').evaluate(el=>el.scrollTop=0);
  await page.waitForFunction(()=>[...document.querySelectorAll('.proxy-route-hop')].every(el=>getComputedStyle(el).opacity==='1'));
  await page.screenshot({path:path.join(output,'chain-applied.png')});
