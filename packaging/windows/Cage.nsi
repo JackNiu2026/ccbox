@@ -33,7 +33,7 @@ ManifestSupportedOS all
 !define WEBVIEW2_APP_ID "{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
 Name "CCBox ${VERSION}"
 OutFile "${OUTPUT_FILE}"
-InstallDir "$LOCALAPPDATA\Programs\ccBox"
+InstallDir "$LOCALAPPDATA\Programs\CCBox"
 InstallDirRegKey HKCU "${UNINSTALL_KEY}" "InstallLocation"
 VIProductVersion "${VERSION_NUMERIC}"
 VIAddVersionKey /LANG=1033 "ProductName" "CCBox"
@@ -280,7 +280,7 @@ Function SetDefaultInstallDirectory
   ${EndIf}
   System::Call 'kernel32::GetDriveTypeW(w "D:\") i .r0'
   ${If} $0 == 3
-    StrCpy $INSTDIR "D:\ccBox"
+    StrCpy $INSTDIR "D:\CCBox"
   ${EndIf}
 FunctionEnd
 

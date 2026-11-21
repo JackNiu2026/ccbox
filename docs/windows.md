@@ -28,7 +28,7 @@ DISM /Online /Enable-Feature /FeatureName:HypervisorPlatform /All
 ## 安装并开始工作
 
 1. 从 CCBox 安装包提供方取得 `CCBox-<版本>-windows-amd64-setup.exe` 和 `SHA256SUMS`，核对 SHA-256。未签名的开发预览包带有 `-unsigned.exe` 后缀。
-2. 运行安装程序，选择安装位置。首次安装时，默认选择本地 D 盘的 `D:\ccBox`；没有本地 D 盘时使用当前用户的 `%LOCALAPPDATA%\Programs\ccBox`。已有安装沿用原目录，也可以手动选择其他位置。安装器随附 .NET 桌面运行组件、WebView2 安装程序、QEMU、OpenSSH 客户端和代理核心，无需另装 Go、Node.js 或 Clash。
+2. 运行安装程序，选择安装位置。首次安装时，默认选择本地 D 盘的 `D:\CCBox`；没有本地 D 盘时使用当前用户的 `%LOCALAPPDATA%\Programs\CCBox`。已有安装沿用原目录，也可以手动选择其他位置。安装器随附 .NET 桌面运行组件、WebView2 安装程序、QEMU、OpenSSH 客户端和代理核心，无需另装 Go、Node.js 或 Clash。
 3. 在“快捷方式”页选择“添加桌面快捷方式”和“添加到开始菜单”。首次安装默认勾选两项，覆盖安装沿用上次选择，旧安装按已有快捷方式恢复选择。卸载会清理 CCBox 创建的快捷方式。
 4. 从选中的快捷方式启动 CCBox，选择客机系统。如果 C 盘空间有限，在工作台点击“选择环境存储位置”，选择其他磁盘的专用空文件夹，再导入代理并启动环境。镜像、工具和虚拟磁盘按所选系统准备；已有环境也可以从设置迁移。见[选盘与迁移步骤](getting-started.md#选择环境存储位置)和[客机系统指南](guide/guest-systems.md)。
 
