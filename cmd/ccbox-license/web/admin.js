@@ -488,7 +488,7 @@ async function busy(button, label, task) {
 }
 
 function issueDialog(onDone) {
-  const count = h("input", { id: "issue-count", type: "number", min: 1, max: config.max_batch, step: 1, value: 10, required: true });
+  const count = h("input", { id: "issue-count", type: "number", min: 1, max: config.max_batch, step: 1, value: 1, required: true });
   const note = h("input", { id: "issue-note", type: "text", maxlength: config.max_note, placeholder: "例如：渠道 A · 11 月活动" });
   const error = h("p", { class: "form-error", role: "alert", hidden: true });
   const submit = submitButton("生成激活码");
