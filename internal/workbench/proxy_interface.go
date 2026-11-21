@@ -2,9 +2,12 @@ package workbench
 
 import (
 	"path/filepath"
+	"time"
 
 	"github.com/sylvinus/agent-vm/internal/managedproxy"
 )
+
+const proxyRebindDelay = 30 * time.Second
 
 var physicalProxyInterface = managedproxy.PhysicalInterface
 
@@ -28,10 +31,10 @@ func (s *Server) monitorProxyInterface() {
 		return
 	}
 	s.mu.Lock()
-	lost := s.proxyNetworkLost
+	lost, retryAfter := s.proxyNetworkLost, s.proxyRebindAfter
 	s.mu.Unlock()
 	bound, err := managedproxy.BoundInterface(filepath.Join(managedproxy.Dir(s.profile), "config.yaml"))
-	if err != nil || (bound == name && !lost) {
+	if (!lost && (err != nil || bound == name)) || time.Now().Before(retryAfter) {
 		return
 	}
 	// Revoke the previous report before the asynchronous recovery can start.
@@ -39,12 +42,22 @@ func (s *Server) monitorProxyInterface() {
 		return
 	}
 	s.mu.Lock()
-	s.proxyNetworkLost = false
+	s.proxyNetworkLost = true
 	s.mu.Unlock()
 	_, _ = s.submitJob("proxy-network", s.rebindProxyInterface)
 }
 
-func (s *Server) rebindProxyInterface() error {
+func (s *Server) rebindProxyInterface() (returned error) {
+	defer func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		// Keep the outage pending until the selected core and the full check recover.
+		s.proxyNetworkLost = returned != nil
+		s.proxyRebindAfter = time.Time{}
+		if returned != nil {
+			s.proxyRebindAfter = time.Now().Add(proxyRebindDelay)
+		}
+	}()
 	s.setMessage("正在识别物理网卡并重新绑定代理…")
 	cfg, err := loadConfig(s.configPath)
 	if err != nil {

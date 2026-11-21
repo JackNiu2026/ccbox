@@ -514,11 +514,15 @@ func (s *Server) checkProxyHealth() {
 	p, err := managedproxy.Load(s.profile)
 	ctx, cancel := context.WithTimeout(s.lifetimeContext(), 2*time.Second)
 	defer cancel()
-	if err == nil && cfg.RequireManagedProxy(s.profile) == nil && managedproxy.Running(ctx, s.profile, p) {
+	valid := err == nil && cfg.RequireManagedProxy(s.profile) == nil
+	if valid && managedproxy.Running(ctx, s.profile, p) {
 		return
 	}
 	_ = s.closeProxyGate("内置代理已中断或节点状态变化，请重试应用节点")
 	s.mu.Lock()
+	if valid {
+		s.proxyNetworkLost = true
+	}
 	s.safety.monitorError = "内置代理未就绪；外网保持关闭"
 	s.mu.Unlock()
 }

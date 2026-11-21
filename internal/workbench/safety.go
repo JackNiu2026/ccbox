@@ -236,11 +236,18 @@ func (s *Server) publishReport(report cage.SafetyReport) {
 }
 
 func (s *Server) safetyCheck(w http.ResponseWriter, r *http.Request) {
-	if s.macosGuest != nil {
-		s.launch(w, "safety", s.checkMacOSNetwork)
-		return
-	}
-	s.launch(w, "safety", s.runSafetyCheck)
+	s.launch(w, "safety", func() error {
+		s.mu.Lock()
+		rebind := s.proxyNetworkLost
+		s.mu.Unlock()
+		if rebind && s.vmRunning() {
+			return s.rebindProxyInterface()
+		}
+		if s.macosGuest != nil {
+			return s.checkMacOSNetwork()
+		}
+		return s.runSafetyCheck()
+	})
 }
 
 func (s *Server) pauseNetwork(w http.ResponseWriter, r *http.Request) {

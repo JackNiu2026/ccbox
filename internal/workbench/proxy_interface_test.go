@@ -115,3 +115,46 @@ func TestMissingPhysicalInterfaceClosesGateWithoutUnboundFallback(t *testing.T) 
 		t.Fatal("missing uplink removed the existing binding")
 	}
 }
+
+// Test the actual job queue and gate control with a transient proxy validation failure.
+func TestSameInterfaceRecoveryRetainsOutageAfterFailedRebind(t *testing.T) {
+	s, gate := interfaceMonitorServer(t)
+	previousInterface, previousValidate, previousStart := physicalProxyInterface, validateProxyCore, startProxyCore
+	t.Cleanup(func() {
+		physicalProxyInterface, validateProxyCore, startProxyCore = previousInterface, previousValidate, previousStart
+	})
+	physicalProxyInterface = func(context.Context) (string, error) { return "en0", nil }
+	validations := 0
+	validateProxyCore = func(context.Context, string, managedproxy.Store) error {
+		validations++
+		if validations == 1 {
+			return errors.New("uplink is still warming up")
+		}
+		return nil
+	}
+	startProxyCore = func(context.Context, string, managedproxy.Store) error { return nil }
+	s.networkPaused = true
+	s.proxyNetworkLost = true
+	tick := func() {
+		s.op.Lock()
+		s.monitorProxyInterface()
+		s.op.Unlock()
+		s.jobs.workers.Wait()
+	}
+	tick()
+	if validations != 1 || gate.Status().Mode != cage.GateClosed {
+		t.Fatalf("validations=%d gate=%s", validations, gate.Status().Mode)
+	}
+	if !s.proxyNetworkLost {
+		t.Fatal("failed rebind forgot the outage on an unchanged interface")
+	}
+	tick()
+	if validations != 1 {
+		t.Fatal("retried before the backoff elapsed")
+	}
+	s.proxyRebindAfter = time.Now().Add(-time.Second)
+	tick()
+	if validations != 2 || s.proxyNetworkLost || gate.Status().Mode != cage.GateClosed || !s.networkPaused {
+		t.Fatalf("validations=%d lost=%v gate=%s paused=%v", validations, s.proxyNetworkLost, gate.Status().Mode, s.networkPaused)
+	}
+}
