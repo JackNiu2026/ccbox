@@ -317,6 +317,10 @@ for (const [platform, system] of [["darwin", "macos"], ["windows", "windows-11"]
   try {
     const { page } = f;
     await page.getByRole("button", { name: "下一步：配置代理" }).click();
+    const config = page.getByRole("tab", { name: "配置代理", exact: true });
+    assert.equal(await config.getAttribute("aria-selected"), "true");
+    assert.equal(await page.getByRole("tab", { name: /订阅/ }).count(), 0);
+    await page.getByRole("region", { name: "导入来源", exact: true }).waitFor();
     const start = page.getByRole("button", { name: "开始安装", exact: true });
     assert.ok(await start.isDisabled());
     await page.getByRole("button", { name: "手动节点", exact: true }).click();
@@ -324,6 +328,9 @@ for (const [platform, system] of [["darwin", "macos"], ["windows", "windows-11"]
     await page.getByLabel("服务器", { exact: true }).fill("127.0.0.1");
     await page.getByRole("button", { name: "导入并验证", exact: true }).click();
     const nodes = page.getByRole("region", { name: "选择节点", exact: true });
+    await nodes.waitFor();
+    assert.equal(await config.getAttribute("aria-selected"), "true");
+    await page.getByRole("tab", { name: "订阅管理", exact: true }).waitFor();
     await nodes.getByRole("button", { name: "选择节点 本机测试代理", exact: true }).click();
     await page.getByRole("button", { name: "应用代理", exact: true }).click();
     await page.getByText("已完成", { exact: true }).waitFor();

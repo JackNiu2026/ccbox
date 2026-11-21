@@ -139,7 +139,7 @@
 }
 .account-exit-app {
   margin-top: 12px;
-  flex-shrink: 0;
+  min-height: 32px;
 }
 .account-avatar {
   width: 32px;

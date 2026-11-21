@@ -464,15 +464,16 @@ export function AccountGate({ children }) {
             ? "注册后会生成恢复密钥。请保存到密码管理器，忘记密码时可用它恢复。"
             : account?.recovery_ready ? "忘记密码时，可使用已保存的恢复密钥重置。" : "此账户尚未设置恢复密钥。能登录时，请到「设置 → 账户」补设。"}
         </p>}
+        {nativeAvailable() && (
+          <button
+            type="button"
+            className="text-button account-exit-app"
+            onClick={() => native("quitNow").catch((e) => setError(e.message))}
+          >
+            {account?.background_running ? "退出应用，后台继续运行" : "退出 CCBox"}
+          </button>
+        )}
       </section>
-      {nativeAvailable() && (
-        <button
-          className="text-button account-exit-app"
-          onClick={() => native("quitNow").catch((e) => setError(e.message))}
-        >
-          {account?.background_running ? "退出应用，后台继续运行" : "退出 CCBox"}
-        </button>
-      )}
     </main>
   );
 }

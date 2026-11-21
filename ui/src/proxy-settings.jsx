@@ -395,6 +395,14 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
         .toLowerCase()
         .includes(search.toLowerCase()),
   );
+  const showFirstImport = initializing && tab === "nodes" && !hasNodes;
+  const showSubscriptionTab = !initializing || proxy.sources.length > 0 || tab === "sources";
+  const networkPolicy = (
+    <p className="field-help">
+      仅允许经节点转发的 IPv4 TCP 和 DNS；公网 UDP、IPv6、ICMP
+      持续阻断。切换会关闭旧网络连接并重新检查出口。
+    </p>
+  );
   return (
     <div className="proxy-manager">
       <div className="section-title">
@@ -473,30 +481,32 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           </div>
         </section>
       )}
-      <div className="proxy-summary">
-        <Server size={22} />
-        <div>
-          <strong>
-            {selected ? `最终出口 · ${selected.name}` : "尚未配置代理节点"}
-          </strong>
-          {savedRoute.length > 1 && (
-            <span className="proxy-current-route">
-              当前链路：{savedRoute.map(routeName).join(" → ")}
+      {!showFirstImport && (
+        <div className="proxy-summary">
+          <Server size={22} />
+          <div>
+            <strong>
+              {selected ? `最终出口 · ${selected.name}` : "尚未配置代理节点"}
+            </strong>
+            {savedRoute.length > 1 && (
+              <span className="proxy-current-route">
+                当前链路：{savedRoute.map(routeName).join(" → ")}
+              </span>
+            )}
+            <span>
+              {proxy.active
+                ? proxy.running
+                  ? "CCBox 自带核心运行中"
+                  : "核心未就绪"
+                : "请选择节点后应用，未配置时无法联网"}{" "}
+              · 独立端口 {proxy.port}
             </span>
-          )}
-          <span>
-            {proxy.active
-              ? proxy.running
-                ? "CCBox 自带核心运行中"
-                : "核心未就绪"
-              : "请选择节点后应用，未配置时无法联网"}{" "}
-            · 独立端口 {proxy.port}
+          </div>
+          <span className={`proxy-badge ${proxy.network_open ? "online" : ""}`}>
+            {proxy.state_label}
           </span>
         </div>
-        <span className={`proxy-badge ${proxy.network_open ? "online" : ""}`}>
-          {proxy.state_label}
-        </span>
-      </div>
+      )}
       {proxy.active && status.location && (
         <p className="field-help">
           最近检测出口：{status.location.ip} · {status.location.country}{" "}
@@ -508,17 +518,14 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           安装包缺少随附代理核心，请重新构建或安装完整 CCBox 应用。
         </div>
       )}
-      <p className="field-help">
-        仅允许经节点转发的 IPv4 TCP 和 DNS；公网 UDP、IPv6、ICMP
-        持续阻断。切换会关闭旧网络连接并重新检查出口。
-      </p>
+      {!showFirstImport && networkPolicy}
       <div role="tablist" aria-label="代理管理" className="proxy-tabs">
         {[
-          ["nodes", "节点"],
-          ["sources", "订阅"],
+          ["nodes", initializing ? "配置代理" : "节点"],
+          ["sources", initializing ? "订阅管理" : "订阅"],
           ["connections", "连接"],
           ["diagnostics", "诊断"],
-        ].map(([id, label]) => (
+        ].filter(([id]) => id !== "sources" || showSubscriptionTab).map(([id, label]) => (
           <button
             key={id}
             role="tab"
@@ -909,6 +916,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           </div>
         </section>
       )}
+      {showFirstImport && networkPolicy}
       {tab === "nodes" && hasNodes && (
         <section className="proxy-node-section" aria-labelledby="proxy-node-select-title">
           <div className="proxy-node-heading">
