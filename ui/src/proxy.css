@@ -727,52 +727,9 @@
   }
 }
 
-.proxy-wizard {
-  margin: 0 0 16px;
+.proxy-node-section {
+  margin-top: 20px;
 }
-.proxy-wizard-steps {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin: 0 0 18px;
-  padding: 0;
-  list-style: none;
-  gap: 8px;
-}
-.proxy-wizard-steps li {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-  padding: 8px 6px;
-  border-bottom: 2px solid var(--line);
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.4;
-}
-.proxy-wizard-steps li[aria-current="step"] {
-  border-color: var(--accent);
-  color: var(--strong);
-  font-weight: 600;
-}
-.proxy-step-number {
-  display: grid;
-  width: 20px;
-  height: 20px;
-  place-items: center;
-  border-radius: 50%;
-  background: color-mix(in srgb, currentColor 8%, transparent);
-  flex: none;
-}
-.proxy-wizard h4 {
-  margin: 0 0 5px;
-}
-.proxy-wizard .field-help {
-  margin: 0;
-}
-.proxy-wizard-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 16px;
+.proxy-node-heading {
+  margin-bottom: 12px;
 }

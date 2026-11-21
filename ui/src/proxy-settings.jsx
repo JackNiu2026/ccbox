@@ -1,7 +1,6 @@
 import { InlineSelect } from "./inline-select";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Download,
   Plus,
   Search,
   RefreshCw,
@@ -43,10 +42,6 @@ function usageLabel(raw) {
     .filter(Boolean)
     .join(" · ");
 }
-const proxySteps = [
-  ["import", "导入来源"],
-  ["nodes", "选择节点"],
-];
 const emptyForm = {
   name: "",
   url: "",
@@ -85,13 +80,27 @@ function subscriptionName(address) {
   }
 }
 
+function useSourceForm() {
+  const [formDraft, setForm] = useState(null);
+  const [mode, setMode] = useState("url");
+  const [manual, setManual] = useState(emptyManual);
+  const [readingFile, setReadingFile] = useState(false);
+  const [formError, setFormError] = useState("");
+  const resetForm = (value = null) => {
+    setForm(value);
+    setMode("url");
+    setManual(emptyManual);
+    setReadingFile(false);
+    setFormError("");
+  };
+  return { formDraft, setForm, mode, setMode, manual, setManual, readingFile, setReadingFile, formError, setFormError, resetForm };
+}
+
 export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializing = false }) {
   const [proxy, setProxy] = useState(null),
-    [chosenTab, setTab] = useState(null),
+    [tab, setTab] = useState("nodes"),
     [search, setSearch] = useState(""),
     [source, setSource] = useState(""),
-    [formDraft, setForm] = useState(null),
-    [mode, setMode] = useState("url"),
     [error, setError] = useState(""),
     [pending, setPending] = useState(""),
     [notice, setNotice] = useState(""),
@@ -100,25 +109,34 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
     [logs, setLogs] = useState([]),
     [port, setPort] = useState("17896"),
     [rates, setRates] = useState({ up: 0, down: 0 });
-  const [manual, setManual] = useState(emptyManual);
+  const nodeImport = useSourceForm();
+  const sourceEditor = useSourceForm();
+  const { formDraft, setForm, mode, setMode, manual, setManual, readingFile, setReadingFile, formError, setFormError, resetForm } =
+    tab === "sources" ? sourceEditor : nodeImport;
   const [routeDraft, setRouteDraft] = useState(null);
   const [hostRefresh, setHostRefresh] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
-  const [readingFile, setReadingFile] = useState(false);
-  const tab = chosenTab ?? (proxy?.sources.some((item) => item.nodes.length) ? "nodes" : "import");
-  const form = formDraft ?? (tab === "import" ? emptyForm : null);
-  const stepIndex = proxySteps.findIndex(([id]) => id === tab);
-  const stepHeading = useRef(null);
-  const previousTab = useRef(tab);
+  const hasNodes = Boolean(proxy?.sources.some((item) => item.nodes.length));
+  const showInlineImport = tab === "nodes" && (!hasNodes || Boolean(formDraft));
+  const form = showInlineImport ? formDraft ?? emptyForm : tab === "sources" ? formDraft : null;
+  const importHeading = useRef(null);
+  const nodeHeading = useRef(null);
+  const pendingFocus = useRef("");
   useEffect(() => {
-    if (previousTab.current !== tab) stepHeading.current?.focus();
-    previousTab.current = tab;
-  }, [tab]);
+    if (tab !== "nodes" || pendingFocus.current !== (showInlineImport ? "import" : "nodes")) return;
+    const heading = showInlineImport ? importHeading.current : nodeHeading.current;
+    if (heading) {
+      heading.focus();
+      pendingFocus.current = "";
+    }
+  }, [tab, showInlineImport]);
   const openImport = () => {
-    setTab("import");
-    setForm({ ...emptyForm });
-    setMode("url");
-    setManual(emptyManual);
+    pendingFocus.current = "import";
+    resetForm({ ...emptyForm });
+  };
+  const closeImport = () => {
+    if (tab === "nodes") pendingFocus.current = "nodes";
+    resetForm();
   };
   const alive = useRef(true),
     loading = useRef(false),
@@ -197,7 +215,9 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
   }, [tab]);
   const busy = Boolean(pending) || Boolean(status.job?.running);
   const mutate = async (action, input = {}) => {
-    setError("");
+    const sourceFormAction = action === "import" || action === "edit";
+    const reportError = sourceFormAction ? setFormError : setError;
+    reportError("");
     setNotice("");
     setPending(action);
     try {
@@ -214,8 +234,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
       await onApplied();
       if (current.error) throw new Error(current.error);
       if (alive.current) {
-        setForm(null);
-        setManual(emptyManual);
+        if (sourceFormAction) closeImport();
         if (action === "route" || action === "select") setRouteDraft(null);
         const importedSource =
           action === "import"
@@ -223,9 +242,6 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
             : action === "refresh"
               ? updated.sources.find((source) => source.id === input.id)
               : null;
-        if (action === "import" && tab === "import" && importedSource?.nodes.length) {
-          setTab((current) => current === null || current === "import" ? "nodes" : current);
-        }
         setNotice(
           importedSource
             ? `已导入 ${importedSource.nodes.length} 个节点，跳过 ${importedSource.skipped?.length || 0} 个${importedSource.skipped?.length ? "；可在来源下查看跳过原因" : ""}`
@@ -234,7 +250,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
         setDelays({});
       }
     } catch (e) {
-      if (alive.current) setError(e.message);
+      if (alive.current) reportError(e.message);
     } finally {
       if (alive.current) setPending("");
     }
@@ -331,10 +347,11 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
     (!manualSSH || manual.username.trim() &&
       (manual.sshAuth === "password" ? manual.password : manual.privateKey.includes("PRIVATE KEY"))),
   );
+  const hasFormDraft = Boolean(nodeImport.formDraft || sourceEditor.formDraft);
   useEffect(() => {
-    onDirty?.(routeChanged || initializing && Boolean(formDraft));
+    onDirty?.(routeChanged || initializing && hasFormDraft);
     return () => onDirty?.(false);
-  }, [onDirty, routeChanged, initializing, Boolean(formDraft)]);
+  }, [onDirty, routeChanged, initializing, hasFormDraft]);
   if (!proxy)
     return <div className="proxy-loading" role={error ? "alert" : "status"}>{error || "正在读取代理配置…"}</div>;
   const allNodes = proxy.sources.flatMap((s) =>
@@ -505,303 +522,15 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           <button
             key={id}
             role="tab"
-            aria-selected={tab === id || id === "nodes" && stepIndex >= 0}
+            aria-selected={tab === id}
             onClick={() => setTab(id)}
           >
             {label}
           </button>
         ))}
       </div>
-      {stepIndex >= 0 && (
-        <div className="proxy-wizard">
-          <ol className="proxy-wizard-steps" role="list" aria-label="代理配置步骤">
-            {proxySteps.map(([id, title], index) => (
-              <li key={id} aria-current={index === stepIndex ? "step" : undefined}>
-                <span className="proxy-step-number" aria-hidden="true">{index + 1}</span>
-                <span>{title}</span>
-              </li>
-            ))}
-          </ol>
-          <h4 ref={stepHeading} tabIndex={-1}>{proxySteps[stepIndex][1]}</h4>
-          <p className="field-help">
-            {tab === "import"
-              ? "粘贴订阅链接、导入本地 YAML，或手动添加节点。"
-              : "选好最终出口后点击「应用代理」。有中转需求时可配置链式代理。"}
-          </p>
-        </div>
-      )}
-      {tab === "nodes" && (
+      {tab === "sources" && (
         <>
-          {allNodes.length > 0 && (
-            <section
-              className="proxy-route"
-              aria-labelledby="proxy-route-title"
-            >
-              <div className="proxy-route-heading">
-                <div>
-                  <h4 id="proxy-route-title">配置连接方式</h4>
-                  <p>直接使用一个出口，或经中转连接住宅代理。</p>
-                </div>
-                <div
-                  className="proxy-route-mode"
-                  role="group"
-                  aria-label="连接方式"
-                >
-                  <button
-                    type="button"
-                    aria-pressed={route.length === 1}
-                    disabled={busy}
-                    onClick={() => setRouteDraft([route.at(-1)])}
-                  >
-                    单节点
-                  </button>
-                  <button
-                    type="button"
-                    aria-pressed={route.length > 1}
-                    disabled={busy}
-                    onClick={() => {
-                      if (route.length === 1) setRouteDraft(["", route[0]]);
-                    }}
-                  >
-                    链式代理
-                  </button>
-                </div>
-              </div>
-              <ol className="proxy-route-hops">
-                {route.map((id, index) => {
-                  const final = index === route.length - 1;
-                  const label = final
-                    ? "最终出口"
-                    : `中转节点${route.length > 2 ? ` ${index + 1}` : ""}`;
-                  return (
-                    <li
-                      key={index}
-                      className={`proxy-route-hop ${final ? "is-exit" : ""}`}
-                    >
-                      <span className="proxy-hop-number" aria-hidden="true">
-                        {index + 1}
-                      </span>
-                      <div className="proxy-hop-control">
-                        <label htmlFor={`proxy-hop-${index}`}>{label}</label>
-                        <InlineSelect
-                          id={`proxy-hop-${index}`}
-                          aria-label={label}
-                          value={id}
-                          disabled={busy}
-                          onValueChange={(next) => updateHop(index, next)}
-                        >
-                          <option value="" disabled>
-                            请选择{label}
-                          </option>
-                          {Boolean(id) &&
-                            !allNodes.some((n) => n.id === id) && (
-                              <option value={id} disabled>
-                                节点已被移除，请重新选择
-                              </option>
-                            )}
-                          {proxy.sources.map((src) => (
-                            <optgroup key={src.id} label={src.name}>
-                              {src.nodes.map((n) => (
-                                <option
-                                  key={n.id}
-                                  value={n.id}
-                                  disabled={route.some(
-                                    (hop, i) => i !== index && hop === n.id,
-                                  )}
-                                >
-                                  {n.name}
-                                </option>
-                              ))}
-                            </optgroup>
-                          ))}
-                        </InlineSelect>
-                        {final && <small>目标网站看到此节点的出口 IP</small>}
-                      </div>
-                      {!final && (
-                        <button
-                          className="icon-button proxy-hop-remove"
-                          type="button"
-                          disabled={busy}
-                          aria-label={`移除${label}`}
-                          title={`移除${label}`}
-                          onClick={() =>
-                            setRouteDraft(route.filter((_, i) => i !== index))
-                          }
-                        >
-                          <X size={15} />
-                        </button>
-                      )}
-                    </li>
-                  );
-                })}
-              </ol>
-              {route.length > 1 && route.length < allNodes.length && (
-                <button
-                  type="button"
-                  className="proxy-route-add"
-                  disabled={busy || route.length >= allNodes.length}
-                  onClick={() =>
-                    setRouteDraft([...route.slice(0, -1), "", route.at(-1)])
-                  }
-                >
-                  <Plus size={14} />
-                  添加中转
-                </button>
-              )}
-              {routePreview}
-              <div className="proxy-route-actions">
-                <span aria-live="polite">
-                  {routeChanged ? "有未应用的代理修改" : proxy.active ? "当前配置已应用" : "选择完成后应用代理"}
-                </span>
-                <div>
-                  {undoRoute}
-                  <button
-                    type="button"
-                    className={routeChanged || !proxy.active ? "primary" : ""}
-                    disabled={busy || !proxy.core_available || !routeValid}
-                    onClick={() => applyRoute(route)}
-                  >
-                    {pending === "route" ? (
-                      <LoaderCircle size={14} className="spin" />
-                    ) : !routeChanged && proxy.active ? (
-                      <RefreshCw size={14} />
-                    ) : (
-                      <Check size={14} />
-                    )}
-                    {routeChanged || !proxy.active ? "应用代理" : "重新应用"}
-                  </button>
-                </div>
-              </div>
-              {routeError}
-              {error && (
-                <div role="alert" className="error-message">
-                  <SafetyMessage message={error} />
-                </div>
-              )}
-            </section>
-          )}
-          {allNodes.length > 0 && (
-            <div className="proxy-node-heading">
-              <h4>可用节点</h4>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={openImport}
-              >
-                <Plus size={14} />
-                添加来源
-              </button>
-            </div>
-          )}
-          <div className="proxy-toolbar">
-            <label className="proxy-search">
-              <Search size={15} />
-              <input
-                aria-label="搜索节点"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="搜索节点、来源或协议"
-              />
-            </label>
-            <InlineSelect
-              aria-label="节点来源"
-              value={source}
-              onValueChange={(next) => setSource(next)}
-            >
-              <option value="">全部来源</option>
-              {proxy.sources.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </InlineSelect>
-            <button
-              disabled={busy || !proxy.running || !nodes.length}
-              title="检测 HTTP 往返延迟，通常不含建连开销，不代表网页首开耗时"
-              onClick={() => measure(nodes.map((n) => n.id))}
-            >
-              <Activity size={14} />
-              测速
-            </button>
-          </div>
-          {!allNodes.length ? (
-            <div className="proxy-empty">
-              <Download size={26} />
-              <strong>添加第一份节点来源</strong>
-              <p>支持 Clash/Mihomo YAML 订阅、本地配置或手动节点。</p>
-              <button
-                onClick={openImport}
-              >
-                <Plus size={15} />
-                添加来源
-              </button>
-            </div>
-          ) : (
-            <div className="proxy-node-list proxy-node-results">
-              {nodes.map((n) => (
-                <div
-                  className={`proxy-node ${n.id === route.at(-1) ? "selected" : ""}`}
-                  key={n.id}
-                >
-                  <button
-                    className="proxy-node-choice"
-                    disabled={
-                      busy ||
-                      !proxy.core_available ||
-                      route.slice(0, -1).includes(n.id)
-                    }
-                    title={
-                      route.slice(0, -1).includes(n.id)
-                        ? "此节点已用作中转"
-                        : "选为最终出口，点击应用代理后生效"
-                    }
-                    onClick={() => updateHop(route.length - 1, n.id)}
-                    aria-pressed={n.id === route.at(-1)}
-                    aria-label={`选择节点 ${n.name}`}
-                  >
-                    <span className="proxy-radio">
-                      {n.id === route.at(-1) && <Check size={12} />}
-                    </span>
-                    <span>
-                      <strong>{n.name}</strong>
-                      <small>
-                        {n.source} · {n.type.toUpperCase()}
-                      </small>
-                    </span>
-                  </button>
-                  <div className="proxy-node-details">
-                    {savedRoute.includes(n.id) && (
-                      <span className="proxy-node-role">
-                        {n.id === proxy.selected ? "当前出口" : "当前中转"}
-                      </span>
-                    )}
-                    <span className="proxy-delay">
-                      {delays[n.id] || "未测速"}
-                    </span>
-                  </div>
-                  <button
-                    aria-label={`测速 ${n.name}`}
-                    title="检测此节点到 www.gstatic.com 的 HTTP 往返延迟，通常不含建连开销，不代表网页首开耗时"
-                    disabled={busy || !proxy.running}
-                    onClick={() => measure([n.id])}
-                  >
-                    <Activity size={14} />
-                  </button>
-                </div>
-              ))}
-              {!nodes.length && (
-                <p className="field-help">没有符合搜索条件的节点。</p>
-              )}
-            </div>
-          )}
-          {allNodes.length > 0 && <div className="proxy-wizard-actions">
-            <button type="button" disabled={busy} onClick={openImport}>返回导入</button>
-          </div>}
-        </>
-      )}
-      {(tab === "import" || tab === "sources") && (
-        <>
-          {tab === "sources" && <>
           <label className="check-line">
             <input
               type="checkbox"
@@ -819,10 +548,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
             </span>
             <button
               disabled={busy}
-              onClick={() => {
-                setForm({ ...emptyForm });
-                setMode("url");
-              }}
+              onClick={() => resetForm({ ...emptyForm })}
             >
               <Plus size={14} />
               添加来源
@@ -881,16 +607,13 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                 <button
                   disabled={busy}
                   aria-label={`编辑 ${s.name}`}
-                  onClick={() => {
-                    setForm({
-                      ...emptyForm,
-                      id: s.id,
-                      name: s.name,
-                      interval_hours: s.interval_hours,
-                      remote: s.remote,
-                    });
-                    setMode("url");
-                  }}
+                  onClick={() => resetForm({
+                    ...emptyForm,
+                    id: s.id,
+                    name: s.name,
+                    interval_hours: s.interval_hours,
+                    remote: s.remote,
+                  })}
                 >
                   <Pencil size={14} />
                 </button>
@@ -915,276 +638,523 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
               </div>
             </div>
           ))}
-          </>}
-          {form && (
-            <div className="proxy-import">
-              {tab === "sources" && <h4>{form.id ? "编辑来源" : "添加节点来源"}</h4>}
-              {!form.id && (
-                <div className="proxy-tabs">
+        </>
+      )}
+      {form && (
+        <section className="proxy-import" aria-labelledby="proxy-import-title">
+          <h4 id="proxy-import-title" ref={tab === "nodes" ? importHeading : undefined} tabIndex={-1}>
+            {tab === "nodes" ? "导入来源" : form.id ? "编辑来源" : "添加节点来源"}
+          </h4>
+          {!form.id && (
+            <div className="proxy-tabs">
+              {[
+                ["url", "订阅链接"],
+                ["file", "本地 YAML"],
+                ["manual", "手动节点"],
+              ].map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  aria-pressed={mode === id}
+                  className={mode === id ? "selected" : ""}
+                  onClick={() => {
+                    setMode(id);
+                    setForm({ ...form, name: "", content: "", url: "" });
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          {form.id && (
+            <label>
+              来源名称
+              <input
+                value={form.name}
+                maxLength={100}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+            </label>
+          )}
+          {mode === "url" && (!form.id || form.remote) && (
+            <>
+              <label>
+                {form.id ? "新订阅链接（留空保留）" : "订阅链接"}
+                <input
+                  value={form.url}
+                  type="url"
+                  autoComplete="off"
+                  onChange={(e) =>
+                    setForm({ ...form, url: e.target.value })
+                  }
+                  placeholder="https://…"
+                />
+              </label>
+              <label>
+                自动更新间隔
+                <InlineSelect
+                  aria-label="自动更新间隔"
+                  value={form.interval_hours}
+                  onValueChange={(next) =>
+                    setForm({
+                      ...form,
+                      interval_hours: Number(next),
+                    })
+                  }
+                >
                   {[
-                    ["url", "订阅链接"],
-                    ["file", "本地 YAML"],
-                    ["manual", "手动节点"],
-                  ].map(([id, label]) => (
-                    <button
-                      key={id}
-                      type="button"
-                      aria-pressed={mode === id}
-                      className={mode === id ? "selected" : ""}
-                      onClick={() => {
-                        setMode(id);
-                        setForm({ ...form, name: "", content: "", url: "" });
-                      }}
-                    >
+                    [0, "仅手动更新"],
+                    [1, "每小时"],
+                    [6, "每 6 小时"],
+                    [24, "每天"],
+                    [168, "每周"],
+                  ].map(([v, label]) => (
+                    <option value={v} key={v}>
                       {label}
-                    </button>
+                    </option>
                   ))}
-                </div>
+                </InlineSelect>
+              </label>
+              {!form.id && (
+                <p className="field-help">
+                  {proxy.active ? "通过当前应用的代理下载订阅。" : "通过主机网络下载订阅。"}
+                </p>
               )}
-              {form.id && (
+            </>
+          )}
+          {mode === "file" && !form.id && (
+            <ProxyYAMLInput
+              content={form.content}
+              disabled={busy}
+              onReadingChange={setReadingFile}
+              onContentChange={(content) =>
+                setForm((old) => ({ ...(old ?? emptyForm), content }))
+              }
+              onFileRead={(value, content) =>
+                setForm((old) => ({
+                  ...(old ?? emptyForm),
+                  content,
+                  name: sourceName(value.name.replace(/\.[^.]+$/, ""), "本地 YAML"),
+                  interval_hours: 0,
+                }))
+              }
+            />
+          )}
+          {mode === "manual" && !form.id && (
+            <>
+              <div className="field-row">
                 <label>
-                  来源名称
+                  节点名称
                   <input
-                    value={form.name}
-                    maxLength={100}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                    value={manual.name}
+                    onChange={(e) =>
+                      setManual({ ...manual, name: e.target.value })
+                    }
                   />
                 </label>
+                <label>
+                  协议
+                  <InlineSelect
+                    inline
+                    aria-label="协议"
+                    value={manual.type}
+                    onValueChange={(next) =>
+                      setManual({
+                        ...manual,
+                        type: next,
+                        port: manual.port === (manualSSH ? "22" : "1080")
+                          ? next === "ssh" ? "22" : "1080"
+                          : manual.port,
+                      })
+                    }
+                  >
+                    <option value="socks5">SOCKS5</option>
+                    <option value="http">HTTP CONNECT</option>
+                    <option value="ssh">SSH</option>
+                  </InlineSelect>
+                </label>
+              </div>
+              <div className="field-row">
+                <label>
+                  服务器
+                  <input
+                    value={manual.server}
+                    onChange={(e) =>
+                      setManual({ ...manual, server: e.target.value })
+                    }
+                    placeholder="域名或 IP"
+                  />
+                </label>
+                <label>
+                  端口
+                  <input
+                    type="number"
+                    min="1"
+                    max="65535"
+                    value={manual.port}
+                    onChange={(e) =>
+                      setManual({ ...manual, port: e.target.value })
+                    }
+                  />
+                </label>
+              </div>
+              {manualSSH && (
+                <label>
+                  认证方式
+                  <InlineSelect
+                    inline
+                    aria-label="认证方式"
+                    value={manual.sshAuth}
+                    onValueChange={(next) => setManual({
+                      ...manual, sshAuth: next,
+                      ...(next !== manual.sshAuth ? { password: "", privateKey: "", passphrase: "" } : {}),
+                    })}
+                  >
+                    <option value="password">密码</option>
+                    <option value="private-key">私钥</option>
+                  </InlineSelect>
+                </label>
               )}
-              {mode === "url" && (!form.id || form.remote) && (
-                <>
+              <div className="field-row">
+                <label>
+                  {manualSSH ? "用户名（必填）" : "用户名"}
+                  <input
+                    value={manual.username}
+                    autoComplete="off"
+                    onChange={(e) =>
+                      setManual({ ...manual, username: e.target.value })
+                    }
+                  />
+                </label>
+                {(!manualSSH || manual.sshAuth === "password") && <label>
+                  {manualSSH ? "密码（必填）" : "密码"}
+                  <input
+                    type="password"
+                    value={manual.password}
+                    autoComplete="new-password"
+                    onChange={(e) =>
+                      setManual({ ...manual, password: e.target.value })
+                    }
+                  />
+                </label>}
+              </div>
+              {manualSSH && <>
+                {manual.sshAuth === "private-key" && <>
                   <label>
-                    {form.id ? "新订阅链接（留空保留）" : "订阅链接"}
-                    <input
-                      value={form.url}
-                      type="url"
+                    私钥内容（必填）
+                    <textarea
+                      aria-label="私钥内容（必填）"
+                      value={manual.privateKey}
+                      rows={7}
+                      spellCheck={false}
                       autoComplete="off"
-                      onChange={(e) =>
-                        setForm({ ...form, url: e.target.value })
-                      }
-                      placeholder="https://…"
+                      autoCapitalize="none"
+                      onChange={(e) => setManual({ ...manual, privateKey: e.target.value })}
+                      placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
                     />
                   </label>
+                  <p className="field-help">粘贴完整 PEM / OpenSSH 私钥内容，不支持填写本机文件路径。</p>
                   <label>
-                    自动更新间隔
-                    <InlineSelect
-                      aria-label="自动更新间隔"
-                      value={form.interval_hours}
-                      onValueChange={(next) =>
-                        setForm({
-                          ...form,
-                          interval_hours: Number(next),
-                        })
-                      }
-                    >
-                      {[
-                        [0, "仅手动更新"],
-                        [1, "每小时"],
-                        [6, "每 6 小时"],
-                        [24, "每天"],
-                        [168, "每周"],
-                      ].map(([v, label]) => (
-                        <option value={v} key={v}>
-                          {label}
-                        </option>
-                      ))}
-                    </InlineSelect>
+                    私钥口令（可选）
+                    <input
+                      type="password"
+                      value={manual.passphrase}
+                      autoComplete="new-password"
+                      onChange={(e) => setManual({ ...manual, passphrase: e.target.value })}
+                    />
                   </label>
-                  {!form.id && (
-                    <p className="field-help">
-                      {proxy.active ? "通过当前应用的代理下载订阅。" : "通过主机网络下载订阅。"}
-                    </p>
-                  )}
-                </>
-              )}
-              {mode === "file" && !form.id && (
-                <ProxyYAMLInput
-                  content={form.content}
-                  disabled={busy}
-                  onReadingChange={setReadingFile}
-                  onContentChange={(content) =>
-                    setForm((old) => ({ ...(old ?? emptyForm), content }))
-                  }
-                  onFileRead={(value, content) =>
-                    setForm((old) => ({
-                      ...(old ?? emptyForm),
-                      content,
-                      name: sourceName(value.name.replace(/\.[^.]+$/, ""), "本地 YAML"),
-                      interval_hours: 0,
-                    }))
-                  }
-                />
-              )}
-              {mode === "manual" && !form.id && (
-                <>
-                  <div className="field-row">
-                    <label>
-                      节点名称
-                      <input
-                        value={manual.name}
-                        onChange={(e) =>
-                          setManual({ ...manual, name: e.target.value })
-                        }
-                      />
-                    </label>
-                    <label>
-                      协议
-                      <InlineSelect
-                        inline
-                        aria-label="协议"
-                        value={manual.type}
-                        onValueChange={(next) =>
-                          setManual({
-                            ...manual,
-                            type: next,
-                            port: manual.port === (manualSSH ? "22" : "1080")
-                              ? next === "ssh" ? "22" : "1080"
-                              : manual.port,
-                          })
-                        }
-                      >
-                        <option value="socks5">SOCKS5</option>
-                        <option value="http">HTTP CONNECT</option>
-                        <option value="ssh">SSH</option>
-                      </InlineSelect>
-                    </label>
-                  </div>
-                  <div className="field-row">
-                    <label>
-                      服务器
-                      <input
-                        value={manual.server}
-                        onChange={(e) =>
-                          setManual({ ...manual, server: e.target.value })
-                        }
-                        placeholder="域名或 IP"
-                      />
-                    </label>
-                    <label>
-                      端口
-                      <input
-                        type="number"
-                        min="1"
-                        max="65535"
-                        value={manual.port}
-                        onChange={(e) =>
-                          setManual({ ...manual, port: e.target.value })
-                        }
-                      />
-                    </label>
-                  </div>
-                  {manualSSH && (
-                    <label>
-                      认证方式
-                      <InlineSelect
-                        inline
-                        aria-label="认证方式"
-                        value={manual.sshAuth}
-                        onValueChange={(next) => setManual({
-                          ...manual, sshAuth: next,
-                          ...(next !== manual.sshAuth ? { password: "", privateKey: "", passphrase: "" } : {}),
-                        })}
-                      >
-                        <option value="password">密码</option>
-                        <option value="private-key">私钥</option>
-                      </InlineSelect>
-                    </label>
-                  )}
-                  <div className="field-row">
-                    <label>
-                      {manualSSH ? "用户名（必填）" : "用户名"}
-                      <input
-                        value={manual.username}
-                        autoComplete="off"
-                        onChange={(e) =>
-                          setManual({ ...manual, username: e.target.value })
-                        }
-                      />
-                    </label>
-                    {(!manualSSH || manual.sshAuth === "password") && <label>
-                      {manualSSH ? "密码（必填）" : "密码"}
-                      <input
-                        type="password"
-                        value={manual.password}
-                        autoComplete="new-password"
-                        onChange={(e) =>
-                          setManual({ ...manual, password: e.target.value })
-                        }
-                      />
-                    </label>}
-                  </div>
-                  {manualSSH && <>
-                    {manual.sshAuth === "private-key" && <>
-                      <label>
-                        私钥内容（必填）
-                        <textarea
-                          aria-label="私钥内容（必填）"
-                          value={manual.privateKey}
-                          rows={7}
-                          spellCheck={false}
-                          autoComplete="off"
-                          autoCapitalize="none"
-                          onChange={(e) => setManual({ ...manual, privateKey: e.target.value })}
-                          placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
-                        />
-                      </label>
-                      <p className="field-help">粘贴完整 PEM / OpenSSH 私钥内容，不支持填写本机文件路径。</p>
-                      <label>
-                        私钥口令（可选）
-                        <input
-                          type="password"
-                          value={manual.passphrase}
-                          autoComplete="new-password"
-                          onChange={(e) => setManual({ ...manual, passphrase: e.target.value })}
-                        />
-                      </label>
-                    </>}
-                    <label>
-                      服务器公钥（可选，建议填写）
-                      <textarea
-                        aria-label="服务器公钥（可选，建议填写）"
-                        value={manual.hostKey}
-                        rows={2}
-                        spellCheck={false}
-                        autoCapitalize="none"
-                        onChange={(e) => setManual({ ...manual, hostKey: e.target.value })}
-                        placeholder="ssh-ed25519 AAAA…"
-                      />
-                    </label>
-                    <p className="field-help">填写可信的服务器公钥以核对服务器身份，每行一条；留空时不校验服务器身份。SSH 仅转发 TCP。</p>
-                  </>}
-                </>
-              )}
-              <div className="proxy-form-actions">
-                {tab === "sources" && <button disabled={busy} onClick={() => { setForm(null); setManual(emptyManual); }}>
-                  取消
-                </button>}
-                {tab === "import" && allNodes.length > 0 &&
-                  <button type="button" disabled={busy} onClick={() => {
-                    setForm(null);
-                    setManual(emptyManual);
-                    setTab("nodes");
-                  }}>使用已有节点</button>}
+                </>}
+                <label>
+                  服务器公钥（可选，建议填写）
+                  <textarea
+                    aria-label="服务器公钥（可选，建议填写）"
+                    value={manual.hostKey}
+                    rows={2}
+                    spellCheck={false}
+                    autoCapitalize="none"
+                    onChange={(e) => setManual({ ...manual, hostKey: e.target.value })}
+                    placeholder="ssh-ed25519 AAAA…"
+                  />
+                </label>
+                <p className="field-help">填写可信的服务器公钥以核对服务器身份，每行一条；留空时不校验服务器身份。SSH 仅转发 TCP。</p>
+              </>}
+            </>
+          )}
+          {formError && (
+            <div role="alert" className="error-message">
+              <SafetyMessage message={formError} />
+            </div>
+          )}
+          <div className="proxy-form-actions">
+            {(tab === "sources" || hasNodes) && (
+              <button type="button" disabled={busy} onClick={closeImport}>取消</button>
+            )}
+            <button
+              className="primary"
+              disabled={
+                busy ||
+                readingFile ||
+                (!form.id &&
+                  (mode === "url"
+                    ? !form.url.trim()
+                    : mode === "file"
+                      ? !form.content.trim()
+                      : !manualValid))
+              }
+              onClick={submit}
+            >
+              {form.id ? "保存来源" : "导入并验证"}
+            </button>
+          </div>
+        </section>
+      )}
+      {tab === "nodes" && hasNodes && (
+        <section className="proxy-node-section" aria-labelledby="proxy-node-select-title">
+          <div className="proxy-node-heading">
+            <h4 id="proxy-node-select-title" ref={nodeHeading} tabIndex={-1}>选择节点</h4>
+            {!showInlineImport && (
+              <button type="button" disabled={busy} onClick={openImport}>
+                <Plus size={14} />
+                添加来源
+              </button>
+            )}
+          </div>
+          <section
+            className="proxy-route"
+            aria-labelledby="proxy-route-title"
+          >
+            <div className="proxy-route-heading">
+              <div>
+                <h4 id="proxy-route-title">配置连接方式</h4>
+                <p>直接使用一个出口，或经中转连接住宅代理。</p>
+              </div>
+              <div
+                className="proxy-route-mode"
+                role="group"
+                aria-label="连接方式"
+              >
                 <button
-                  className="primary"
-                  disabled={
-                    busy ||
-                    readingFile ||
-                    (!form.id &&
-                      (mode === "url"
-                        ? !form.url.trim()
-                        : mode === "file"
-                          ? !form.content.trim()
-                          : !manualValid))
-                  }
-                  onClick={submit}
+                  type="button"
+                  aria-pressed={route.length === 1}
+                  disabled={busy}
+                  onClick={() => setRouteDraft([route.at(-1)])}
                 >
-                  {form.id ? "保存来源" : "导入并验证"}
+                  单节点
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={route.length > 1}
+                  disabled={busy}
+                  onClick={() => {
+                    if (route.length === 1) setRouteDraft(["", route[0]]);
+                  }}
+                >
+                  链式代理
                 </button>
               </div>
             </div>
-          )}
-        </>
+            <ol className="proxy-route-hops">
+              {route.map((id, index) => {
+                const final = index === route.length - 1;
+                const label = final
+                  ? "最终出口"
+                  : `中转节点${route.length > 2 ? ` ${index + 1}` : ""}`;
+                return (
+                  <li
+                    key={index}
+                    className={`proxy-route-hop ${final ? "is-exit" : ""}`}
+                  >
+                    <span className="proxy-hop-number" aria-hidden="true">
+                      {index + 1}
+                    </span>
+                    <div className="proxy-hop-control">
+                      <label htmlFor={`proxy-hop-${index}`}>{label}</label>
+                      <InlineSelect
+                        id={`proxy-hop-${index}`}
+                        aria-label={label}
+                        value={id}
+                        disabled={busy}
+                        onValueChange={(next) => updateHop(index, next)}
+                      >
+                        <option value="" disabled>
+                          请选择{label}
+                        </option>
+                        {Boolean(id) &&
+                          !allNodes.some((n) => n.id === id) && (
+                            <option value={id} disabled>
+                              节点已被移除，请重新选择
+                            </option>
+                          )}
+                        {proxy.sources.map((src) => (
+                          <optgroup key={src.id} label={src.name}>
+                            {src.nodes.map((n) => (
+                              <option
+                                key={n.id}
+                                value={n.id}
+                                disabled={route.some(
+                                  (hop, i) => i !== index && hop === n.id,
+                                )}
+                              >
+                                {n.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </InlineSelect>
+                      {final && <small>目标网站看到此节点的出口 IP</small>}
+                    </div>
+                    {!final && (
+                      <button
+                        className="icon-button proxy-hop-remove"
+                        type="button"
+                        disabled={busy}
+                        aria-label={`移除${label}`}
+                        title={`移除${label}`}
+                        onClick={() =>
+                          setRouteDraft(route.filter((_, i) => i !== index))
+                        }
+                      >
+                        <X size={15} />
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ol>
+            {route.length > 1 && route.length < allNodes.length && (
+              <button
+                type="button"
+                className="proxy-route-add"
+                disabled={busy || route.length >= allNodes.length}
+                onClick={() =>
+                  setRouteDraft([...route.slice(0, -1), "", route.at(-1)])
+                }
+              >
+                <Plus size={14} />
+                添加中转
+              </button>
+            )}
+            {routePreview}
+            <div className="proxy-route-actions">
+              <span aria-live="polite">
+                {routeChanged ? "有未应用的代理修改" : proxy.active ? "当前配置已应用" : "选择完成后应用代理"}
+              </span>
+              <div>
+                {undoRoute}
+                <button
+                  type="button"
+                  className={routeChanged || !proxy.active ? "primary" : ""}
+                  disabled={busy || !proxy.core_available || !routeValid}
+                  onClick={() => applyRoute(route)}
+                >
+                  {pending === "route" ? (
+                    <LoaderCircle size={14} className="spin" />
+                  ) : !routeChanged && proxy.active ? (
+                    <RefreshCw size={14} />
+                  ) : (
+                    <Check size={14} />
+                  )}
+                  {routeChanged || !proxy.active ? "应用代理" : "重新应用"}
+                </button>
+              </div>
+            </div>
+            {routeError}
+            {error && (
+              <div role="alert" className="error-message">
+                <SafetyMessage message={error} />
+              </div>
+            )}
+          </section>
+          <h4>可用节点</h4>
+          <div className="proxy-toolbar">
+            <label className="proxy-search">
+              <Search size={15} />
+              <input
+                aria-label="搜索节点"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="搜索节点、来源或协议"
+              />
+            </label>
+            <InlineSelect
+              aria-label="节点来源"
+              value={source}
+              onValueChange={(next) => setSource(next)}
+            >
+              <option value="">全部来源</option>
+              {proxy.sources.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </InlineSelect>
+            <button
+              disabled={busy || !proxy.running || !nodes.length}
+              title="检测 HTTP 往返延迟，通常不含建连开销，不代表网页首开耗时"
+              onClick={() => measure(nodes.map((n) => n.id))}
+            >
+              <Activity size={14} />
+              测速
+            </button>
+          </div>
+          <div className="proxy-node-list proxy-node-results">
+            {nodes.map((n) => (
+              <div
+                className={`proxy-node ${n.id === route.at(-1) ? "selected" : ""}`}
+                key={n.id}
+              >
+                <button
+                  className="proxy-node-choice"
+                  disabled={
+                    busy ||
+                    !proxy.core_available ||
+                    route.slice(0, -1).includes(n.id)
+                  }
+                  title={
+                    route.slice(0, -1).includes(n.id)
+                      ? "此节点已用作中转"
+                      : "选为最终出口，点击应用代理后生效"
+                  }
+                  onClick={() => updateHop(route.length - 1, n.id)}
+                  aria-pressed={n.id === route.at(-1)}
+                  aria-label={`选择节点 ${n.name}`}
+                >
+                  <span className="proxy-radio">
+                    {n.id === route.at(-1) && <Check size={12} />}
+                  </span>
+                  <span>
+                    <strong>{n.name}</strong>
+                    <small>
+                      {n.source} · {n.type.toUpperCase()}
+                    </small>
+                  </span>
+                </button>
+                <div className="proxy-node-details">
+                  {savedRoute.includes(n.id) && (
+                    <span className="proxy-node-role">
+                      {n.id === proxy.selected ? "当前出口" : "当前中转"}
+                    </span>
+                  )}
+                  <span className="proxy-delay">
+                    {delays[n.id] || "未测速"}
+                  </span>
+                </div>
+                <button
+                  aria-label={`测速 ${n.name}`}
+                  title="检测此节点到 www.gstatic.com 的 HTTP 往返延迟，通常不含建连开销，不代表网页首开耗时"
+                  disabled={busy || !proxy.running}
+                  onClick={() => measure([n.id])}
+                >
+                  <Activity size={14} />
+                </button>
+              </div>
+            ))}
+            {!nodes.length && (
+              <p className="field-help">没有符合搜索条件的节点。</p>
+            )}
+          </div>
+        </section>
       )}
       {tab === "connections" && (
         <>

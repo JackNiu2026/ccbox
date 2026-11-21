@@ -51,17 +51,24 @@ for (const mode of ["subscription", "yaml", "pasted-yaml", "manual", "saved", "a
   try {
     await page.getByRole("button", { name: /^设置/ }).click();
     await page.getByRole("button", { name: "网络与代理", exact: true }).click();
-    const current = page.getByRole("list", { name: "代理配置步骤", exact: true }).locator('[aria-current="step"]');
-    await current.waitFor({ timeout: 5000 });
+    const tab = page.getByRole("tab", { name: "节点", exact: true });
+    await tab.waitFor();
+    assert.equal(await tab.getAttribute("aria-selected"), "true");
+    const importSection = page.getByRole("region", { name: "导入来源", exact: true });
+    const nodeSection = page.getByRole("region", { name: "选择节点", exact: true });
     const apply = page.getByRole("button", { name: mode === "saved" ? "重新应用" : "应用代理", exact: true });
     if (addingToSaved) {
       await page.getByRole("button", { name: "选择节点 已有节点备用", exact: true }).click();
       await chooseInline(page.getByRole("combobox", { name: "节点来源", exact: true }), "saved");
       await page.getByLabel("搜索节点", { exact: true }).fill("备用");
-      await page.getByRole("button", { name: "返回导入", exact: true }).click();
+      await page.getByRole("button", { name: "添加来源", exact: true }).click();
+      assert.ok(await nodeSection.isVisible(), "opening import must leave the node section visible");
+      assert.equal(await nodeSection.getByLabel("搜索节点", { exact: true }).inputValue(), "备用");
     }
     if (mode !== "saved") {
-      assert.match(await current.innerText(), /导入来源/);
+      await importSection.waitFor({ timeout: 5000 });
+      assert.equal(await tab.getAttribute("aria-selected"), "true", "import must stay on the node tab");
+      if (!addingToSaved) assert.equal(await nodeSection.count(), 0);
       assert.equal(await page.getByLabel("来源名称", { exact: true }).count(), 0, "new sources must not require a display name");
       assert.equal(await page.getByLabel("通过主机网络下载这份订阅").count(), 0, "download route must be automatic");
       if (usesSubscription) {
@@ -84,8 +91,10 @@ for (const mode of ["subscription", "yaml", "pasted-yaml", "manual", "saved", "a
       }
       await page.getByRole("button", { name: "导入并验证", exact: true }).click();
     }
-    await page.getByRole("heading", { name: "选择节点", exact: true }).waitFor();
-    assert.match(await current.innerText(), /选择节点/);
+    await nodeSection.waitFor();
+    assert.equal(await tab.getAttribute("aria-selected"), "true");
+    await importSection.waitFor({ state: "hidden" });
+    assert.equal(await page.getByRole("button", { name: "返回导入", exact: true }).count(), 0);
     if (addingToSaved) {
       assert.equal(await page.getByLabel("搜索节点", { exact: true }).inputValue(), "备用", "import cleared node search");
       assert.match(await page.getByRole("combobox", { name: "节点来源", exact: true }).innerText(), /已有来源/, "import replaced the source filter");
@@ -108,7 +117,7 @@ for (const mode of ["subscription", "yaml", "pasted-yaml", "manual", "saved", "a
     assert.equal(imports, mode === "saved" ? 0 : 1);
     assert.equal(applies, 1);
     assert.deepEqual(errors, []);
-    console.log(`PASS ${mode}: automatic defaults and one-click apply`);
+    console.log(`PASS ${mode}: same-page import, automatic defaults and one-click apply`);
   } finally {
     await browser.close();
   }
