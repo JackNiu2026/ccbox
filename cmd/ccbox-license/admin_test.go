@@ -350,3 +350,35 @@ func TestAdminUserManagement(t *testing.T) {
 		t.Fatalf("overview users: %v", overview["users"])
 	}
 }
+
+func TestAdminSessionContinuesPastEightHoursWhileActive(t *testing.T) {
+	client, _, server := newTestAdmin(t)
+	now := time.Date(2026, time.November, 22, 10, 0, 0, 0, time.UTC)
+	server.now = func() time.Time { return now }
+	login := client.do("POST", "api/login", testOrigin, goodLogin)
+	if login.Code != http.StatusOK {
+		t.Fatalf("login status: %d", login.Code)
+	}
+	client.cookie = login.Result().Cookies()[0]
+	if client.cookie.MaxAge != int(sessionIdle/time.Second) {
+		t.Errorf("browser cookie lifetime = %d, want %d", client.cookie.MaxAge, int(sessionIdle/time.Second))
+	}
+	for range 13 {
+		now = now.Add(40 * time.Minute)
+		got := client.do("GET", "api/session", "", nil)
+		info := decode[map[string]any](t, got)
+		if info["authenticated"] != true || info["expires"] != float64(now.Add(sessionIdle).Unix()) {
+			t.Errorf("activity at %s did not renew session through the idle deadline: %v", now, info)
+		}
+		cookies := got.Result().Cookies()
+		if len(cookies) != 1 || cookies[0].MaxAge != int(sessionIdle/time.Second) ||
+			cookies[0].Value != client.cookie.Value || !cookies[0].HttpOnly ||
+			cookies[0].SameSite != http.SameSiteStrictMode || cookies[0].Path != adminPrefix {
+			t.Errorf("authenticated request at %s did not renew the existing cookie", now)
+		}
+	}
+	now = now.Add(sessionIdle)
+	if got := client.do("GET", "api/overview", "", nil); got.Code != http.StatusUnauthorized {
+		t.Fatalf("session survived %v of inactivity: %d", sessionIdle, got.Code)
+	}
+}

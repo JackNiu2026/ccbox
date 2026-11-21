@@ -217,7 +217,7 @@ const stamp = () => new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
 // ---------------------------------------------------------------------- Login
 
 const LOGIN_RULES = [
-  ["SESSION", "闲置 45 分钟或登录 8 小时后失效"],
+  ["SESSION", "连续闲置 45 分钟后需重新登录"],
   ["LIMIT", "同一来源 15 分钟内失败 8 次暂停登录"],
   ["ORIGIN", "所有写操作校验浏览器来源"],
   ["AUDIT", "登录与每次写操作写入操作日志"],
@@ -316,13 +316,13 @@ let renderToken = 0;
 function renderShell() {
   const nav = h("nav", { class: "nav", "aria-label": "管理导航" },
     ROUTES.map(route => h("a", { href: `#/${route.id}`, dataset: { route: route.id } }, icon(route.icon), h("span", {}, route.label))));
-  const expiry = session?.expires ? `会话至 ${new Intl.DateTimeFormat("zh-CN", { timeStyle: "short" }).format(new Date(session.expires * 1000))}` : "";
+  const idleLabel = session?.idle ? `闲置 ${session.idle / 60} 分钟后退出` : "";
   const sidebar = h("aside", { class: "sidebar" },
     h("a", { class: "brand", href: "#/overview" }, h("img", { src: "assets/icon.svg", alt: "" }),
       h("div", {}, h("strong", {}, "CCBox"), h("small", {}, "授权管理后台"))),
     nav,
     h("div", { class: "side-foot" },
-      h("span", { class: "side-user" }, h("i", { "aria-hidden": "true" }, (session?.user || "?").slice(0, 1).toUpperCase()), h("span", {}, h("strong", {}, session?.user || ""), h("span", { class: "session-text" }, expiry))),
+      h("span", { class: "side-user" }, h("i", { "aria-hidden": "true" }, (session?.user || "?").slice(0, 1).toUpperCase()), h("span", {}, h("strong", {}, session?.user || ""), h("span", { class: "session-text" }, idleLabel))),
       h("button", { type: "button", onclick: logout }, "退出登录")),
   );
   shellMain = h("main", { class: "main", id: "main", tabindex: "-1" });

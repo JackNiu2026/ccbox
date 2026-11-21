@@ -32,7 +32,6 @@ var adminFiles embed.FS
 const (
 	adminPrefix      = "/admin/license/"
 	adminCookie      = "ccbox_admin"
-	sessionLifetime  = 8 * time.Hour
 	sessionIdle      = 45 * time.Minute
 	maxSessions      = 32
 	loginWindow      = 15 * time.Minute
@@ -45,8 +44,9 @@ const (
 var defaultAdminOrigins = []string{"http://127.0.0.1:8791", "http://localhost:8791", "https://ccbox.org"}
 
 type session struct {
-	created, seen time.Time
-	user          string
+	seen   time.Time
+	user   string
+	secure bool
 }
 
 type adminServer struct {
@@ -211,7 +211,7 @@ func (a *adminServer) api(authenticated bool, handler apiHandler) http.HandlerFu
 				return
 			}
 		}
-		token := a.session(r)
+		token := a.session(w, r)
 		if authenticated && token == "" {
 			writeError(w, apiError{http.StatusUnauthorized, "登录已过期，请重新登录"})
 			return
@@ -264,24 +264,30 @@ func clientAddress(r *http.Request) string {
 	return host
 }
 
-func (a *adminServer) session(r *http.Request) string {
+func (a *adminServer) session(w http.ResponseWriter, r *http.Request) string {
 	cookie, err := r.Cookie(adminCookie)
 	if err != nil || len(cookie.Value) != 64 {
 		return ""
 	}
-	now := a.now()
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	now := a.now()
 	current := a.sessions[cookie.Value]
 	if current == nil {
 		return ""
 	}
-	if now.Sub(current.created) > sessionLifetime || now.Sub(current.seen) > sessionIdle {
+	if now.Sub(current.seen) >= sessionIdle {
 		delete(a.sessions, cookie.Value)
 		return ""
 	}
 	current.seen = now
+	setAdminSessionCookie(w, cookie.Value, current.secure)
 	return cookie.Value
+}
+
+func setAdminSessionCookie(w http.ResponseWriter, token string, secure bool) {
+	http.SetCookie(w, &http.Cookie{Name: adminCookie, Value: token, Path: adminPrefix, HttpOnly: true,
+		Secure: secure, SameSite: http.SameSiteStrictMode, MaxAge: int(sessionIdle / time.Second)})
 }
 
 func (a *adminServer) sessionInfo(r *http.Request, token string) (any, error) {
@@ -290,7 +296,11 @@ func (a *adminServer) sessionInfo(r *http.Request, token string) (any, error) {
 	}
 	a.mu.Lock()
 	current := a.sessions[token]
-	expires, user := current.created.Add(sessionLifetime).Unix(), current.user
+	if current == nil {
+		a.mu.Unlock()
+		return map[string]any{"authenticated": false}, nil
+	}
+	expires, user := current.seen.Add(sessionIdle).Unix(), current.user
 	a.mu.Unlock()
 	return map[string]any{"authenticated": true, "expires": expires, "user": user, "idle": int(sessionIdle / time.Second),
 		"duration_days": int(license.Duration / (24 * time.Hour)), "max_batch": license.MaxIssueBatch, "max_note": license.MaxNoteLength}, nil
@@ -346,7 +356,7 @@ func (a *adminServer) login(w http.ResponseWriter, r *http.Request) {
 	a.mu.Lock()
 	delete(a.failures, address)
 	for key, value := range a.sessions {
-		if now.Sub(value.created) > sessionLifetime || now.Sub(value.seen) > sessionIdle {
+		if now.Sub(value.seen) >= sessionIdle {
 			delete(a.sessions, key)
 		}
 	}
@@ -359,10 +369,9 @@ func (a *adminServer) login(w http.ResponseWriter, r *http.Request) {
 		}
 		delete(a.sessions, oldest)
 	}
-	a.sessions[token] = &session{created: now, seen: now, user: a.user}
+	a.sessions[token] = &session{seen: now, user: a.user, secure: secure}
 	a.mu.Unlock()
-	http.SetCookie(w, &http.Cookie{Name: adminCookie, Value: token, Path: adminPrefix, HttpOnly: true,
-		Secure: secure, SameSite: http.SameSiteStrictMode, MaxAge: int(sessionLifetime / time.Second)})
+	setAdminSessionCookie(w, token, secure)
 	a.audit.record(now, "login", a.user, address)
 	writeJSON(w, http.StatusOK, map[string]any{"authenticated": true})
 }
