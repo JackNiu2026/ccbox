@@ -32,7 +32,7 @@ func TestHostUpdateUsesProxyWithoutCageProfile(t *testing.T) {
 	}))
 	defer origin.Close()
 	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "CONNECT" || r.Host != "api.github.com:443" {
+		if r.Method != "CONNECT" || (r.Host != "api.github.com:443" && r.Host != "ccbox.org:443") {
 			t.Errorf("unexpected proxy request: %s %s", r.Method, r.Host)
 			http.Error(w, "bad target", 400)
 			return

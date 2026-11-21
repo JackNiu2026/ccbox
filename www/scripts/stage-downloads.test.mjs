@@ -12,6 +12,13 @@ const installer = `CCBox-${version}-linux-amd64.deb`;
 const source = dependencies.mihomoSource.file;
 const digest = data => createHash('sha256').update(data).digest('hex');
 
+function updateAsset(name, data, manual = false) {
+  return {
+    name, size: Buffer.byteLength(data), browser_download_url: `https://ccbox.org/downloads/${version}/${name}`,
+    state: 'uploaded', ...(manual ? { manual: true } : {}),
+  };
+}
+
 async function fixture(t) {
   const root = await mkdtemp(join(tmpdir(), 'ccbox-download-test-'));
   t.after(() => rm(root, { recursive: true, force: true }));
@@ -31,12 +38,13 @@ test('stages one platform with same-origin links, notes and verified source mate
   assert.deepEqual(await readSiteRelease(f.site, { version }), { version });
   const result = await stageDownloads({ inputs: [f.input], siteDirectory: f.site, notes: f.notes });
   const base = `/downloads/${version}/`;
+  const checksums = await readFile(join(result.directory, 'SHA256SUMS'), 'utf8');
   assert.deepEqual(await readSiteRelease(f.site, { version }), {
     version, linuxDownloadURL: base + installer, releaseURL: base + 'release-notes.txt',
+    updateAssets: [updateAsset(installer, f.assets[installer]), updateAsset('SHA256SUMS', checksums)],
   });
   assert.equal(await readFile(join(result.directory, installer), 'utf8'), f.assets[installer]);
   assert.equal(await readFile(join(result.directory, source), 'utf8'), f.assets[source]);
-  const checksums = await readFile(join(result.directory, 'SHA256SUMS'), 'utf8');
   assert.match(checksums, new RegExp(digest(f.assets[installer])));
   assert.ok((await readFile(join(result.directory, 'release-notes.txt'), 'utf8')).includes(checksums));
   await assert.rejects(stageDownloads({ inputs: [f.input], siteDirectory: f.site, notes: f.notes }), /existing release assets are never overwritten/);
@@ -64,10 +72,12 @@ test('stages the current Android release APK as a same-origin download', async t
   const contents = 'verified release APK fixture';
   await writeFile(join(f.input, apk), contents);
   await writeFile(join(f.input, 'SHA256SUMS'), `${digest(contents)}  ${apk}\n`);
-  await stageDownloads({ inputs: [f.input], siteDirectory: f.site, notes: f.notes });
+  const result = await stageDownloads({ inputs: [f.input], siteDirectory: f.site, notes: f.notes });
+  const checksums = await readFile(join(result.directory, 'SHA256SUMS'), 'utf8');
   const base = `/downloads/${version}/`;
   assert.deepEqual(await readSiteRelease(f.site, { version }), {
     version, androidDownloadURL: base + apk, releaseURL: base + 'release-notes.txt',
+    updateAssets: [updateAsset(apk, contents), updateAsset('SHA256SUMS', checksums)],
   });
 });
 
@@ -92,11 +102,13 @@ test('an unsigned macOS package is listed only as a labelled preview', async t =
   for (const [name, data] of Object.entries(assets)) await writeFile(join(input, name), data);
   await writeFile(join(input, 'SHA256SUMS'), Object.entries(assets).map(([name, data]) => `${digest(data)}  ${name}\n`).join(''));
   await writeFile(join(input, 'build-metadata.json'), JSON.stringify({ schema: 1, platform: 'macos', version, commitSha: 'a'.repeat(40), unsigned: true }));
-  await stageDownloads({ inputs: [input], siteDirectory: site, notes });
+  const result = await stageDownloads({ inputs: [input], siteDirectory: site, notes });
+  const checksums = await readFile(join(result.directory, 'SHA256SUMS'), 'utf8');
   const base = `/downloads/${version}/`;
   assert.deepEqual(await readSiteRelease(site, { version }), {
     version, releaseURL: base + 'release-notes.txt',
     macosPreview: { version, downloadURL: base + dmg, releaseURL: base + 'release-notes.txt' },
+    updateAssets: [updateAsset(dmg, assets[dmg], true), updateAsset('SHA256SUMS', checksums)],
   });
 });
 

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, rmdir, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rmdir, stat, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -64,11 +64,25 @@ export async function stageDownloads({ inputs, notes, siteDirectory = site }) {
     // Unsigned Windows and macOS packages are listed as labelled previews.
     const unsigned = await unsignedPlatforms(inputs);
     const previewKeys = { downloadURL: ['macos', 'macosPreview'], windowsDownloadURL: ['windows', 'windowsPreview'] };
+    const updateAssets = [];
     for (const [key, name] of Object.entries(installers)) {
       if (!result.assets.includes(name)) continue;
       const [platform, previewKey] = previewKeys[key] ?? [];
-      if (platform && unsigned.has(platform)) metadata[previewKey] = { version, downloadURL: base + name, releaseURL: base + notesName };
+      const isPreview = unsigned.has(platform);
+      if (isPreview) metadata[previewKey] = { version, downloadURL: base + name, releaseURL: base + notesName };
       else metadata[key] = base + name;
+      updateAssets.push({
+        name, size: (await stat(join(output, name))).size,
+        browser_download_url: 'https://ccbox.org' + base + name,
+        state: 'uploaded', ...(isPreview ? { manual: true } : {}),
+      });
+    }
+    if (updateAssets.length) {
+      updateAssets.push({
+        name: 'SHA256SUMS', size: Buffer.byteLength(sums),
+        browser_download_url: 'https://ccbox.org' + base + 'SHA256SUMS', state: 'uploaded',
+      });
+      metadata.updateAssets = updateAssets;
     }
     const listing = result.assets.map(name => base + name).join('\n');
     await writeFile(join(output, notesName), `${releaseNotes}\n\n${listing}\n${base}SHA256SUMS\n\n${sums}`, { flag: 'wx' });

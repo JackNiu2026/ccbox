@@ -2,7 +2,11 @@ import releaseData from '../data/release.json';
 import type { CageLocale } from '../i18n/languages';
 
 type PlatformRelease = { version: string; releaseURL?: string; downloadURL?: string };
+type UpdateAsset = {
+  name: string; size: number; browser_download_url: string; state: string; manual?: boolean;
+};
 export type ReleaseMetadata = PlatformRelease & {
+  updateAssets?: UpdateAsset[];
   windowsDownloadURL?: string; linuxDownloadURL?: string; androidDownloadURL?: string;
   macosPreview?: PlatformRelease; windowsPreview?: PlatformRelease; linuxPreview?: PlatformRelease; androidPreview?: PlatformRelease;
 };

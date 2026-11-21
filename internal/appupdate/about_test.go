@@ -77,7 +77,7 @@ func TestAboutSourceComparisonDirection(t *testing.T) {
 
 func TestAboutChecksPreservePartialSuccess(t *testing.T) {
 	client := aboutClient(t, func(r *http.Request) (int, any) {
-		if strings.HasSuffix(r.URL.Path, "/releases") {
+		if r.URL.String() == releasesURL {
 			return 200, []release{{Tag: "v0.2.0-beta.1", Prerelease: true}}
 		}
 		return 503, nil

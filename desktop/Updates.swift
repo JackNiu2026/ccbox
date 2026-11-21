@@ -238,8 +238,7 @@ enum CageUpdateFiles {
     static func extract(archive: URL, hash: String, version: String, team: String, directory: URL, validation: CageUpdateValidation? = nil) throws -> URL {
         guard try digest(archive, validation: validation) == hash else { throw CageUpdateError("安装包下载后发生变化，请重新下载") }
         return try withMountedImage(archive: archive, directory: directory, validation: validation) { mount in
-            let brandedSource = mount.appendingPathComponent("ccBox.app", isDirectory: true)
-            let source = FileManager.default.fileExists(atPath: brandedSource.path) ? brandedSource : mount.appendingPathComponent("Cage.app", isDirectory: true)
+            let source = mount.appendingPathComponent("ccBox.app", isDirectory: true)
             try validateTree(source, validation: validation)
             try verifyApp(source, version: version, team: team, validation: validation)
             let target = directory.appendingPathComponent("Cage.app", isDirectory: true)

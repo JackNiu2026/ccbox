@@ -10,8 +10,9 @@ import (
 	"golang.org/x/mod/semver"
 )
 
-const Repository = "Lee-xeo/Claude-Cage"
-const ReleasesURL = "https://api.github.com/repos/" + Repository + "/releases?per_page=100"
+const Repository = "JackNiu2026/ccbox"
+const SiteOrigin = "https://ccbox.org"
+const ReleasesURL = SiteOrigin + "/downloads/updates.json"
 
 // Releases must stay below the limit of every published App that still updates
 // in place; scripts/prepare-release-assets.mjs enforces that smaller limit.
@@ -23,6 +24,7 @@ type Asset struct {
 	Size   int64  `json:"size"`
 	Digest string `json:"digest"`
 	State  string `json:"state"`
+	Manual bool   `json:"manual,omitempty"`
 }
 type Release struct {
 	Tag        string  `json:"tag_name"`
@@ -36,20 +38,44 @@ type Candidate struct {
 	Checksums Asset  `json:"checksums"`
 }
 
+var packageSuffixes = map[string]string{
+	"darwin/arm64":  "macos-arm64.dmg",
+	"windows/amd64": "windows-amd64-setup.exe",
+	"linux/amd64":   "linux-amd64.deb",
+	"android/arm64": "android-arm64.apk",
+}
+
 func archiveName(version, goos, goarch string) (string, error) {
-	switch {
-	case goos == "darwin" && goarch == "arm64":
-		return "Cage-" + version + "-macos-arm64.dmg", nil
-	case goos == "windows" && goarch == "amd64":
-		return "Cage-" + version + "-windows-amd64-setup.exe", nil
-	// Linux only learns that a newer package exists; the system installs it.
-	case goos == "linux" && goarch == "amd64":
-		return "Cage-" + version + "-linux-amd64.deb", nil
-	case goos == "android" && goarch == "arm64":
-		return "Cage-" + version + "-android-arm64.apk", nil
-	default:
-		return "", errors.New("此平台尚无 Cage 应用内更新发行包")
+	suffix, ok := packageSuffixes[goos+"/"+goarch]
+	if !ok {
+		return "", errors.New("此平台尚无 CCBox 应用内更新发行包")
 	}
+	return "CCBox-" + version + "-" + suffix, nil
+}
+
+func DownloadBase(version string) string {
+	return SiteOrigin + "/downloads/" + version + "/"
+}
+
+func IsDownloadPath(path string) bool {
+	relative, ok := strings.CutPrefix(path, "/downloads/")
+	if !ok {
+		return false
+	}
+	version, name, found := strings.Cut(relative, "/")
+	tag := "v" + version
+	if !found || !semver.IsValid(tag) || semver.Canonical(tag) != tag {
+		return false
+	}
+	if name == "SHA256SUMS" {
+		return true
+	}
+	for _, suffix := range packageSuffixes {
+		if name == "CCBox-"+version+"-"+suffix {
+			return true
+		}
+	}
+	return false
 }
 
 func Select(releases []Release, current, goos, goarch string) (*Candidate, error) {
@@ -89,7 +115,7 @@ func Select(releases []Release, current, goos, goarch string) (*Candidate, error
 		if c.Archive.URL == "" {
 			continue
 		}
-		base := "https://github.com/" + Repository + "/releases/download/" + r.Tag + "/"
+		base := DownloadBase(v)
 		if c.Archive.URL != base+name || (c.Checksums.URL != "" && c.Checksums.URL != base+"SHA256SUMS") {
 			continue
 		}

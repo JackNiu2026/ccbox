@@ -18,7 +18,7 @@ import (
 )
 
 func fixtureRelease(v string, pre bool) release {
-	return release{Tag: "v" + v, Prerelease: pre, Assets: []asset{{Name: "Cage-" + v + "-macos-arm64.dmg", URL: "https://github.com/" + repository + "/releases/download/v" + v + "/Cage-" + v + "-macos-arm64.dmg", Size: 3, Digest: "sha256:" + strings.Repeat("a", 64), State: "uploaded"}}}
+	return release{Tag: "v" + v, Prerelease: pre, Assets: []asset{{Name: "CCBox-" + v + "-macos-arm64.dmg", URL: catalog.DownloadBase(v) + "CCBox-" + v + "-macos-arm64.dmg", Size: 3, Digest: "sha256:" + strings.Repeat("a", 64), State: "uploaded"}}}
 }
 func TestReleaseSelectionPreservesChannelsAndNumericPrereleases(t *testing.T) {
 	rs := []release{fixtureRelease("0.2.0-alpha.9", true), fixtureRelease("0.2.0-alpha.10", true), fixtureRelease("0.1.0", false)}
@@ -52,15 +52,15 @@ func TestRejectReleaseAssetOutsideRepositoryOrOversize(t *testing.T) {
 	}
 }
 func TestRedirectPolicyRejectsCredentialsAndHostLookalikes(t *testing.T) {
-	for _, raw := range []string{"http://github.com/" + repository + "/releases/download/v1/a", "https://github.com.evil.example/a", "https://github.com@evil.example/a", "https://github.com:8443/" + repository + "/releases/download/v1/a", "https://evil.githubusercontent.com/a", "https://release-assets.githubusercontent.com.evil.example/a", "file:///tmp/Cage.app"} {
+	for _, raw := range []string{"http://ccbox.org/downloads/updates.json", "https://ccbox.org.evil.example/downloads/updates.json", "https://ccbox.org@evil.example/downloads/updates.json", "https://ccbox.org:8443/downloads/updates.json", "https://evil.githubusercontent.com/a", "https://release-assets.githubusercontent.com.evil.example/a", "file:///tmp/Cage.app"} {
 		u, _ := url.Parse(raw)
 		if allowedURL(u, true) {
 			t.Fatal("accepted", raw)
 		}
 	}
 	u, _ := url.Parse("https://release-assets.githubusercontent.com/github-production-release-asset/a?signature=private")
-	if !allowedURL(u, true) || allowedURL(u, false) {
-		t.Fatal("CDN must be accepted only after a trusted asset redirect")
+	if allowedURL(u, true) || allowedURL(u, false) {
+		t.Fatal("third-party CDN must be rejected as both a download and a redirect")
 	}
 }
 
@@ -108,7 +108,7 @@ func TestDownloadVerifiesSizeDigestAndPrivateFile(t *testing.T) {
 func TestChecksumListMustAgreeAndBelongToSameRelease(t *testing.T) {
 	r := fixtureRelease("0.2.0", false)
 	a := r.Assets[0]
-	c := candidate{Version: "0.2.0", Archive: a, Checksums: asset{Name: "SHA256SUMS", URL: "https://github.com/" + repository + "/releases/download/v0.2.0/SHA256SUMS"}}
+	c := candidate{Version: "0.2.0", Archive: a, Checksums: asset{Name: "SHA256SUMS", URL: catalog.DownloadBase("0.2.0") + "SHA256SUMS"}}
 	valid := strings.Repeat("a", 64) + "  " + a.Name + "\n"
 	if _, err := releaseDigest(context.Background(), responseClient(valid, 200), c); err != nil {
 		t.Fatal(err)
@@ -118,7 +118,7 @@ func TestChecksumListMustAgreeAndBelongToSameRelease(t *testing.T) {
 			t.Fatal("invalid list passed")
 		}
 	}
-	c.Checksums.URL = "https://github.com/" + repository + "/releases/download/v0.1.0/SHA256SUMS"
+	c.Checksums.URL = catalog.DownloadBase("0.1.0") + "SHA256SUMS"
 	if _, err := releaseDigest(context.Background(), responseClient(valid, 200), c); err == nil {
 		t.Fatal("cross-version list passed")
 	}
