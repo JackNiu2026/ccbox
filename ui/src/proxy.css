@@ -103,6 +103,7 @@
 }
 .proxy-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   border-bottom: 1px solid var(--line);
   margin: 20px 0 16px;
@@ -159,6 +160,11 @@
   border: 1px solid var(--line);
   border-radius: 10px;
   overflow: hidden;
+}
+.proxy-node-results {
+  max-block-size: clamp(12rem, 42vh, 26rem);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 .proxy-node {
   display: flex;
@@ -659,6 +665,11 @@
 .proxy-route-actions .primary {
   transition: background 140ms;
 }
+.proxy-node-details {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
 .proxy-node-role {
   color: var(--muted);
   font-size: 11px;
@@ -697,8 +708,10 @@
   .proxy-route-actions > div button {
     flex: 1;
   }
-  .proxy-node-role {
-    display: none;
+  .proxy-node-details {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
   }
   .proxy-route-preview {
     gap: 5px;
@@ -754,8 +767,21 @@
   margin: 0 0 5px;
 }
 .proxy-wizard .field-help,
-.proxy-wizard-review > .field-help {
+.proxy-review-exit .field-help {
   margin: 0;
+}
+.proxy-review-exit {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 16px;
+  overflow-wrap: anywhere;
+}
+.proxy-review-exit > span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.proxy-wizard-review .proxy-route-actions > div {
+  flex-wrap: wrap;
 }
 .proxy-wizard-actions {
   display: flex;
