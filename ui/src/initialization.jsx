@@ -64,6 +64,10 @@ export function InitializationGate({ children }) {
     onComplete={() => setState({ required: false })} /></MacOSAccountGate> : children;
 }
 
+function isRejectedProxyExit(message) {
+  return typeof message === "string" && /检测出口(?:命中中国大陆 IP 网段|位于中国大陆)/.test(message);
+}
+
 function Initialization({ initial, onComplete, onLicenseRequired }) {
   const { account, refresh } = useAccount();
   const navigation = useSSHNavigation();
@@ -261,9 +265,11 @@ function Initialization({ initial, onComplete, onLicenseRequired }) {
     });
   }
   const failed = Boolean(job.error || error);
+  const rejectedExit = !busy && !needsExitRestart && network.mode !== "open" &&
+    [job.error, error, status?.safety?.error, status?.network_error].some(isRejectedProxyExit);
   const networkPending = Boolean(status?.ready && status.vm_running && network.mode !== "open");
-  const progress = !status?.ready && job.setup_progress ? { ...job, setup_progress: job.setup_progress } : null;
-  const title = step === "system" ? "为 CCBox 准备独立环境" : step === "proxy" ? "连接你的网络代理" : ready ? "CCBox 已准备就绪" : !busy && networkPending ? "环境已启动，等待联网检查" : failed ? "继续完成环境安装" : busy ? "正在准备你的环境" : "安装并检查客机环境";
+  const progress = !rejectedExit && !status?.ready && job.setup_progress ? { ...job, setup_progress: job.setup_progress } : null;
+  const title = step === "system" ? "为 CCBox 准备独立环境" : step === "proxy" ? "连接你的网络代理" : ready ? "CCBox 已准备就绪" : !busy && networkPending ? "环境已启动，等待联网检查" : failed || rejectedExit ? "继续完成环境安装" : busy ? "正在准备你的环境" : "安装并检查客机环境";
   const index = steps.findIndex(([key]) => key === step);
   return <InitializationFrame>
     <section className="initialization-content">
@@ -281,7 +287,11 @@ function Initialization({ initial, onComplete, onLicenseRequired }) {
           {step === "install" && (ready ? <div className="initialization-ready"><ShieldCheck size={36} /><h2>环境已就绪</h2><p>独立客机已安装，工具、文件和登录状态会持续保存。以后打开 CCBox 可直接进入工作台。</p></div> : <>
             {exitCandidate && <section className="initialization-notice" aria-label="确认固定出口"><p>客机终端、浏览器和代理已测得一致出口。请确认是否将它绑定为固定出口。</p><button disabled={busy || Boolean(connectionError)} onClick={bindExit}>绑定检测到的固定出口 {exitCandidate}</button></section>}
             {needsExitRestart && <section className="initialization-notice" aria-label="固定出口已保存"><p>固定出口已保存。重启客机并重新检测后才能进入工作台。</p><button className="primary" disabled={busy || Boolean(connectionError)} onClick={restart}>{status.vm_running ? "重启客机并重新检测" : "启动客机并重新检测"}</button></section>}
-            {progress ? <SetupProgress job={progress} onDetails={() => setDetails(true)} onStop={stop} onRetry={needsExitRestart ? restart : install} disconnected={Boolean(connectionError) || submitting} /> : (busy || status.guest_system !== "macos" || !networkPending) && <div className="initialization-operation" role="status">{busy && <LoaderCircle size={22} className="spin" />}<p>{job.message || (status.vm_running ? "请完成客机连接和网络检查。" : "准备继续原安装，已有文件和磁盘会保留。")}</p>{!busy && !job.error && !needsExitRestart && <button className="primary" disabled={Boolean(connectionError)} onClick={install}>{status.ready ? "重新启动并检查" : "继续安装"}</button>}{busy && <button onClick={stop} disabled={submitting}>停止安装</button>}</div>}
+            {rejectedExit && <div className="initialization-notice" role="alert">
+              <p>当前代理出口被检测为中国大陆，CCBox 外网保持关闭。更换并应用符合要求的代理节点后，可继续原安装。</p>
+              <button className="primary" disabled={Boolean(connectionError)} onClick={() => { setError(""); setStep("proxy"); }}>更换 CCBox 代理节点</button>
+            </div>}
+            {!rejectedExit && (progress ? <SetupProgress job={progress} onDetails={() => setDetails(true)} onStop={stop} onRetry={needsExitRestart ? restart : install} disconnected={Boolean(connectionError) || submitting} /> : (busy || status.guest_system !== "macos" || !networkPending) && <div className="initialization-operation" role="status">{busy && <LoaderCircle size={22} className="spin" />}<p>{job.message || (status.vm_running ? "请完成客机连接和网络检查。" : "准备继续原安装，已有文件和磁盘会保留。")}</p>{!busy && !job.error && !needsExitRestart && <button className="primary" disabled={Boolean(connectionError)} onClick={install}>{status.ready ? "重新启动并检查" : "继续安装"}</button>}{busy && <button onClick={stop} disabled={submitting}>停止安装</button>}</div>)}
             {pending?.system === "macos" && macRecovery?.available && <section className="initialization-notice" aria-label="恢复 macOS 组件安装">
               <h2>继续安装 macFUSE</h2>
               <p>macOS 27 需要你在客机中完成一次管理员授权，这是正常流程。客机磁盘和安装进度已保留。请按以下顺序操作：</p>
@@ -310,17 +320,17 @@ function Initialization({ initial, onComplete, onLicenseRequired }) {
               <p><SafetyMessage message={recoveryError} /></p>
               <button disabled={busy} onClick={() => pollNow.current?.()}>重新检查</button>
             </section>}
-            {job.error && !progress && !(status.guest_system === "macos" && networkPending) && <div className="initialization-notice" role="alert"><SafetyMessage message={job.error} />{!networkPending && !needsExitRestart && <button className="primary" disabled={busy || Boolean(connectionError)} onClick={install}>继续安装</button>}</div>}
+            {job.error && !rejectedExit && !progress && !(status.guest_system === "macos" && networkPending) && <div className="initialization-notice" role="alert"><SafetyMessage message={job.error} />{!networkPending && !needsExitRestart && <button className="primary" disabled={busy || Boolean(connectionError)} onClick={install}>继续安装</button>}</div>}
             {status.guest_system === "macos" && status.vm_running && !status.ready && !busy && <section className="initialization-notice"><h2>连接虚拟 Mac</h2><p>{status.environment_update_error || "客机已经启动，尚未建立工作台连接。请先检查客机是否停在登录画面。"}</p><MacOSLogin onSessionClosed={() => pollNow.current?.()} /><button disabled={Boolean(connectionError)} onClick={install}>重新连接并检查</button></section>}
-            {status.ready && network.mode !== "open" && !busy && !needsExitRestart && <>
+            {status.ready && network.mode !== "open" && !busy && !needsExitRestart && !rejectedExit && <>
               {status.guest_system === "macos" && <InitializationChecks status={status} busy={Boolean(connectionError)} onWorkspace={setApprovalWorkspace} onCheck={checkNetwork} onStart={install} onRestart={restart} onUpdate={() => run(() => api("/environment/update", {}))} onDiagnostics={() => setHelp(true)} />}
               <div className="initialization-network"><p>{status.safety?.error || job.error || status.network_error || "客机已经连接，请完成网络和隔离检查后进入工作台。"}</p><button disabled={Boolean(connectionError)} onClick={checkNetwork}>运行网络与隔离检查</button></div>
             </>}
-            {(progress?.setup_progress.phase === "image" || (failed && !networkPending)) && <p>系统镜像和在主机上准备的 macOS 安装组件遵循主机代理设置。下载失败时，可在操作详情中查看当前文件和重试记录。客机内的联网请求使用 CCBox 代理。</p>}
-            <div className="initialization-recovery"><button onClick={() => setStep("proxy")} disabled={busy}>检查 CCBox 代理配置</button>{!progress && <button onClick={() => setDetails(true)}>查看操作详情</button>}</div>
+            {!rejectedExit && (progress?.setup_progress.phase === "image" || (failed && !networkPending)) && <p>系统镜像和在主机上准备的 macOS 安装组件遵循主机代理设置。下载失败时，可在操作详情中查看当前文件和重试记录。客机内的联网请求使用 CCBox 代理。</p>}
+            <div className="initialization-recovery">{!rejectedExit && <button onClick={() => setStep("proxy")} disabled={busy}>检查 CCBox 代理配置</button>}{!progress && <button onClick={() => setDetails(true)}>查看操作详情</button>}</div>
           </>)}
         </div>
-        {error && <p className="initialization-notice" role="alert"><SafetyMessage message={error} /></p>}
+        {error && !(step === "install" && rejectedExit && isRejectedProxyExit(error)) && <p className="initialization-notice" role="alert"><SafetyMessage message={error} /></p>}
         <footer className="initialization-actions">
           {step === "system" ? <span /> : <button className="text-button" disabled={busy} onClick={back}><ChevronLeft size={16} />上一步</button>}
           {step === "system" && <button className="primary" disabled={busy || !storage?.directory.trim() || choice === undefined || (!choice?.clone && !validGuestChoice(choice)) || choice?.clone && choice.guest_system === "windows-11" && !choice.editor_terms || Boolean(connectionError)} onClick={nextFromSystem}>{submitting && <LoaderCircle size={16} className="spin" />}下一步：配置代理</button>}

@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"encoding/hex"
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -89,6 +90,16 @@ func TestAllModesRequireMatchingNonMainlandCountryEvidence(t *testing.T) {
 					t.Fatalf("got %s (%s), want %s", got, message, tc.want)
 				}
 			})
+		}
+	}
+}
+
+func TestMainlandRejectionExplainsCCBoxRecovery(t *testing.T) {
+	for _, location := range []Location{{IP: "223.5.5.5"}, {IP: "8.8.8.8", CountryCode: "CN"}} {
+		state, message := CheckExitCountry(location.IP, &location)
+		if state != Failed || !strings.Contains(message, "CCBox") || strings.Contains(message, "Cage") ||
+			!strings.Contains(message, "外网保持关闭") || !strings.Contains(message, "更换") {
+			t.Fatalf("mainland rejection must guide the user through CCBox proxy recovery: %s (%s)", state, message)
 		}
 	}
 }
