@@ -27,7 +27,7 @@ ccbox-license issue /var/lib/ccbox-license/state /var/lib/ccbox-license/signing.
 
 ## 网页管理后台
 
-设置环境变量 `CCBOX_LICENSE_ADMIN_PASSWORD_FILE` 为专用密码文件的绝对路径。密码使用至少 24 个字符，文件仅对授权服务账户可读。服务未配置此文件时，管理路由全部关闭。管理员账号由 `CCBOX_LICENSE_ADMIN_USER` 设置（1 至 64 个不含空格的字符），未设置时为 `admin`。开启后访问 `http://127.0.0.1:8791/admin/license/`，用管理员账号和密码登录。账号或密码任一不符时只提示“账号或密码不正确”。
+设置环境变量 `CCBOX_LICENSE_ADMIN_PASSWORD_FILE` 为专用密码文件的绝对路径。密码使用至少 6 个字符，文件仅对授权服务账户可读。服务未配置此文件时，管理路由全部关闭。管理员账号由 `CCBOX_LICENSE_ADMIN_USER` 设置（1 至 64 个不含空格的字符），未设置时为 `admin`。开启后访问 `http://127.0.0.1:8791/admin/license/`，用管理员账号和密码登录。账号或密码任一不符时只提示“账号或密码不正确”。
 
 后台包含：
 

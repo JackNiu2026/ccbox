@@ -13,6 +13,7 @@ import (
 	"os"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/sylvinus/agent-vm/internal/host"
 	"github.com/sylvinus/agent-vm/internal/license"
@@ -84,8 +85,8 @@ func run(args []string) error {
 				return err
 			}
 			password := strings.TrimSpace(string(data))
-			if len(password) < 24 {
-				return errors.New("administrator password must have at least 24 characters")
+			if utf8.RuneCountInString(password) < 6 {
+				return errors.New("administrator password must have at least 6 characters")
 			}
 			username := strings.TrimSpace(os.Getenv("CCBOX_LICENSE_ADMIN_USER"))
 			if username == "" {
