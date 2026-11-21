@@ -732,7 +732,7 @@
 }
 .proxy-wizard-steps {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   margin: 0 0 18px;
   padding: 0;
   list-style: none;
@@ -766,22 +766,8 @@
 .proxy-wizard h4 {
   margin: 0 0 5px;
 }
-.proxy-wizard .field-help,
-.proxy-review-exit .field-help {
+.proxy-wizard .field-help {
   margin: 0;
-}
-.proxy-review-exit {
-  display: grid;
-  gap: 6px;
-  margin-bottom: 16px;
-  overflow-wrap: anywhere;
-}
-.proxy-review-exit > span {
-  color: var(--muted);
-  font-size: 12px;
-}
-.proxy-wizard-review .proxy-route-actions > div {
-  flex-wrap: wrap;
 }
 .proxy-wizard-actions {
   display: flex;

@@ -32,7 +32,7 @@ try {
   const region = page.locator(".proxy-yaml-input");
   const dropzone = page.locator(".proxy-yaml-dropzone");
   const editor = page.getByRole("textbox", { name: "节点 YAML", exact: true });
-  const name = page.getByLabel("来源名称", { exact: true });
+  assert.equal(await page.getByLabel("来源名称", { exact: true }).count(), 0);
   const submit = page.getByRole("button", { name: "导入并验证", exact: true });
   const expectText = async (locator, value) => {
     await locator.filter({ hasText: value }).waitFor();
@@ -62,7 +62,6 @@ try {
   await (await firstChooser).setFiles(payload());
   await expectText(region.getByRole("status"), "文件已读取");
   assert.equal(await editor.inputValue(), yaml);
-  assert.equal(await name.inputValue(), "日常代理");
   assert.equal(await submit.isEnabled(), true);
   await editor.fill(yaml + "# 手动编辑\n");
   await expectText(region.getByRole("status"), "内容已编辑");
@@ -71,7 +70,6 @@ try {
   await dropzone.press("Space");
   await (await secondChooser).setFiles(payload());
   await page.waitForFunction((expected) => document.querySelector('[aria-label="节点 YAML"]').value === expected, yaml);
-  await name.fill("我的来源");
 
   // Nested drag events must keep the highlight until the pointer leaves the region.
   const transfer = await dataTransfer([{ name: "替换.YML", content: yaml + "# 拖入\n" }]);
@@ -85,7 +83,6 @@ try {
   await transfer.dispose();
   await expectText(dropzone, "替换.YML");
   assert.equal(await editor.inputValue(), yaml + "# 拖入\n");
-  assert.equal(await name.inputValue(), "我的来源", "replacement preserves the explicit source name");
   assert.doesNotMatch(await region.getAttribute("class"), /is-dragging/);
 
   const preserved = await editor.inputValue();
@@ -159,9 +156,9 @@ try {
   await expectText(page.locator(".proxy-notice"), "已导入 1 个节点");
   assert.equal(imports.length, 1);
   assert.equal(imports[0].content, yaml + "# 已编辑\n");
-  assert.equal(imports[0].name, "我的来源");
+  assert.equal(imports[0].name, "最终配置");
   assert.equal(imports[0].interval_hours, 0);
-  await expectText(page.locator(".proxy-source"), "我的来源");
+  await expectText(page.locator(".proxy-source"), "最终配置");
   assert.deepEqual(errors, []);
   const result = { engine, passed: true, imports: imports.length, browserErrors: errors, scope: "Synthetic browser file drops and file chooser; mocked API. Native OS drag and backend validation are outside this check." };
   await fs.writeFile(path.join(output, "result.json"), JSON.stringify(result, null, 2));

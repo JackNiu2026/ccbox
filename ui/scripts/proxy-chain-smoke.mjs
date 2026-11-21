@@ -71,8 +71,10 @@ try{
   await page.getByRole('tab',{name:'订阅',exact:true}).click();
   await page.getByRole('button',{name:'添加来源',exact:true}).click();
   await page.getByRole('button',{name:'本地 YAML',exact:true}).click();
-  await page.getByLabel('来源名称',{exact:true}).fill(name);
-  await page.getByLabel('节点 YAML',{exact:true}).fill(`proxies:\n - {name: ${node}, type: http, server: 127.0.0.1, port: ${upstreamPort}}\n`);
+  await page.locator('input[type="file"]').setInputFiles({
+   name: `${name}.yaml`, mimeType: 'application/yaml',
+   buffer: Buffer.from(`proxies:\n - {name: ${node}, type: http, server: 127.0.0.1, port: ${upstreamPort}}\n`),
+  });
   await page.getByRole('button',{name:'导入并验证',exact:true}).click();await idle();
   await page.getByText(name,{exact:true}).waitFor();
  }
@@ -86,7 +88,6 @@ try{
  };
  await choose('最终出口','住宅出口');
  await choose('中转节点','本地中转');
- await page.getByRole('button',{name:'下一步：确认应用',exact:true}).click();
  await page.getByRole('button',{name:'应用代理',exact:true}).click();await idle();
  await page.getByText('当前配置已应用',{exact:true}).waitFor();
  const state=()=>page.evaluate(()=>fetch('/api/proxy').then(r=>r.json()));
@@ -107,15 +108,12 @@ try{
  // Single-node explicitly bypasses the intermediate, without editing its source.
  const entryCount=entry.destinations.length;
  await page.getByRole('button',{name:'单节点',exact:true}).click();
- await page.getByRole('button',{name:'下一步：确认应用',exact:true}).click();
  await page.getByRole('button',{name:'应用代理',exact:true}).click();await idle();
  await page.getByText('当前配置已应用',{exact:true}).waitFor();
  assert.equal((await through()).stdout,'residential-exit-verified');
  assert.equal(entry.destinations.length,entryCount);
  // Re-enable the chain, then break its exit: no direct target request may occur.
- await page.getByRole('button',{name:'返回选择节点',exact:true}).click();
  await page.getByRole('button',{name:'链式代理',exact:true}).click();await choose('中转节点','本地中转');
- await page.getByRole('button',{name:'下一步：确认应用',exact:true}).click();
  await page.getByRole('button',{name:'应用代理',exact:true}).click();await idle();
  await page.getByText('当前配置已应用',{exact:true}).waitFor();
  for(const socket of sockets)socket.destroy();

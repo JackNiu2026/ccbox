@@ -46,14 +46,12 @@ function usageLabel(raw) {
 const proxySteps = [
   ["import", "导入来源"],
   ["nodes", "选择节点"],
-  ["apply", "应用代理"],
 ];
 const emptyForm = {
   name: "",
   url: "",
   content: "",
   interval_hours: 24,
-  host_download: false,
 };
 const emptyManual = {
   name: "",
@@ -67,6 +65,26 @@ const emptyManual = {
   passphrase: "",
   hostKey: "",
 };
+function sourceName(name, fallback) {
+  const encoder = new TextEncoder();
+  let bytes = 0;
+  let result = "";
+  for (const character of name.trim()) {
+    bytes += encoder.encode(character).length;
+    if (bytes > 100) break;
+    result += character;
+  }
+  return result.trimEnd() || fallback;
+}
+
+function subscriptionName(address) {
+  try {
+    return sourceName(new URL(address).hostname, "订阅");
+  } catch {
+    return "订阅";
+  }
+}
+
 export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializing = false }) {
   const [proxy, setProxy] = useState(null),
     [chosenTab, setTab] = useState(null),
@@ -263,13 +281,14 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
     }
   };
   const submit = () => {
+    const url = form.url.trim();
     let value = {
       id: form.id || "",
-      name: form.name,
-      url: form.url,
+      name: form.id ? form.name : mode === "url" ? subscriptionName(url) : form.name || "本地 YAML",
+      url,
       content: form.content,
       interval_hours: form.interval_hours,
-      host_download: form.host_download,
+      host_download: !form.id && mode === "url" && !proxy.active,
     };
     if (mode === "manual" && !form.id) {
       if (!manualValid) return;
@@ -289,8 +308,8 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
       if (manual.type === "ssh" && manual.hostKey.trim())
         node["host-key"] = manual.hostKey.split(/\r?\n/).map((key) => key.trim()).filter(Boolean);
       value = {
-        ...form,
-        name: form.name || node.name,
+        ...value,
+        name: sourceName(node.name, "手动节点"),
         url: "",
         content: JSON.stringify({ proxies: [node] }),
         interval_hours: 0,
@@ -392,12 +411,12 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           <ol className="proxy-help-steps">
             <li>
               <strong>导入你的代理</strong>
-              <p>在「导入来源」填写来源名称，再选择一种方式：</p>
+              <p>在「导入来源」选择一种方式，CCBox 会自动命名：</p>
               <ul>
                 <li>
                   <strong>订阅链接：</strong>从代理服务商处复制 Clash/Mihomo
                   格式的 HTTPS
-                  订阅地址，粘贴后点击「导入并验证」。首次还没有可用节点时，勾选「通过主机网络下载这份订阅」；主机需要能访问该地址。
+                  订阅地址，粘贴后点击「导入并验证」。未应用代理时使用主机网络下载，已应用时经现有代理下载。
                 </li>
                 <li>
                   <strong>本地 YAML：</strong>拖入或选择配置文件，或粘贴含节点的
@@ -411,7 +430,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
             <li>
               <strong>选择节点并启用</strong>
               <p>
-                导入后选择最终出口，前往确认步骤，再点击「应用代理」。住宅代理无法从国内连接时，选择「链式代理」，在它前面添加可连接的中转节点；节点可以来自不同订阅。首次启用时若环境正在运行，需要重启；后续切换只重建网络连接。
+                导入后选择最终出口，直接点击「应用代理」。住宅代理无法从国内连接时，选择「链式代理」，在它前面添加可连接的中转节点；节点可以来自不同订阅。首次启用时若环境正在运行，需要重启；后续切换只重建网络连接。
               </p>
             </li>
             <li>
@@ -505,9 +524,9 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           </ol>
           <h4 ref={stepHeading} tabIndex={-1}>{proxySteps[stepIndex][1]}</h4>
           <p className="field-help">
-            {tab === "import" ? "粘贴订阅链接，或导入本地 YAML 配置。"
-              : tab === "nodes" ? "选择要作为最终出口的节点。有中转需求时可配置链式代理。"
-                : "核对将要使用的节点。应用后仍需通过网络与隔离检查。"}
+            {tab === "import"
+              ? "粘贴订阅链接、导入本地 YAML，或手动添加节点。"
+              : "选好最终出口后点击「应用代理」。有中转需求时可配置链式代理。"}
           </p>
         </div>
       )}
@@ -630,12 +649,29 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                 </button>
               )}
               {routePreview}
-              {undoRoute && (
-                <div className="proxy-route-actions">
-                  {routeChanged && <span>有未应用的代理修改</span>}
+              <div className="proxy-route-actions">
+                <span aria-live="polite">
+                  {routeChanged ? "有未应用的代理修改" : proxy.active ? "当前配置已应用" : "选择完成后应用代理"}
+                </span>
+                <div>
                   {undoRoute}
+                  <button
+                    type="button"
+                    className={routeChanged || !proxy.active ? "primary" : ""}
+                    disabled={busy || !proxy.core_available || !routeValid}
+                    onClick={() => applyRoute(route)}
+                  >
+                    {pending === "route" ? (
+                      <LoaderCircle size={14} className="spin" />
+                    ) : !routeChanged && proxy.active ? (
+                      <RefreshCw size={14} />
+                    ) : (
+                      <Check size={14} />
+                    )}
+                    {routeChanged || !proxy.active ? "应用代理" : "重新应用"}
+                  </button>
                 </div>
-              )}
+              </div>
               {routeError}
               {error && (
                 <div role="alert" className="error-message">
@@ -717,7 +753,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                     title={
                       route.slice(0, -1).includes(n.id)
                         ? "此节点已用作中转"
-                        : "选为最终出口，确认应用后生效"
+                        : "选为最终出口，点击应用代理后生效"
                     }
                     onClick={() => updateHop(route.length - 1, n.id)}
                     aria-pressed={n.id === route.at(-1)}
@@ -760,49 +796,8 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           )}
           {allNodes.length > 0 && <div className="proxy-wizard-actions">
             <button type="button" disabled={busy} onClick={openImport}>返回导入</button>
-            <button type="button" className="primary" disabled={busy || !routeValid} onClick={() => setTab("apply")}>下一步：确认应用</button>
           </div>}
         </>
-      )}
-      {tab === "apply" && (
-        <section className="proxy-route proxy-wizard-review" aria-label="确认待应用代理">
-          <div className="proxy-review-exit">
-            {routeValid ? (
-              <>
-                <span>最终出口</span>
-                <strong>{routeName(route.at(-1))}</strong>
-              </>
-            ) : (
-              <p className="field-help">节点已不可用，请返回重新选择。</p>
-            )}
-          </div>
-          {routePreview}
-          {routeError}
-          <div className="proxy-route-actions">
-            <span aria-live="polite">
-              {routeChanged ? "有未应用的代理修改" : proxy.active ? "当前配置已应用" : "选择完成后应用代理"}
-            </span>
-            <div>
-              <button type="button" disabled={busy} onClick={() => setTab("nodes")}>返回选择节点</button>
-              {undoRoute}
-              <button
-                type="button"
-                className={routeChanged || !proxy.active ? "primary" : ""}
-                disabled={busy || !proxy.core_available || !routeValid}
-                onClick={() => applyRoute(route)}
-              >
-                {pending === "route" ? (
-                  <LoaderCircle size={14} className="spin" />
-                ) : !routeChanged && proxy.active ? (
-                  <RefreshCw size={14} />
-                ) : (
-                  <Check size={14} />
-                )}
-                {routeChanged || !proxy.active ? "应用代理" : "重新应用"}
-              </button>
-            </div>
-          </div>
-        </section>
       )}
       {(tab === "import" || tab === "sources") && (
         <>
@@ -938,7 +933,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                       className={mode === id ? "selected" : ""}
                       onClick={() => {
                         setMode(id);
-                        setForm({ ...form, content: "", url: "" });
+                        setForm({ ...form, name: "", content: "", url: "" });
                       }}
                     >
                       {label}
@@ -946,15 +941,16 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                   ))}
                 </div>
               )}
-              <label>
-                来源名称
-                <input
-                  value={form.name}
-                  maxLength={100}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  placeholder="例如：日常代理"
-                />
-              </label>
+              {form.id && (
+                <label>
+                  来源名称
+                  <input
+                    value={form.name}
+                    maxLength={100}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  />
+                </label>
+              )}
               {mode === "url" && (!form.id || form.remote) && (
                 <>
                   <label>
@@ -995,20 +991,10 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                     </InlineSelect>
                   </label>
                   {!form.id && (
-                    <label className="check-line">
-                      <input
-                        type="checkbox"
-                        checked={form.host_download}
-                        onChange={(e) =>
-                          setForm({ ...form, host_download: e.target.checked })
-                        }
-                      />
-                      通过主机网络下载这份订阅
-                    </label>
+                    <p className="field-help">
+                      {proxy.active ? "通过当前应用的代理下载订阅。" : "通过主机网络下载订阅。"}
+                    </p>
                   )}
-                  <p className="field-help">
-                    默认经当前配置的代理下载。首次没有可用节点时，可勾选主机下载或导入本地文件；失败不会自动改用其他路径。
-                  </p>
                 </>
               )}
               {mode === "file" && !form.id && (
@@ -1023,9 +1009,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                     setForm((old) => ({
                       ...(old ?? emptyForm),
                       content,
-                      name:
-                        old?.name ||
-                        value.name.replace(/\.[^.]+$/, "").slice(0, 100),
+                      name: sourceName(value.name.replace(/\.[^.]+$/, ""), "本地 YAML"),
                       interval_hours: 0,
                     }))
                   }
@@ -1188,9 +1172,9 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                     readingFile ||
                     (!form.id &&
                       (mode === "url"
-                        ? !form.url || !form.name
+                        ? !form.url.trim()
                         : mode === "file"
-                          ? !form.content.trim() || !form.name
+                          ? !form.content.trim()
                           : !manualValid))
                   }
                   onClick={submit}

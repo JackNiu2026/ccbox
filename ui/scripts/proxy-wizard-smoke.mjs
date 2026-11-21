@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createWorkbench, chooseInline } from "./workbench-fixture.mjs";
 
-for (const mode of ["subscription", "yaml", "saved", "add-to-saved"]) {
+for (const mode of ["subscription", "yaml", "pasted-yaml", "manual", "saved", "add-to-saved"]) {
   let imports = 0, applies = 0;
   const addingToSaved = mode === "add-to-saved";
   const hasSaved = mode === "saved" || addingToSaved;
@@ -11,6 +11,8 @@ for (const mode of ["subscription", "yaml", "saved", "add-to-saved"]) {
       { id: "draft-node", name: "已有节点备用", type: "http" },
     ],
   }] : [];
+  const usesSubscription = mode === "subscription" || addingToSaved;
+  const sourceName = usesSubscription ? "proxy.example.invalid" : mode === "yaml" ? "proxy" : mode === "manual" ? "新节点" : "本地 YAML";
   const expectedNode = addingToSaved ? "draft-node" : mode === "saved" ? "saved-node" : "new-node";
   let selected = hasSaved ? "saved-node" : "";
   const { browser, page, errors } = await createWorkbench({
@@ -25,15 +27,15 @@ for (const mode of ["subscription", "yaml", "saved", "add-to-saved"]) {
       await page.route("**/api/proxy/import", route => {
         imports++;
         const value = route.request().postDataJSON();
-        assert.equal(value.name, "新来源");
-        if (mode === "subscription" || addingToSaved) {
-          assert.equal(value.url, "https://proxy.example.invalid/config");
-          assert.equal(value.host_download, true);
+        assert.equal(value.name, sourceName);
+        assert.equal(value.host_download, mode === "subscription");
+        if (usesSubscription) {
+          assert.equal(value.url, "https://proxy.example.invalid/config?token=fixture-secret");
         } else {
-          assert.match(value.content, /new-node/);
+          assert.match(value.content, mode === "manual" ? /新节点/ : /new-node/);
           assert.equal(value.url, "");
         }
-        sources.push({ id: "new", name: "新来源", nodes: [{ id: "new-node", name: "新节点", type: "http" }] });
+        sources.push({ id: "new", name: sourceName, nodes: [{ id: "new-node", name: "新节点", type: "http" }] });
         state.status.job = { id: "source-import", kind: "proxy", running: false };
         return route.fulfill({ json: state.status.job });
       });
@@ -51,7 +53,7 @@ for (const mode of ["subscription", "yaml", "saved", "add-to-saved"]) {
     await page.getByRole("button", { name: "网络与代理", exact: true }).click();
     const current = page.getByRole("list", { name: "代理配置步骤", exact: true }).locator('[aria-current="step"]');
     await current.waitFor({ timeout: 5000 });
-    const next = page.getByRole("button", { name: "下一步：确认应用", exact: true });
+    const apply = page.getByRole("button", { name: mode === "saved" ? "重新应用" : "应用代理", exact: true });
     if (addingToSaved) {
       await page.getByRole("button", { name: "选择节点 已有节点备用", exact: true }).click();
       await chooseInline(page.getByRole("combobox", { name: "节点来源", exact: true }), "saved");
@@ -60,17 +62,25 @@ for (const mode of ["subscription", "yaml", "saved", "add-to-saved"]) {
     }
     if (mode !== "saved") {
       assert.match(await current.innerText(), /导入来源/);
-      await page.getByLabel("来源名称", { exact: true }).fill("新来源");
-      if (mode === "subscription" || addingToSaved) {
-        await page.getByLabel("订阅链接", { exact: true }).fill("https://proxy.example.invalid/config");
-        await page.getByLabel("通过主机网络下载这份订阅").check();
+      assert.equal(await page.getByLabel("来源名称", { exact: true }).count(), 0, "new sources must not require a display name");
+      assert.equal(await page.getByLabel("通过主机网络下载这份订阅").count(), 0, "download route must be automatic");
+      if (usesSubscription) {
+        await page.getByLabel("订阅链接", { exact: true }).fill("https://proxy.example.invalid/config?token=fixture-secret");
+      } else if (mode === "manual") {
+        await page.getByRole("button", { name: "手动节点", exact: true }).click();
+        await page.getByLabel("节点名称", { exact: true }).fill("新节点");
+        await page.getByLabel("服务器", { exact: true }).fill("127.0.0.1");
       } else {
         await page.getByRole("button", { name: "本地 YAML", exact: true }).click();
-        await page.locator('input[type="file"]').setInputFiles({
-          name: "proxy.yaml", mimeType: "text/yaml",
-          buffer: Buffer.from("proxies: [{name: new-node, type: http, server: 127.0.0.1, port: 8080}]"),
-        });
-        await page.setViewportSize({ width: 600, height: 740 });
+        const yaml = "proxies: [{name: new-node, type: http, server: 127.0.0.1, port: 8080}]";
+        if (mode === "pasted-yaml") {
+          await page.getByRole("textbox", { name: "节点 YAML", exact: true }).fill(yaml);
+        } else {
+          await page.locator('input[type="file"]').setInputFiles({
+            name: "proxy.yaml", mimeType: "text/yaml", buffer: Buffer.from(yaml),
+          });
+          await page.setViewportSize({ width: 600, height: 740 });
+        }
       }
       await page.getByRole("button", { name: "导入并验证", exact: true }).click();
     }
@@ -84,26 +94,21 @@ for (const mode of ["subscription", "yaml", "saved", "add-to-saved"]) {
     const choose = page.getByRole("button", { name: `选择节点 ${chosenName}`, exact: true });
     await choose.waitFor();
     assert.equal(applies, 0);
-    if (!hasSaved) assert.equal(await next.isDisabled(), true);
-    if (addingToSaved) assert.equal(await choose.getAttribute("aria-pressed"), "true", "import cleared the unapplied selection");
-    await choose.click();
-    await next.click();
-    assert.match(await current.innerText(), /应用代理/);
-    assert.equal(applies, 0);
+    if (!hasSaved) assert.equal(await apply.isDisabled(), true);
     if (addingToSaved) {
-      const review = page.getByRole("region", { name: "确认待应用代理", exact: true });
-      await review.getByRole("alert").filter({ hasText: "原代理链路尚未就绪" }).waitFor();
-      await review.getByRole("button", { name: "撤销修改", exact: true }).waitFor();
+      assert.equal(await choose.getAttribute("aria-pressed"), "true", "import cleared the unapplied selection");
+      await page.getByRole("alert").filter({ hasText: "原代理链路尚未就绪" }).waitFor();
+      await page.getByRole("button", { name: "撤销修改", exact: true }).waitFor();
     }
-    await page.getByRole("button", { name: "返回选择节点", exact: true }).click();
-    assert.equal(await choose.getAttribute("aria-pressed"), "true");
-    await next.click();
-    await page.getByRole("button", { name: mode === "saved" ? "重新应用" : "应用代理", exact: true }).click();
+    if (mode !== "saved") await choose.click();
+    assert.equal(await page.getByRole("button", { name: "下一步：确认应用", exact: true }).count(), 0);
+    assert.equal(applies, 0, "selecting a candidate must leave the existing route active until Apply");
+    await apply.click();
     await page.getByText("代理已应用", { exact: true }).waitFor();
     assert.equal(imports, mode === "saved" ? 0 : 1);
     assert.equal(applies, 1);
     assert.deepEqual(errors, []);
-    console.log(`PASS ${mode}: import/skip, selection, return, explicit apply`);
+    console.log(`PASS ${mode}: automatic defaults and one-click apply`);
   } finally {
     await browser.close();
   }

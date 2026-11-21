@@ -32,10 +32,7 @@ try {
  const dns=page.getByLabel('加密 DNS',{exact:true});
  await dns.fill('https://dns.google/dns-query');
  const select=async(id)=>{
-  const back=page.getByRole('button',{name:'返回选择节点',exact:true});
-  if (await back.isVisible()) await back.click();
   await chooseInline(page.getByRole('combobox',{name:'最终出口',exact:true}),id);
-  await page.getByRole('button',{name:'下一步：确认应用',exact:true}).click();
   await page.getByRole('button',{name:'应用代理',exact:true}).click();
   await page.waitForFunction(()=>!document.querySelector('.proxy-progress'));
  };
@@ -47,7 +44,7 @@ try {
  await page.waitForFunction(ip=>document.querySelector('.network-exit-policy input[spellcheck="false"]')?.value===ip,policies.first.ip);
  fail=true;
  await select('second');
- await page.getByRole('alert').filter({hasText:'代理启动失败'}).waitFor();
+ await page.locator('.proxy-manager').getByRole('alert').filter({hasText:'代理启动失败'}).waitFor();
  assert.equal(await ip.inputValue(),policies.first.ip,'failed node switch replaced the binding');
  assert.equal(await dns.inputValue(),'https://dns.google/dns-query');
  assert.equal(state.settings.exit_policy.ip,policies.first.ip);

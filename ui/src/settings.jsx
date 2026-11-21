@@ -721,7 +721,7 @@ export function SettingsPanel({
                 {status.job?.running
                   ? status.job.message
                   : proxyDirty
-                    ? "代理修改待应用，请前往确认步骤"
+                    ? "代理修改待应用，请点击「应用代理」"
                     : changed
                     ? environmentChanged && status.vm_running
                       ? "网络和系统设置需要重启"
