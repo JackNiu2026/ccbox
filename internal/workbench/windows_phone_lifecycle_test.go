@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
@@ -26,9 +25,9 @@ import (
 	"github.com/sylvinus/agent-vm/internal/remotelink"
 )
 
-// Spawn the production Serve entry twice. The binding names a nonexistent VM;
-// this tests persistent phone ownership without opening a GUI or creating a VM.
-func TestWindowsPhoneProductionRestoreAndStop(t *testing.T) {
+// Restart the production service with a legacy pairing record. The retired
+// phone transport must stay off without deleting the existing record.
+func TestWindowsPhoneProductionDoesNotRestoreRetiredPairing(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("requires POSIX process interrupt; native Windows phone entry is tested separately")
 	}
@@ -76,10 +75,6 @@ func TestWindowsPhoneProductionRestoreAndStop(t *testing.T) {
 	if _, err := rand.Read(hostSeed); err != nil {
 		t.Fatal(err)
 	}
-	hostIdentity, err := remotelink.IdentityFromKey(ed25519.NewKeyFromSeed(hostSeed))
-	if err != nil {
-		t.Fatal(err)
-	}
 	phone, err := remotelink.NewIdentity()
 	if err != nil {
 		t.Fatal(err)
@@ -102,7 +97,7 @@ func TestWindowsPhoneProductionRestoreAndStop(t *testing.T) {
 	for restart := 0; restart < 2; restart++ {
 		returned := filepath.Join(profile, fmt.Sprintf("serve-returned-%d", restart))
 		release := filepath.Join(profile, fmt.Sprintf("serve-release-%d", restart))
-		cmd := exec.CommandContext(ctx, executable, "-test.run=^TestWindowsPhoneProductionRestoreAndStop$", "-test.timeout=30s")
+		cmd := exec.CommandContext(ctx, executable, "-test.run=^TestWindowsPhoneProductionDoesNotRestoreRetiredPairing$", "-test.timeout=30s")
 		cmd.Env = append(os.Environ(), helper+"="+filepath.Join(profile, "config.json"), "CAGE_TEST_WINDOWS_PHONE_RETURNED="+returned, "CAGE_TEST_WINDOWS_PHONE_RELEASE="+release)
 		var output bytes.Buffer
 		cmd.Stdout, cmd.Stderr = &output, &output
@@ -136,24 +131,12 @@ func TestWindowsPhoneProductionRestoreAndStop(t *testing.T) {
 		if control.PID != cmd.Process.Pid {
 			t.Fatal("production Windows service did not publish its controller")
 		}
-		var client *mobilelink.Client
+		deadline = time.Now().Add(time.Second)
 		for time.Now().Before(deadline) {
-			room, err := mobilelink.LookupRoom(ctx, relayHTTP.URL, paired.Lookup)
-			if err == nil {
-				client, err = mobilelink.ConnectClient(ctx, relayHTTP.URL, room.ID, room.ClientToken, phone, hostIdentity.Pin)
-				if err != nil {
-					t.Fatal(err)
-				}
-				break
+			if _, err := mobilelink.LookupRoom(ctx, relayHTTP.URL, paired.Lookup); !errors.Is(err, mobilelink.ErrNoInvitation) {
+				t.Fatalf("production Serve exposed a retired phone invitation or lookup failed: %v", err)
 			}
-			time.Sleep(10 * time.Millisecond)
-		}
-		if client == nil {
-			t.Fatal("production Serve did not restore the saved Windows phone")
-		}
-		reply, err := client.Do(ctx, http.MethodGet, "/api/mobile/cli/projects", nil)
-		if err != nil || reply.Status != http.StatusLocked {
-			t.Fatalf("restored phone lost pairing proof or bypassed locked account: %v %#v", err, reply)
+			time.Sleep(25 * time.Millisecond)
 		}
 		// This Windows binding has no verifiable resident VM on this POSIX host.
 		// Trigger Serve's real signal shutdown instead of faking an idle handoff.
@@ -170,17 +153,6 @@ func TestWindowsPhoneProductionRestoreAndStop(t *testing.T) {
 			}
 			time.Sleep(10 * time.Millisecond)
 		}
-		deadline = time.Now().Add(2 * time.Second)
-		for {
-			_, err := client.Do(ctx, http.MethodGet, "/api/mobile/cli/projects", nil)
-			if err != nil {
-				break
-			}
-			if time.Now().After(deadline) {
-				t.Fatal("Serve returned but its phone transport remained alive")
-			}
-			time.Sleep(10 * time.Millisecond)
-		}
 		if err := os.WriteFile(release, []byte("verified"), 0600); err != nil {
 			t.Fatal(err)
 		}
@@ -192,18 +164,6 @@ func TestWindowsPhoneProductionRestoreAndStop(t *testing.T) {
 			}
 		case <-time.After(5 * time.Second):
 			t.Fatal("Windows phone service did not stop with production Serve")
-		}
-		client.Close()
-		deadline = time.Now().Add(3 * time.Second)
-		for {
-			_, err := mobilelink.LookupRoom(ctx, relayHTTP.URL, paired.Lookup)
-			if errors.Is(err, mobilelink.ErrNoInvitation) {
-				break
-			}
-			if time.Now().After(deadline) {
-				t.Fatal("service exit left a discoverable Windows phone room")
-			}
-			time.Sleep(10 * time.Millisecond)
 		}
 		current, err := os.ReadFile(phoneFile)
 		if err != nil || !bytes.Equal(current, original) {

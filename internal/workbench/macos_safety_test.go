@@ -101,6 +101,12 @@ func TestMacOSStaticExitRequiresThreeMatchingSuccessfulSamples(t *testing.T) {
 func TestMacOSWorkloadStartsNetworkSupervision(t *testing.T) {
 	s := testServer(t)
 	s.macosGuest = &guestos.MacOSProfile{Instance: "mac", User: "guestdev"}
+	if err := writePrivate(filepath.Join(s.instanceDir(), "cage-running.json"), map[string]int{"pid": os.Getpid()}); err != nil {
+		t.Fatal(err)
+	}
+	if !s.vmRunning() {
+		t.Fatal("fixture does not represent a running macOS guest")
+	}
 	checked := make(chan struct{}, 1)
 	previous := physicalProxyInterface
 	physicalProxyInterface = func(ctx context.Context) (string, error) {
