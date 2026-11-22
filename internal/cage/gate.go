@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"reflect"
 	"sync"
 	"time"
 
@@ -23,7 +24,7 @@ const (
 	DiagnosticAddress = "198.18.0.254:80"
 )
 
-var ErrGateClosed = errors.New("Cage 外网未放行，请在工作台完成关键检查")
+var ErrGateClosed = errors.New("CCBox 外网未放行，请在工作台完成关键检查")
 
 type GateCounters struct {
 	TCPDenied     uint64 `json:"tcp_denied"`
@@ -123,7 +124,9 @@ func (g *EgressGate) SyncProxyRevision(cfg Config) error {
 		before.ExitPolicy, after.ExitPolicy = ExitPolicy{}, ExitPolicy{}
 	}
 	before.ProxyRevision, after.ProxyRevision = "", ""
-	if before != after || cfg.ProxyRevision == "" {
+	// Load decodes the guest profile into a new pointer on each read. Compare
+	// the saved settings themselves so reloading an unchanged profile is safe.
+	if !reflect.DeepEqual(before, after) || cfg.ProxyRevision == "" {
 		g.mu.Unlock()
 		return errors.New("出口地址或环境设置变化需要重启环境")
 	}

@@ -83,6 +83,43 @@ func TestInitializationPersistsBeforeDiskCreationAndDoesNotResetExisting(t *test
 	}
 }
 
+func TestInitializationWaitsForBackgroundOperationWithoutAJob(t *testing.T) {
+	s := testServer(t)
+	s.op.Lock()
+	result := make(chan *httptest.ResponseRecorder, 1)
+	go func() { result <- initializationRequest(s, "install", true) }()
+	select {
+	case w := <-result:
+		s.op.Unlock()
+		t.Fatalf("background operation blocked setup: %d %s", w.Code, w.Body.String())
+	case <-time.After(150 * time.Millisecond):
+		s.op.Unlock()
+	}
+	select {
+	case w := <-result:
+		if w.Code != http.StatusOK {
+			t.Fatalf("setup did not resume: %d %s", w.Code, w.Body.String())
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("setup did not resume when the lock was released")
+	}
+	if state, err := s.initializationState(); err != nil || !state.Started {
+		t.Fatalf("installation state was not saved: %+v %v", state, err)
+	}
+}
+
+func TestInitializationIdentifiesRunningJob(t *testing.T) {
+	s := testServer(t)
+	s.setJobForTest(Job{Running: true, Kind: "storage"})
+	w := initializationRequest(s, "install", true)
+	if w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), jobName("storage")) {
+		t.Fatalf("running job was not identified: %d %s", w.Code, w.Body.String())
+	}
+	if state, err := s.initializationState(); err != nil || state.Started {
+		t.Fatalf("setup advanced during another job: %+v %v", state, err)
+	}
+}
+
 func TestInitializationCompletionRequiresReadyGuestAndCurrentNetworkEvidence(t *testing.T) {
 	s := testServer(t)
 	if w := initializationRequest(s, "begin", false); w.Code != http.StatusForbidden {

@@ -78,7 +78,7 @@ func parityAccount(t *testing.T, s *Server) {
 	t.Cleanup(a.lock)
 }
 
-func TestAgentParityAccountProfilePasswordAndLock(t *testing.T) {
+func TestAgentParityAccountProfilePasswordAndSuspend(t *testing.T) {
 	s := agentTestController(t)
 	parityAccount(t, s)
 	parityUI(t, s, "POST", "/api/account/profile", map[string]any{"username": "From UI", "avatar": ""}, 200)
@@ -122,7 +122,7 @@ func TestAgentParityAccountProfilePasswordAndLock(t *testing.T) {
 		t.Fatal("rejected password change modified account")
 	}
 	parityAgent(t, s, "POST", "/api/account/password", map[string]any{"old_password": "parity-old-password", "password": "parity-new-password", "confirm_password": "parity-new-password"}, 200)
-	parityUI(t, s, "POST", "/api/account/lock", map[string]any{}, 200)
+	parityUI(t, s, "POST", "/api/account/suspend", map[string]any{}, 200)
 	parityAgent(t, s, "GET", "/api/settings", nil, 423)
 	parityUI(t, s, "GET", "/api/settings", nil, 423)
 	parityUI(t, s, "POST", "/api/account/unlock", map[string]any{"password": "parity-old-password"}, 400)
@@ -130,7 +130,7 @@ func TestAgentParityAccountProfilePasswordAndLock(t *testing.T) {
 	s.account.nextAttempt = time.Time{}
 	s.account.mu.Unlock()
 	parityAgent(t, s, "POST", "/api/account/unlock", map[string]any{"password": "parity-new-password"}, 200)
-	parityAgent(t, s, "POST", "/api/account/lock", map[string]any{}, 200)
+	parityAgent(t, s, "POST", "/api/account/suspend", map[string]any{}, 200)
 	parityUI(t, s, "GET", "/api/settings", nil, 423)
 	parityUI(t, s, "POST", "/api/account/unlock", map[string]any{"password": "parity-new-password"}, 200)
 	stored, err = loadLocalAccount(s.profile)
@@ -200,67 +200,19 @@ func TestAgentParityAppearanceNestedValuesAndFavorites(t *testing.T) {
 	if !reflect.DeepEqual(favorites, parityDecode[Favorites](t, file)) {
 		t.Fatal("favorites not durable")
 	}
-	parityAgent(t, s, "POST", "/api/account/lock", map[string]any{}, 200)
+	parityAgent(t, s, "POST", "/api/account/suspend", map[string]any{}, 200)
 	parityAgent(t, s, "POST", "/api/appearance", appearance, 423)
 	parityUI(t, s, "POST", "/api/appearance", appearance, 423)
 	parityAgent(t, s, "GET", "/api/favorites", nil, 423)
 	parityUI(t, s, "GET", "/api/favorites", nil, 423)
 }
 
-func TestAgentParityVaultMetadataAndReauthentication(t *testing.T) {
-	s := agentTestController(t)
-	parityAccount(t, s)
-	const secret = "parity-website-secret-should-not-be-redacted"
-	entry := map[string]any{"origin": "https://vault.example.test/login", "username": "owner@example.test", "password": secret}
-	parityUI(t, s, "POST", "/api/vault", map[string]any{"action": "save", "entry": entry}, 200)
-	listBody := parityAgent(t, s, "GET", "/api/vault", nil, 200)
-	if strings.Contains(string(listBody), secret) {
-		t.Fatal("ordinary Agent list leaked password")
+func TestAgentOmitsRetiredWebsiteVaultAndPairingActions(t *testing.T) {
+	for _, operation := range AgentOperations() {
+		if strings.HasPrefix(operation.Name, "vault.") || strings.HasPrefix(operation.Name, "mobile.") {
+			t.Errorf("retired agent operation remains available: %s", operation.Name)
+		}
 	}
-	list := parityDecode[vaultData](t, listBody)
-	if len(list.Entries) != 1 || list.Entries[0].Origin != "https://vault.example.test" || list.Entries[0].Username != "owner@example.test" {
-		t.Fatal("Agent cannot discover UI record", string(listBody))
-	}
-	id := list.Entries[0].ID
-	reveal := map[string]any{"action": "reveal", "id": id, "account_password": "parity-old-password"}
-	result, err := AgentCall(context.Background(), s.configPath, "vault.change", parityJSON(t, reveal))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if parityDecode[struct {
-		Password string `json:"password"`
-	}](t, result).Password != secret {
-		t.Fatal("explicit authenticated reveal was redacted")
-	}
-	wrong := map[string]any{"action": "reveal", "id": id, "account_password": "wrong"}
-	parityAgent(t, s, "POST", "/api/vault", wrong, 400)
-	s.account.mu.Lock()
-	s.account.nextAttempt = time.Time{}
-	s.account.mu.Unlock()
-	parityUI(t, s, "POST", "/api/vault", wrong, 400)
-	s.account.mu.Lock()
-	s.account.nextAttempt = time.Time{}
-	s.account.mu.Unlock()
-	parityAgent(t, s, "POST", "/api/vault", map[string]any{"action": "save", "entry": map[string]any{"id": id, "origin": "https://vault.example.test", "username": "changed-by-agent", "password": ""}}, 200)
-	if parityDecode[struct {
-		Password string `json:"password"`
-	}](t, parityUI(t, s, "POST", "/api/vault", reveal, 200)).Password != secret {
-		t.Fatal("Agent metadata edit erased password")
-	}
-	list = parityDecode[vaultData](t, parityUI(t, s, "GET", "/api/vault", nil, 200))
-	if list.Entries[0].Username != "changed-by-agent" {
-		t.Fatal("UI missed Agent edit")
-	}
-	file, err := os.ReadFile(filepath.Join(s.profile, "password-vault.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(file), secret) || strings.Contains(string(file), "changed-by-agent") {
-		t.Fatal("vault persisted plaintext")
-	}
-	parityAgent(t, s, "POST", "/api/account/lock", map[string]any{}, 200)
-	parityAgent(t, s, "POST", "/api/vault", reveal, 423)
-	parityUI(t, s, "POST", "/api/vault", reveal, 423)
 }
 
 func TestAgentParityBrowserHomeFailureAndLength(t *testing.T) {

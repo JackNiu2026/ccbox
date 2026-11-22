@@ -9,14 +9,12 @@ import React, {
 import {
   Camera,
   Check,
-  ChevronDown,
   Eye,
   EyeOff,
   Fingerprint,
   Globe2,
   LockKeyhole,
   LogOut,
-  Settings,
   ShieldCheck,
 } from "lucide-react";
 import { api, native, nativeAvailable } from "./api";
@@ -413,7 +411,7 @@ export function AccountGate({ children }) {
               {!resetting && (localDesktop() || (creating && deviceSupport?.supported && deviceSupport.device_status)) && (
                 <label className="account-device-option check-line">
                   <input type="checkbox" checked={rememberThisDevice} onChange={(e) => setRememberLogin(e.target.checked)} />
-                  <span><strong>{localDesktop() ? "记住我" : "记住登录"}</strong><small>{localDesktop() ? "信任此电脑，下次用当前系统用户打开时直接进入。手动锁定仍需验证。" : "下次打开直接进入。手动锁定后仍需验证。"}</small></span>
+                  <span><strong>{localDesktop() ? "记住我" : "记住登录"}</strong><small>{localDesktop() ? "信任此电脑，下次用当前系统用户打开时直接进入。" : "下次打开直接进入。"}</small></span>
                 </label>
               )}
               {!creating && deviceSupport?.supported && credentialPresent(deviceSupport.device_status?.biometric) && account.devices?.biometric && (
@@ -471,109 +469,23 @@ export function AccountGate({ children }) {
   );
 }
 
-export function AccountMenu({ onSettings, onConfirm, onStatus, busy }) {
-  const { account, act, deviceNotice, setDeviceNotice } = useAccount();
+export function AccountIdentity({ onStatus }) {
+  const { account, deviceNotice, setDeviceNotice } = useAccount();
   useEffect(() => {
     if (deviceNotice) { onStatus(deviceNotice); setDeviceNotice(""); }
   }, [deviceNotice]);
-  const [open, setOpen] = useState(false);
-  const root = useRef();
-  useEffect(() => {
-    if (!open) return;
-    root.current.querySelector('[role="menuitem"]').focus();
-    const dismiss = (event) => {
-      if (
-        event.key === "Escape" ||
-        (event.type === "click" && !root.current?.contains(event.target))
-      ) {
-        if (event.key === "Escape") root.current?.querySelector(".account-trigger")?.focus();
-        setOpen(false);
-      }
-    };
-    window.addEventListener("click", dismiss);
-    window.addEventListener("keydown", dismiss);
-    return () => {
-      window.removeEventListener("click", dismiss);
-      window.removeEventListener("keydown", dismiss);
-    };
-  }, [open]);
-  const perform = async (action) => {
-    setOpen(false);
-    if (
-      action === "logout" &&
-      !(await onConfirm({
-        title: isRemoteClient() ? "退出云端账户？" : "退出本地账户？",
-        body: "这会停止 CCBox 环境与后台任务，并锁定登录凭据。请先保存文件。",
-        confirm: "停止环境并退出账户",
-      }))
-    )
-      return;
-    try {
-      await act(action);
-    } catch (e) {
-      onStatus(e.message);
-    }
-  };
   return (
-    <div className="account-menu-root" ref={root}>
-      <button
-        className="account-trigger"
-        aria-label={`账户菜单，${account.username}`}
-        aria-expanded={open}
-        aria-haspopup="menu"
-        onClick={() => setOpen(!open)}
-      >
-        <AccountAvatar account={account} />
-        <span className="account-trigger-name">
-          <strong>{account.username}</strong>
-          <small>{account.trusted_local ? "受信任的本机" : isRemoteClient() ? "云端账户" : "本地账户"}</small>
-        </span>
-        <ChevronDown size={15} />
-      </button>
-      {open && (
-        <div className="account-menu" role="menu" aria-label={isRemoteClient() ? "云端账户菜单" : "本地账户菜单"}
-          onKeyDown={(event) => {
-            if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-            event.preventDefault();
-            const items = [...event.currentTarget.querySelectorAll("button:enabled")];
-            const step = event.key === "ArrowDown" ? 1 : -1;
-            items[(items.indexOf(event.target) + step + items.length) % items.length].focus();
-          }}
-        >
-          <div className="account-menu-label">你的 CCBox</div>
-          <button
-            role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              onSettings("account");
-            }}
-          >
-            <Settings size={16} />
-            设置
-          </button>
-          {account.trusted_local ? <button role="menuitem" onClick={() => { setOpen(false); onSettings("account"); }}>
-            <LockKeyhole size={16} /> 设置账户密码
-          </button> : <>
-          <div className="account-menu-divider" />
-          <button role="menuitem" onClick={() => perform("lock")}>
-            <LockKeyhole size={16} />
-            锁定 CCBox<small>任务继续运行</small>
-          </button>
-          <button
-            role="menuitem"
-            disabled={busy}
-            onClick={() => perform("logout")}
-          >
-            <LogOut size={16} />
-            退出账户
-          </button></>}
-        </div>
-      )}
+    <div className="sidebar-account-identity">
+      <AccountAvatar account={account} />
+      <span className="sidebar-account-name">
+        <strong title={account.username}>{account.username}</strong>
+        <small>{account.trusted_local ? "受信任的本机" : isRemoteClient() ? "云端账户" : "本地账户"}</small>
+      </span>
     </div>
   );
 }
 
-export function AccountSettings({ busy: environmentBusy, onDirty }) {
+export function AccountSettings({ busy: environmentBusy, onDirty, onConfirm }) {
   const { account, act, refresh } = useAccount();
   const [name, setName] = useState(account.username),
     [avatar, setAvatar] = useState(account.avatar || "");
@@ -772,6 +684,21 @@ export function AccountSettings({ busy: environmentBusy, onDirty }) {
       {localDesktop() && !account.trusted_local && <TrustedDeviceSettings />}
       {!account.trusted_local && <AccountDeviceSettings />}
       {account.online_enabled && !account.trusted_local && <OnlineAccountSettings />}
+      {!account.trusted_local && <>
+        <div className="account-section-divider" />
+        <button type="button" className="quiet-button" disabled={busy || environmentBusy} onClick={async () => {
+          if (!(await onConfirm({
+            title: isRemoteClient() ? "退出云端账户？" : "退出本地账户？",
+            body: "这会停止 CCBox 环境和后台任务，并撤销本机快捷登录。请先保存文件。",
+            confirm: "停止环境并退出账户",
+          }))) return;
+          setBusy(true); setError(""); setMessage(""); setFeedbackTarget("logout");
+          try { await act("logout"); }
+          catch (error) { setError(error.message); }
+          finally { setBusy(false); }
+        }}><LogOut size={16} />退出账户</button>
+        {feedbackTarget === "logout" && feedback}
+      </>}
       <p className="account-settings-note">
         <LockKeyhole size={15} />
         {isRemoteClient() ? "账户、应用资料与登录凭据保存在当前云端主机。" : account.online_enabled ? "本机资料与登录凭据只保存在这台设备上；CCBox 服务器只保存线上账户与授权。" : "一个本地账户，一个持久工作环境。资料与凭据不上传到 CCBox 服务器。"}
@@ -799,7 +726,7 @@ function TrustedDeviceSettings() {
   return <form onSubmit={update}>
     <fieldset disabled={busy}>
       <h4>记住我</h4>
-      <p className="field-help">{enabled ? "已信任此电脑，下次用当前系统用户打开时自动进入。手动锁定仍需验证，退出账户会撤销信任。" : "验证一次账户密码，信任此电脑，下次用当前系统用户打开时自动进入。"}</p>
+      <p className="field-help">{enabled ? "已信任此电脑，下次用当前系统用户打开时自动进入。退出账户会撤销信任。" : "验证一次账户密码，信任此电脑，下次用当前系统用户打开时自动进入。"}</p>
       {!enabled && <PasswordField label="验证账户密码" value={password} onChange={setPassword} autoComplete="current-password" />}
       <button className="quiet-button" disabled={!enabled && !password}>{enabled ? "关闭记住我" : "信任此电脑"}</button>
       {message && <p className="account-error" role="alert">{message}</p>}
@@ -838,12 +765,12 @@ function AccountDeviceSettings() {
     {!localDesktop() && <label className="account-device-option check-line">
       <input type="checkbox" checked={Boolean(account.devices?.automatic) && states.automatic === "available"} disabled={busy || states.automatic === "unavailable"}
         onChange={(event) => change("automatic", event.target.checked)} />
-      <span><strong>记住登录</strong><small>{description("automatic", "重新打开直接进入。手动锁定后仍需指纹或密码。")}</small></span>
+      <span><strong>记住登录</strong><small>{description("automatic", "重新打开时可自动进入。")}</small></span>
     </label>}
     <label className="account-device-option check-line">
       <input type="checkbox" checked={Boolean(account.devices?.biometric) && credentialPresent(states.biometric)} disabled={busy || states.biometric === "unavailable" || (!deviceSupport.biometric_available && !credentialPresent(states.biometric))}
         onChange={(event) => change("biometric", event.target.checked)} />
-      <span><strong>使用 Touch ID 解锁</strong><small>{description("biometric", deviceSupport.biometric_available ? "手动锁定后，通过系统指纹验证进入。" : "请先在 macOS 系统设置中设置 Touch ID。")}</small></span>
+      <span><strong>使用 Touch ID 解锁</strong><small>{description("biometric", deviceSupport.biometric_available ? "需要验证账户时，可用系统指纹进入。" : "请先在 macOS 系统设置中设置 Touch ID。")}</small></span>
     </label>
     {Object.values(states).includes("unavailable") && <button type="button" className="quiet-button" disabled={busy} onClick={recheckDevices}>重新检查快捷登录</button>}
     <p className="field-help">退出账户会撤销本机快捷登录授权。密码始终可以用于解锁。</p>

@@ -41,11 +41,8 @@ internal sealed class MainWindow : Form
             if (ConfirmStop()) await Bootstrap("--complete-update");
         };
         var trayMenu = new TrayMenu();
-        trayMenu.Items.Add("打开 CCBox", null, (_, _) => RestoreWindow());
-        trayMenu.Items.Add("检查应用更新…", null, (_, _) => updater!.Handle("check"));
-        trayMenu.Items.Add("关于 CCBox", null, (_, _) => MessageBox.Show(this, $"CCBox {AppUpdater.Version}\n本机隔离编码工作区", "关于 CCBox"));
-        trayMenu.Items.Add(new ToolStripSeparator());
-        trayMenu.Items.Add("退出 CCBox…", null, (_, _) => RequestQuit());
+        trayMenu.Items.Add("显示主界面", null, (_, _) => RestoreWindow());
+        trayMenu.Items.Add("退出", null, (_, _) => RequestQuit());
         trayMenu.Opening += (_, _) => (chrome ?? new WindowChrome(BackColor, ForeColor, false)).ApplyMenu(trayMenu);
         tray = new NotifyIcon { Icon = Icon, Text = "CCBox", Visible = true, ContextMenuStrip = trayMenu };
         tray.DoubleClick += (_, _) => RestoreWindow();

@@ -16,6 +16,14 @@ export function networkState(status, now = Date.now()) {
   return { mode: "unknown", label: "外网状态待确认" };
 }
 
+export function networkStartAction(status) {
+  const running = Boolean(status.vm_running);
+  if (running && status.ready && status.safety?.gate) {
+    return { path: "/safety/check", confirmRestart: false };
+  }
+  return { path: "/start", confirmRestart: running };
+}
+
 export function canonicalExitPolicy(value = {}) {
   return {
     mode: value.mode || "dynamic",

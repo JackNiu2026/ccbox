@@ -271,9 +271,9 @@ func windowsPhysicalInterface(ctx context.Context) (string, error) {
 	if err != nil {
 		var exited *exec.ExitError
 		if errors.As(err, &exited) && exited.ExitCode() == 2 {
-			return "", errors.New("未找到可用的物理 IPv4 网卡。请连接以太网或 Wi-Fi；仅有虚拟网卡的 Windows 虚拟机和云主机暂不可用。Cage 外网保持关闭")
+			return "", errors.New("未找到可用的物理 IPv4 网卡。请连接以太网或 Wi-Fi；仅有虚拟网卡的 Windows 虚拟机和云主机暂不可用。CCBox 外网保持关闭")
 		}
-		return "", errors.New("无法读取 Windows 物理网卡信息，请确认系统网络服务正常后重试；Cage 外网保持关闭")
+		return "", errors.New("无法读取 Windows 物理网卡信息，请确认系统网络服务正常后重试；CCBox 外网保持关闭")
 	}
 	var selected struct {
 		Name  string

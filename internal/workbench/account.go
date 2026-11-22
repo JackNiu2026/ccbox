@@ -54,7 +54,7 @@ func (s *Server) accountAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	action := r.PathValue("action")
-	if action != "prepare-macos" && action != "create" && action != "unlock" && action != "profile" && action != "password" && action != "lock" && action != "logout" && action != "suspend" && action != "device-enroll" && action != "device-revoke" && action != "device-unlock" &&
+	if action != "prepare-macos" && action != "create" && action != "unlock" && action != "profile" && action != "password" && action != "logout" && action != "suspend" && action != "device-enroll" && action != "device-revoke" && action != "device-unlock" &&
 		action != "login" && action != "link" && action != "online-logout" && action != "online-reset" {
 		http.NotFound(w, r)
 		return
@@ -69,7 +69,7 @@ func (s *Server) accountAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if (action == "lock" || action == "logout" || action == "device-enroll") && s.account.view().TrustedLocal {
+	if (action == "logout" || action == "device-enroll") && s.account.view().TrustedLocal {
 		http.Error(w, "请先在本机的「设置 → 账户」设置密码", http.StatusConflict)
 		return
 	}
@@ -191,8 +191,6 @@ func (s *Server) accountAction(w http.ResponseWriter, r *http.Request) {
 		if err = s.changeOnlinePassword(r.Context(), input.OldPassword, input.Password); err == nil {
 			err = s.account.changePassword(input.OldPassword, input.Password)
 		}
-	case "lock":
-		err = s.account.lockAccess(false)
 	case "suspend":
 		s.account.lock()
 	case "device-enroll":
@@ -214,7 +212,7 @@ func (s *Server) accountAction(w http.ResponseWriter, r *http.Request) {
 		requestError(w, err)
 		return
 	}
-	if action == "lock" || action == "suspend" {
+	if action == "suspend" {
 		s.clearBrowserVault(vaultLease)
 	}
 	if action == "create" || action == "login" || action == "link" || action == "unlock" || action == "device-unlock" {

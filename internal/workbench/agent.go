@@ -110,13 +110,6 @@ func AgentOperations() []AgentOperation {
 	add("guest.reselect", "Clear only the same unstarted installation the UI can reselect", "DELETE", "/api/environment/guest-systems", object(map[string]string{"id": "string"}))
 	get("claude-accounts.get", "Read account roster, quotas and scheduling", "/api/claude-accounts")
 	post("claude-accounts.change", "Apply the same join, cancel, update, scheduling, refresh and removal actions as the UI", "/api/claude-accounts", from(claudeAccountInput{}))
-	get("vault.get", "List metadata; passwords remain hidden exactly as in the UI", "/api/vault")
-	post("vault.change", "Save/delete/unblock; reveal requires the same account_password reauthentication as the UI", "/api/vault", object(map[string]string{"action": "string", "entry": "object", "id": "string", "origin": "string", "account_password": "string"}))
-	ops[len(ops)-1].InputSchema["properties"].(map[string]any)["entry"] = from(vaultEntry{})
-	post("vault.browser", "Use the browser vault's existing save/fill/block actions", "/api/vault/browser", from(vaultBrowserInput{}))
-	get("mobile.get", "Inspect phone pairing", "/api/mobile-pair")
-	post("mobile.pair", "Generate the same phone pairing invitation", "/api/mobile-pair", object(map[string]string{"admin": "string", "relay": "string"}))
-	add("mobile.remove", "Remove the same paired device", "DELETE", "/api/mobile-pair", object(nil))
 	get("tailscale.get", "Read guest private-network state", "/api/tailscale")
 	for _, action := range []string{"install", "connect", "login", "disconnect", "logout", "add-key", "remove-key"} {
 		schema := object(nil)

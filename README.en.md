@@ -35,11 +35,10 @@ CCBox lets you work with Claude in a system you know: a macOS virtual machine on
 - **See your network status.** Built-in proxy management imports subscriptions, selects nodes and checks the exit IP. The environment stays offline until critical checks pass, and there is no direct-connection fallback when the proxy is unavailable.
 - **Pick up where you left off.** Tools, files and sign-in state persist on the virtual disk, and background tasks can keep running after you close the window.
 - **Manage several Claude Code subscriptions.** Check quotas, assign accounts to new sessions, and with explicit permission switch accounts while keeping history. [Claude Code](docs/guide/accounts.md)
-- **Continue from your phone.** Pair an Android phone or iPhone with your computer to continue Claude Code conversations and tool approvals, or operate the remote browser and Claude Desktop. [Mobile](docs/guide/mobile.md)
 - **Put the environment on your own server.** Deploy to or connect a Linux VPS over SSH; tools, tasks and data stay on the server, no KVM required. [Cloud and SSH](docs/guide/cloud.md)
 - **Reach devices over a private network.** Sign in to Tailscale inside CCBox, see the devices on your network, and use SSH, web and other TCP services. [Tailscale](docs/guide/tailscale.md)
 
-Browser bookmarks, private sessions, cookies, extensions, the password vault, plus appearance, resources, storage and tool updates are covered in the [full user guide](./docs/guide/index.md).
+Browser bookmarks, private sessions, cookies, extensions, plus appearance, resources, storage and tool updates are covered in the [full user guide](./docs/guide/index.md).
 
 ## Quick start
 
@@ -100,7 +99,6 @@ The [user guide](./docs/guide/index.md) on the website can be browsed by feature
 | Install for the first time, configure a proxy, open a project | [Installation and first launch](./docs/guide/installation.md) |
 | Choose a macOS, Windows, Debian or Ubuntu 22.04 guest and use native tools | [Choose a guest system](./docs/guide/guest-systems.md) |
 | Add several subscriptions, check quotas and assign terminals | [Accounts and quotas](./docs/guide/accounts.md) |
-| Pair a phone, approve tools, use the remote browser | [Mobile and remote sessions](./docs/guide/mobile.md) |
 | Deploy and connect an environment on your own VPS | [Cloud and SSH](./docs/guide/cloud.md) |
 | Learn every setting and when it takes effect | [Settings reference](./docs/guide/settings.md) |
 | Maintain storage, resources, updates and backups | [Maintenance, resources and data](./docs/guide/maintenance.md) |

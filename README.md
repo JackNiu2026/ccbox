@@ -35,11 +35,10 @@ CCBox 让你在熟悉的系统里与 Claude 一起工作：Mac 上用 macOS 虚�
 - **看清网络状态。** 内置代理管理支持导入订阅、选择节点和检查出口。关键检查未通过时，环境保持离线；代理不可用时没有直连回退。
 - **下次继续使用。** 工具、文件和登录状态保存在虚拟磁盘里，关闭窗口可以保留后台任务。
 - **管理多个 Claude Code 订阅。** 查看额度、为新会话分配账号，并在明确授权后切换账号接续历史。 [Claude Code](docs/guide/accounts.md)
-- **从手机继续处理任务。** Android / iPhone 配对电脑，接续 Claude Code 对话与工具审批，或操作远程浏览器和 Claude Desktop。[手机连接](docs/guide/mobile.md)
 - **把环境放到自己的服务器。** 通过 SSH 部署或连接 Linux VPS，工具、任务和数据留在服务器，无需 KVM。[云端部署与 SSH](docs/guide/cloud.md)
 - **通过私网连接设备。** 在 CCBox 内登录 Tailscale，查看网络中的设备，使用 SSH、Web 与其他 TCP 服务。 [Tailscale 私网](docs/guide/tailscale.md)
 
-浏览器收藏、无痕会话、Cookie、扩展、密码保险箱，以及外观、资源、存储和工具更新，见[完整使用文档](./docs/guide/index.md)。
+浏览器收藏、无痕会话、Cookie、扩展，以及外观、资源、存储和工具更新，见[完整使用文档](./docs/guide/index.md)。
 
 ## 快速开始
 
@@ -100,7 +99,6 @@ CCBox 通过安装包手动更新。更新前保存并停止任务。[升级与�
 | 第一次安装、配置代理、打开项目 | [安装与首次启动](./docs/guide/installation.md) |
 | 选择 macOS、Windows、Debian 或 Ubuntu 22.04 客机，使用原生开发工具 | [选择客机系统](./docs/guide/guest-systems.md) |
 | 添加多个订阅、查看额度和分配终端 | [多账号与额度](./docs/guide/accounts.md) |
-| 手机扫码、工具审批、远程浏览器 | [手机连接与远程会话](./docs/guide/mobile.md) |
 | 在自己的 VPS 部署和连接环境 | [云端部署与 SSH](./docs/guide/cloud.md) |
 | 了解每一项设置及何时生效 | [设置参考](./docs/guide/settings.md) |
 | 维护存储、资源、更新与备份 | [维护、资源与数据](./docs/guide/maintenance.md) |

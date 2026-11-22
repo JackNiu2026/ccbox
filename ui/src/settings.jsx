@@ -1,7 +1,4 @@
-import { MobilePairSettings } from "./mobile-pair-settings";
 import { ArchivedSessions } from "./cli-sessions";
-import { Smartphone } from "lucide-react";
-import { PasswordVaultSettings } from "./password-vault";
 import { KeyRound } from "lucide-react";
 import { InlineSelect } from "./inline-select";
 import { clientKeyboard, isRemoteClient, saveClientKeyboard } from "./client-context.mjs";
@@ -21,6 +18,7 @@ import {
   Archive,
   Info,
   Search,
+  Power,
 } from "lucide-react";
 import { api } from "./api";
 import "./settings.css";
@@ -39,14 +37,13 @@ import { ScreenSharingChecks } from "./macos-screen-sharing";
 import { AccountSettings } from "./account";
 import { DesktopLicenseSettings } from "./desktop-license";
 import { AboutSettings } from "./about-settings";
+import { bindDetectedMacOSExit } from "./safety";
 const sections = [
   ["account", "账户", UserRound],
   ["license", "授权", KeyRound],
-  ["vault", "密码保险箱", KeyRound],
   ["archived-sessions", "已归档会话", Archive],
   ["keyboard", "通用", Settings],
   ["appearance", "外观", Palette],
-  ["mobile", "远程连接", Smartphone],
   ["network", "网络与代理", Globe2],
   ["region", "时区与语言", Clock3],
   ["project", "环境与恢复", RotateCcw],
@@ -54,9 +51,9 @@ const sections = [
 ];
 // Display grouping only; every section keeps its id and content.
 const sectionGroups = [
-  ["个人", ["account", "license", "vault", "archived-sessions"]],
+  ["个人", ["account", "license", "archived-sessions"]],
   ["工作台", ["keyboard", "appearance"]],
-  ["网络与连接", ["network", "mobile"]],
+  ["网络", ["network"]],
   ["系统", ["region", "project", "about"]],
 ];
 export function SettingsPanel({
@@ -65,6 +62,7 @@ export function SettingsPanel({
   onClose,
   onSaved,
   onConfirm,
+  onQuit,
   initialSection = "keyboard",
 }) {
   const [localKeyboard, setLocalKeyboard] = useState(() => clientKeyboard(current.keyboard));
@@ -107,6 +105,7 @@ export function SettingsPanel({
   );
   const busy =
     Boolean(status.job?.running) || Boolean(status.storage_recovery?.required) || probing || submitting || Boolean(jobId);
+  const exitCandidate = status.safety?.macos_exit_candidate?.ip;
   // Project folders of the other guest systems are always read directly.
   const linuxGuest = !/^(windows|macos)/.test(status.guest_system || "");
   const update = (key, value) => {
@@ -114,21 +113,23 @@ export function SettingsPanel({
     if (["dns_url"].includes(key)) setProbe(null);
     setError("");
   };
+  const confirmDiscard = () => (!changed && !accountDirty && !proxyDirty && !resourceDirty) || onConfirm({
+    title: "放弃尚未保存的修改？",
+    body: "未保存的修改将丢失。",
+    confirm: "放弃修改",
+  });
   const close = async () => {
     if (submitting) return;
     if (status.job?.running && jobId) {
       onClose();
       return;
     }
-    if (
-      (!changed && !accountDirty && !proxyDirty && !resourceDirty) ||
-      (await onConfirm({
-        title: "放弃尚未保存的修改？",
-        body: "当前环境不会改变。关闭后会丢弃这次表单修改。",
-        confirm: "放弃修改",
-      }))
-    )
-      onClose();
+    if (await confirmDiscard()) onClose();
+  };
+  const quit = async () => {
+    if (!(await confirmDiscard())) return;
+    try { await onQuit(); }
+    catch (error) { setError(error.message); }
   };
   useEffect(() => {
     if (jobId && status.job?.id === jobId && !status.job.running) {
@@ -265,19 +266,20 @@ export function SettingsPanel({
             </div>;
           })}
         </nav>
+        <div className="settings-sidebar-footer">
+          <button className="settings-quit" onClick={quit} disabled={submitting}>
+            <Power size={17} />退出 CCBox
+          </button>
+        </div>
       </aside>
       <div className="settings-main">
-        <div className={section === "archived-sessions" ? "settings-content settings-content--archives" : section === "mobile" ? "settings-content settings-content--remote" : "settings-content"} ref={contentRef}>
+        <div className={section === "archived-sessions" ? "settings-content settings-content--archives" : "settings-content"} ref={contentRef}>
           {section === "appearance" && <AppearanceSettings />}
           {section === "about" && <AboutSettings />}
           {section === "archived-sessions" && <ArchivedSessions ready={status.ready && !busy} />}
-          {section === "vault" && <PasswordVaultSettings onConfirm={onConfirm} onDirty={setAccountDirty} />}
-          {section === "account" && <AccountSettings busy={busy} onDirty={setAccountDirty} />}
+          {section === "account" && <AccountSettings busy={busy} onDirty={setAccountDirty} onConfirm={onConfirm} />}
           {section === "license" && <DesktopLicenseSettings />}
           <fieldset className="settings-fields" disabled={busy && !(section === "project" && status.storage_recovery?.required)}>
-            {section === "mobile" && (isRemoteClient()
-              ? <section className="section-title"><h3>连接这台电脑</h3><p>请先切换到这台电脑的本机环境，再生成或管理手机配对码。</p></section>
-              : <MobilePairSettings relay={draft.mobile_relay ?? ""} savedRelay={current.mobile_relay ?? ""} onChange={value => update("mobile_relay",value)} onConfirm={onConfirm} />)}
             {section === "network" && (
               <>
                 <ProxySettings
@@ -347,6 +349,15 @@ export function SettingsPanel({
                     busy={busy}
                     probing={probing}
                   />
+                  {exitCandidate && <button disabled={busy || changed || proxyDirty} onClick={async () => {
+                    setError("");
+                    setSubmitting(true);
+                    try {
+                      const accepted = await bindDetectedMacOSExit(exitCandidate, onConfirm);
+                      if (accepted) setJobId(accepted.id);
+                    } catch (error) { setError(error.message); }
+                    finally { setSubmitting(false); }
+                  }}>绑定检测到的固定出口 {exitCandidate}</button>}
                 </section>
               </>
             )}
@@ -660,7 +671,7 @@ export function SettingsPanel({
                 </section>}
                 {status.guest_system === "macos" && !isRemoteClient() && <MacOSScreenSharingSettings disabled={!status.ready || busy} onError={setError} />}
                 {!status.storage_recovery?.required && <ResourceSettings status={status} onConfirm={onConfirm} onDirtyChange={setResourceDirty} />}
- <DiagnosticSettings />
+                <DiagnosticSettings status={status} />
                 {status.can_restore && (
                   <button
                     className="text-button"

@@ -19,7 +19,6 @@ import { api, normalizeURL, native, nativeAvailable } from "./api";
 import { clientKeyboard, clientStorageKey, getClientContext, isRemoteClient, runtimeURL, runtimeSocketURL } from "./client-context.mjs";
 import { shareClipboard } from "./shared-clipboard.mjs";
 import { RemoteView, TerminalView, Modal } from "./views";
-import { usePasswordVault } from "./password-vault";
 import { SettingsPanel } from "./settings";
 import { SetupProgress } from "./setup-progress";
 import { GuestSystemPicker, validGuestChoice } from "./guest-system-picker";
@@ -176,7 +175,6 @@ function App() {
   const panes = !split ? [current].filter(Boolean)
     : layout.side === "left" ? [current, other] : [other, current];
   const webPanes = panes.filter(tab => tab.kind !== "terminal");
-  const passwordVault = usePasswordVault(Boolean(status?.ready && !macGuest && browserAvailable), browser.active);
   const dualBrowser = split && webPanes.length === 2;
   const leftId = dualBrowser ? panes[0].id : "";
   const rightId = dualBrowser ? panes[1].id : "";
@@ -1322,7 +1320,7 @@ function App() {
   };
   const paneTabs = tab => !dualBrowser ? browserTabs : browserTabs.filter(item =>
     item.id === tab.id || (tab.id === leftId && item.id !== rightId));
-  const browserHeader = tab => <BrowserHeader vault={passwordVault} onManageVault={() => openSettings("vault")} tab={tab} tabs={paneTabs(tab)} metadata={metadata}
+  const browserHeader = tab => <BrowserHeader tab={tab} tabs={paneTabs(tab)} metadata={metadata}
     vertical={browserTabLayout === "vertical"}
     ready={status.ready} busy={busy} focused={active === tab.id} compact={split} splitDrag={splitDrag}
     sidebarButton={sidebarButton(paneSide(tab.id))} exitButton={expandButton(tab)}
@@ -1507,7 +1505,6 @@ function App() {
             onClaudeDesktop={() => { setManagementPage(""); setHome(false); setDesktopOpen(true); }}
             onEditor={openEditor}
             onSettings={openSettings}
-            onAccountConfirm={confirm}
             onAccountStatus={notify}
             onSafety={() => setSafetyOpen(true)}
             onCollapse={() =>
@@ -1954,6 +1951,7 @@ function App() {
           onClose={() => setSettingsOpen(false)}
           onSaved={refreshSettings}
           onConfirm={confirm}
+          onQuit={() => window.cageWorkbenchAction?.("quit")}
         />
       )}
       {projectDialog && (
@@ -2093,9 +2091,8 @@ function App() {
               : status
           }
           onClose={() => setSafetyOpen(false)}
-          onSettings={openSettings}
-          onOpenPage={openBrowserPage}
           onConfirm={confirm}
+          onChanged={() => refreshStatus.current?.()}
         />
       )}
       {dialogs}

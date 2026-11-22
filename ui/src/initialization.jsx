@@ -80,7 +80,7 @@ function Initialization({ initial, onComplete, onLicenseRequired }) {
   const [pending, setPending] = useState(null);
   const [macRecovery, setMacRecovery] = useState(null);
   const [recoveryError, setRecoveryError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useState("");
   const [error, setError] = useState("");
   const [connectionError, setConnectionError] = useState("");
   const [details, setDetails] = useState(false);
@@ -94,7 +94,7 @@ function Initialization({ initial, onComplete, onLicenseRequired }) {
   const actionPending = useRef(false);
   const restored = useRef(false);
   const job = status?.job || {};
-  const busy = submitting || Boolean(job.running);
+  const busy = Boolean(submitting || job.running);
   const network = networkState(status);
   const exitCandidate = status?.guest_system === "macos" && status.safety?.macos_exit_candidate?.ip;
   const needsExitRestart = status?.guest_system === "macos" && status.safety?.error === "已保存固定出口。请重启 macOS 客机，登录后重新检测。";
@@ -158,17 +158,17 @@ function Initialization({ initial, onComplete, onLicenseRequired }) {
     return () => { alive.current = false; clearTimeout(timer); pollNow.current = null; delete window.cageWorkbenchAction; };
   }, [account?.guest_system]);
 
-  async function run(operation) {
+  async function run(operation, message = "正在处理…") {
     if (actionPending.current) return;
     actionPending.current = true;
-    setSubmitting(true); setError("");
+    setSubmitting(message); setError("");
     try { await operation(); }
     catch (error) {
       if (!alive.current) return;
       if (error.status === 402) onLicenseRequired();
       setError(error.message);
     }
-    finally { actionPending.current = false; if (alive.current) { setSubmitting(false); pollNow.current?.(); } }
+    finally { actionPending.current = false; if (alive.current) { setSubmitting(""); pollNow.current?.(); } }
   }
   function startOptions() {
     if (account?.guest_system) return {};
@@ -185,14 +185,14 @@ function Initialization({ initial, onComplete, onLicenseRequired }) {
       if (!alive.current) return;
       setStep("install");
       setStatus(current => ({ ...current, job: { ...accepted, running: true, kind: accepted.kind || "start", message: accepted.message || "正在准备客机环境…" } }));
-    });
+    }, "正在提交安装请求…");
   }
   async function stop() {
     if (!await confirm({ title: "停止当前安装？", body: "安装进度、已下载文件和虚拟磁盘会保留。你可以在此界面继续安装。", confirm: "停止安装" })) return;
     await run(async () => { const accepted = await api("/stop", {}); setStatus(current => ({ ...current, job: { ...accepted, running: true } })); });
   }
   async function enter() {
-    await run(async () => { await api("/environment/initialization", { action: "complete" }); await refresh(); if (alive.current) onComplete(); });
+    await run(async () => { await api("/environment/initialization", { action: "complete" }); await refresh(); if (alive.current) onComplete(); }, "正在确认环境已就绪…");
   }
   async function waitForJob(accepted, kind) {
     if (!accepted.id) throw new Error("操作未返回任务编号，请核对状态后重试。");
@@ -247,22 +247,14 @@ function Initialization({ initial, onComplete, onLicenseRequired }) {
     await run(async () => {
       const directory = storage.directory.trim();
       if (directory !== storage.location.directory) {
-        const accepted = await api("/environment/storage", { directory, previous: storage.location.directory, migrate: false });
-        let job;
-        do {
-          await new Promise(resolve => setTimeout(resolve, 300));
-          if (!alive.current) return;
-          const next = await api("/status");
-          setStatus(next); job = next.job;
-          if (job.id !== accepted.id) throw new Error("存储操作状态已变化，请核对目录后重试。");
-        } while (job.running);
-        if (job.error) throw new Error(job.error);
+        await waitForJob(await api("/environment/storage", { directory, previous: storage.location.directory, migrate: false }), "storage");
         const location = await api("/environment/storage");
-        if (location.directory !== directory) throw new Error("存储目录尚未保存，请重新选择后重试。");
+        if (!location.directory) throw new Error("无法确认已保存的存储目录，请重新读取后重试。");
+        if (!alive.current) return;
         setStorage({ location, directory: location.directory });
       }
       setStep("proxy");
-    });
+    }, "正在保存存储目录…");
   }
   const failed = Boolean(job.error || error);
   const rejectedExit = !busy && !needsExitRestart && network.mode !== "open" &&
@@ -331,11 +323,12 @@ function Initialization({ initial, onComplete, onLicenseRequired }) {
           </>)}
         </div>
         {error && !(step === "install" && rejectedExit && isRejectedProxyExit(error)) && <p className="initialization-notice" role="alert"><SafetyMessage message={error} /></p>}
+        {submitting && <p role="status" className="initialization-action-status"><LoaderCircle size={16} className="spin" />{submitting}</p>}
         <footer className="initialization-actions">
           {step === "system" ? <span /> : <button className="text-button" disabled={busy} onClick={back}><ChevronLeft size={16} />上一步</button>}
-          {step === "system" && <button className="primary" disabled={busy || !storage?.directory.trim() || choice === undefined || (!choice?.clone && !validGuestChoice(choice)) || choice?.clone && choice.guest_system === "windows-11" && !choice.editor_terms || Boolean(connectionError)} onClick={nextFromSystem}>{submitting && <LoaderCircle size={16} className="spin" />}下一步：配置代理</button>}
-          {step === "proxy" && <button className="primary" disabled={busy || proxyDirty || !account?.guest_system && !pending && !validGuestChoice(choice) || needsProxySetup(null, status, proxy) || Boolean(connectionError)} onClick={install}>{submitting ? <LoaderCircle size={16} className="spin" /> : null}开始安装</button>}
-          {step === "install" && ready && <button className="primary" disabled={submitting || Boolean(connectionError)} onClick={enter}>进入工作台</button>}
+          {step === "system" && <button className="primary" disabled={busy || !storage?.directory.trim() || choice === undefined || (!choice?.clone && !validGuestChoice(choice)) || choice?.clone && choice.guest_system === "windows-11" && !choice.editor_terms || Boolean(connectionError)} onClick={nextFromSystem}>下一步：配置代理</button>}
+          {step === "proxy" && <button className="primary" disabled={busy || proxyDirty || !account?.guest_system && !pending && !validGuestChoice(choice) || needsProxySetup(null, status, proxy) || Boolean(connectionError)} onClick={install}>开始安装</button>}
+          {step === "install" && ready && <button className="primary" disabled={Boolean(connectionError)} onClick={enter}>进入工作台</button>}
         </footer>
       </>}
       {step !== "proxy" && <div className="initialization-support"><button className="text-button" aria-expanded={help} onClick={() => setHelp(!help)}>日志与诊断</button>{navigation && !busy && <button className="text-button" onClick={() => navigation.open()}>只连接 SSH 主机</button>}</div>}

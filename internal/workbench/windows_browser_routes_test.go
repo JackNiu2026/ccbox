@@ -143,37 +143,15 @@ func TestWindowsBrowserExtensionHTTPUsesNativeChunkedPreview(t *testing.T) {
 	}
 }
 
-func TestWindowsVaultStoreAndBrowserRoutesRemainAuthorized(t *testing.T) {
+func TestWindowsWebsiteVaultIsUnavailable(t *testing.T) {
 	s := testServer(t)
-	s.account = newTestAccount(t)
 	s.windowsGuest, s.ready = &guestos.WindowsProfile{}, true
-	s.windowsBrowserControl = fixtureWindowsBrowserClient(t)
-	save := []byte(`{"action":"save","entry":{"origin":"https://mail.example.com","username":"fixture-user","password":"fixture-only-secret"}}`)
-	if w := windowsBrowserRequestForTest(s, "POST", "/api/vault", save); w.Code != 200 {
-		t.Fatal("Windows vault save refused", w.Code)
-	}
-	w := windowsBrowserRequestForTest(s, "GET", "/api/vault", nil)
-	if w.Code != 200 || strings.Contains(w.Body.String(), "fixture-only-secret") {
-		t.Fatal("Windows vault list refused or exposed a password", w.Code)
-	}
-	w = windowsBrowserRequestForTest(s, "POST", "/api/vault/browser", []byte(`{"action":"status","tab":"tab"}`))
-	var state vaultBrowserState
-	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &state) != nil || !state.Available {
-		t.Fatal("Windows vault browser seam unavailable", w.Code)
-	}
-	if s.browserControl != nil {
-		t.Fatal("Windows vault created a Linux browser transport")
-	}
-	if w := request(s, "GET", "/api/vault", s.origin, "", true); w.Code != 403 {
-		t.Fatal("Windows vault admitted a viewer without native trust", w.Code)
-	}
-	s.account.lock()
-	if w := windowsBrowserRequestForTest(s, "GET", "/api/vault", nil); w.Code != http.StatusLocked {
-		t.Fatal("locked Windows vault admitted", w.Code)
-	}
-	for _, path := range []string{"/api/vault/export", "/api/vault/browser/extra"} {
+	for _, path := range []string{"/api/vault", "/api/vault/browser", "/api/vault/export", "/api/vault/browser/extra"} {
 		if windowsWorkbenchRoute(path) {
-			t.Fatal("unregistered vault route admitted")
+			t.Errorf("retired route admitted: %s", path)
+		}
+		if w := windowsBrowserRequestForTest(s, "GET", path, nil); w.Code != http.StatusNotFound {
+			t.Errorf("retired route %s: HTTP %d", path, w.Code)
 		}
 	}
 	if !windowsWorkbenchRoute("/api/client/browser-extensions") || windowsWorkbenchRoute("/api/client/browser-extensions/extra") {

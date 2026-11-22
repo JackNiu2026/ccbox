@@ -14,7 +14,9 @@ var physicalProxyInterface = managedproxy.PhysicalInterface
 // The lifecycle lock is held by monitorNetwork. Schedule a regular job so a
 // user stop can cancel recovery and pause can still revoke the gate immediately.
 func (s *Server) monitorProxyInterface() {
-	if s.busy() {
+	// A stopped guest has no network grant to recover. Its next start will
+	// detect the current interface and start the core if needed.
+	if s.busy() || !s.vmRunning() {
 		return
 	}
 	cfg, err := loadConfig(s.configPath)

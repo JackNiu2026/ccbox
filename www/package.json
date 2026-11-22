@@ -1,7 +1,7 @@
 {
   "name": "ccbox-website",
   "type": "module",
-  "version": "0.1.8",
+  "version": "0.19.1",
   "private": true,
   "description": "CCBox website, user guides, and downloads",
   "license": "MIT",

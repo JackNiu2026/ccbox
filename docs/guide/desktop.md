@@ -13,7 +13,7 @@ Claude Desktop 运行在所选客机中，使用对应系统的官方应用：ma
 
 首次登录在 CCBox 内完成，不导入主机上的 Desktop 账号。登录和外部网页会在 CCBox 浏览器打开，回调完成后返回 Desktop。若仍停留在浏览器，可回到侧栏应用入口查看。
 
-Chat 和 Code 在同一个官方应用内使用。需要额外虚拟机的 Cowork 暂不支持。手机可以接续电脑上的同一个 Desktop 窗口，两端共用账号与应用数据，见[手机操作 Claude Desktop](mobile.md#在手机操作-claude-desktop)。
+Chat 和 Code 在同一个官方应用内使用。需要额外虚拟机的 Cowork 暂不支持。
 
 <figure class="guide-shot">
   <a href="../../www/public/docs/screenshots/cloud-desktop-welcome.png" target="_blank" rel="noopener" aria-label="查看原图：云端 Linux 环境中的 Claude Desktop 欢迎页"><img src="../../www/public/docs/screenshots/cloud-desktop-welcome.png" alt="云端 Linux 环境中的 Claude Desktop 欢迎页" width="1192" height="875" loading="lazy" decoding="async" /></a>

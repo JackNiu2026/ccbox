@@ -276,10 +276,6 @@ func serve(configPath string, clientOnly bool, fullConfigPath string) (returned 
 			_ = s.closeProxyGate("网络保持暂停，请手动恢复后再联网")
 		}
 		s.startMonitors()
-		if err = s.restorePhone(); err != nil {
-			s.phones.status = "无法恢复手机配对，请移除旧记录后重试"
-		}
-		defer s.stopPhone()
 	}
 	s.identity, err = currentController()
 	if err != nil {
@@ -341,9 +337,6 @@ func (s *Server) handler() http.Handler {
 	s.agentNativeRoutes(mux)
 	s.mobileCLIRoutes(mux)
 	s.mobileSurfaceRoutes(mux)
-	mux.HandleFunc("GET /api/mobile-pair", s.phoneStatus)
-	mux.HandleFunc("POST /api/mobile-pair", s.pairPhone)
-	mux.HandleFunc("DELETE /api/mobile-pair", s.removePhone)
 	mux.HandleFunc("POST /api/mobile/device", s.reportPhoneDevice)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { jsonReply(w, map[string]bool{"ready": true}) })
 	mux.HandleFunc("POST /api/launch", func(w http.ResponseWriter, r *http.Request) {
@@ -387,9 +380,6 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("GET /api/diagnostics/export", s.diagnosticExport)
 	mux.HandleFunc("GET /api/claude-accounts", s.listClaudeAccounts)
 	mux.HandleFunc("POST /api/claude-accounts", s.mutateClaudeAccounts)
-	mux.HandleFunc("GET /api/vault", s.vaultList)
-	mux.HandleFunc("POST /api/vault", s.vaultMutation)
-	mux.HandleFunc("POST /api/vault/browser", s.vaultBrowser)
 	mux.HandleFunc("GET /api/account", s.accountStatus)
 	mux.HandleFunc("POST /api/account/{action}", s.accountAction)
 	mux.HandleFunc("GET /api/account/online", s.onlineAccountRoute)
@@ -545,6 +535,12 @@ func (s *Server) handler() http.Handler {
 				http.Error(w, "请从 CCBox 应用重新打开工作台", 401)
 				return
 			}
+		}
+		// Retired desktop actions must not be forwarded to older workloads.
+		path := r.URL.Path
+		if path == "/api/account/lock" || path == "/api/mobile-pair" || path == "/api/vault" || strings.HasPrefix(path, "/api/vault/") {
+			http.NotFound(w, r)
+			return
 		}
 		// App metadata belongs to this executable, even while an SSH workload
 		// is selected. Like client/context, it uses local session authentication.

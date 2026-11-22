@@ -7,7 +7,6 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync, constants }
 import { open } from "node:fs/promises";
 import http from "node:http";
 import { auditBrowser } from "./browser-audit.mjs";
-import { BrowserVault } from "./browser-vault.mjs";
 import { LoginBrowser } from "./browser-login.mjs";
 import { PrivateBrowser } from "./browser-private.mjs";
 import { browserCookies } from "./browser-cookies.mjs";
@@ -179,7 +178,6 @@ async function clipboardSource() {
     throw error;
   }
 }
-const vault = new BrowserVault({ cdp, active: () => activeId, tab: id => targets.get(id) });
 const downloads = new DownloadManager({
   directory: "/home/cage-browser",
   changed: () => broadcastState(),
@@ -287,7 +285,6 @@ chrome.stdio[4].on("data", (chunk) => {
         : call.resolve(event.result);
       continue;
     }
-    vault.event(event);
     const p = event.params || {};
     browserClipboard.event(event);
     if (event.sessionId === splitSession && event.method === "Runtime.bindingCalled" &&
@@ -328,7 +325,6 @@ chrome.stdio[4].on("data", (chunk) => {
       closingTargets.get(p.targetId)?.();
       if (!targets.has(p.targetId)) continue;
       const wasPrivate = targets.get(p.targetId).incognito;
-      vault.remove(p.targetId);
       targets.delete(p.targetId);
       browserClipboard.detachTab(p.targetId);
       favicons.delete(p.targetId);
@@ -393,7 +389,6 @@ async function session(id) {
         await browserClipboard.attach(r.sessionId, id).then(result => {
           if (result?.skipped.length) console.warn("Browser copy observer skipped a modified or replaced document; reload the page to enable copy buttons.");
         }).catch(() => console.warn("Browser copy observer unavailable for this page."));
-        await vault.attach(id, r.sessionId).catch(() => {});
         return r.sessionId;
       }).catch(error => { sessions.delete(id); throw error; }),
     );
@@ -894,10 +889,6 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     const result = await mutate(async () => {
-      if (req.url === "/vault") {
-        try { return await vault.request(input); }
-        catch (error) { return { vaultError: error.message }; }
-      }
       if (req.url === "/login-open") {
         return loginBrowser.open(input.login, input.url, async tab => {
           if (!targets.has(tab.targetId)) targets.set(tab.targetId, loginBrowser.tab(tab));

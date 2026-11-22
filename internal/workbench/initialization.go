@@ -3,6 +3,7 @@ package workbench
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -100,13 +101,12 @@ func (s *Server) initialization(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &input) {
 		return
 	}
-	if !s.op.TryLock() {
-		http.Error(w, "环境操作仍在进行，请等待完成后继续", http.StatusConflict)
+	if !s.lockForInitialization(w, r) {
 		return
 	}
 	defer s.op.Unlock()
-	if s.busy() {
-		http.Error(w, "环境操作仍在进行，请等待完成后继续", http.StatusConflict)
+	if job := s.jobs.snapshot(); job.Running {
+		http.Error(w, initializationBusyMessage(job), http.StatusConflict)
 		return
 	}
 	state, err := s.initializationState()
@@ -133,4 +133,35 @@ func (s *Server) initialization(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	jsonReply(w, map[string]bool{"completed": input.Action == "complete" || !state.Required})
+}
+
+func initializationBusyMessage(job Job) string {
+	return fmt.Sprintf("当前正在%s，完成后即可继续。", jobName(job.Kind))
+}
+
+func (s *Server) lockForInitialization(w http.ResponseWriter, r *http.Request) bool {
+	// Health and network monitors also hold op briefly without publishing a job.
+	// Wait for those reads, while leaving real jobs in control of the environment.
+	deadline := time.NewTimer(8 * time.Second)
+	defer deadline.Stop()
+	retry := time.NewTicker(50 * time.Millisecond)
+	defer retry.Stop()
+	for r.Context().Err() == nil {
+		if job := s.jobs.snapshot(); job.Running {
+			http.Error(w, initializationBusyMessage(job), http.StatusConflict)
+			return false
+		}
+		if s.op.TryLock() {
+			return true
+		}
+		select {
+		case <-r.Context().Done():
+			return false
+		case <-deadline.C:
+			http.Error(w, "后台环境检查尚未完成。请稍后重试，当前设置已保留。", http.StatusServiceUnavailable)
+			return false
+		case <-retry.C:
+		}
+	}
+	return false
 }

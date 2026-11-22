@@ -190,7 +190,7 @@ func TestMonitorTimingRecordsRenewalAndSkips(t *testing.T) {
 }
 
 func TestNetworkMonitorRecordsAllOuterStages(t *testing.T) {
-	s := testServer(t)
+	s, _ := interfaceMonitorServer(t)
 	previous := physicalProxyInterface
 	physicalProxyInterface = func(context.Context) (string, error) {
 		time.Sleep(30 * time.Millisecond)

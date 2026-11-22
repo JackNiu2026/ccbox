@@ -126,13 +126,34 @@ func TestLocalAccountCorruptionCannotBecomeFirstRun(t *testing.T) {
 	}
 }
 
-func TestAccountLockBlocksRoutesAndCancelsAccess(t *testing.T) {
+func TestDesktopRetiredAccountActionsAreUnavailable(t *testing.T) {
+	s := testServer(t)
+	for _, retired := range []struct{ method, path string }{
+		{http.MethodPost, "/api/account/lock"},
+		{http.MethodGet, "/api/vault"},
+		{http.MethodPost, "/api/vault"},
+		{http.MethodPost, "/api/vault/browser"},
+		{http.MethodGet, "/api/mobile-pair"},
+		{http.MethodPost, "/api/mobile-pair"},
+		{http.MethodDelete, "/api/mobile-pair"},
+	} {
+		w := request(s, retired.method, retired.path, s.origin, "{}", true)
+		if w.Code != http.StatusNotFound {
+			t.Errorf("retired action %s %s: got HTTP %d, want 404", retired.method, retired.path, w.Code)
+		}
+	}
+	if _, unlocked := s.account.access(); !unlocked {
+		t.Fatal("a retired action changed the login state")
+	}
+}
+
+func TestAccountSuspendBlocksRoutesAndCancelsAccess(t *testing.T) {
 	s := testServer(t)
 	ctx, ok := s.account.access()
 	if !ok {
 		t.Fatal("fixture locked")
 	}
-	w := request(s, "POST", "/api/account/lock", s.origin, "{}", true)
+	w := request(s, "POST", "/api/account/suspend", s.origin, "{}", true)
 	if w.Code != 200 {
 		t.Fatal(w.Code, w.Body.String())
 	}

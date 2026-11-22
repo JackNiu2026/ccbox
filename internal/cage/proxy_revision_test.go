@@ -3,12 +3,59 @@ package cage
 import (
 	"context"
 	"encoding/json"
-	"github.com/sylvinus/agent-vm/internal/managedproxy"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/sylvinus/agent-vm/internal/guestprofile"
+	"github.com/sylvinus/agent-vm/internal/managedproxy"
 )
+
+func TestProxyRevisionAcceptsAnUnchangedReloadedGuestProfile(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := guestprofile.Create(dir, guestprofile.Options{Hostname: "ccbox-test"}); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "config.json")
+	load := func(revision string) Config {
+		t.Helper()
+		cfg := DefaultConfig()
+		cfg.ProxyRevision = revision
+		data, err := json.Marshal(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, data, 0600); err != nil {
+			t.Fatal(err)
+		}
+		cfg, err = Load(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return cfg
+	}
+	before, after := load("before-outage"), load("after-rebind")
+	if before.GuestProfile == nil || after.GuestProfile == nil || before.GuestProfile == after.GuestProfile || *before.GuestProfile != *after.GuestProfile {
+		t.Fatal("fixture did not reload identical guest settings into distinct values")
+	}
+	gate, err := NewEgressGate(before)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer gate.Close("done")
+	if err := gate.SyncProxyRevision(after); err != nil {
+		t.Fatalf("proxy recovery rejected identical guest settings: %v", err)
+	}
+	if state := gate.Status(); state.Configuration != after.Fingerprint() || state.Mode != GateClosed || state.Report != nil {
+		t.Fatalf("recovery reused an authorization or failed to adopt the new generation: %+v", state)
+	}
+	changed := load("another-rebind")
+	changed.GuestProfile.Hostname = "different-guest"
+	if err := gate.SyncProxyRevision(changed); err == nil {
+		t.Fatal("a real guest setting change was accepted without restart")
+	}
+}
 
 func TestProxyRevisionRevokesOldReportAtSameEndpoint(t *testing.T) {
 	cfg := DefaultConfig()

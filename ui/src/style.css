@@ -1418,12 +1418,6 @@ svg {
   gap: 3px;
   padding: 0 0 8px;
 }
-.workspace-sidebar:has(.account-menu) .sidebar-navigation {
-  overflow-y: auto;
-}
-.workspace-sidebar:has(.account-menu) .sidebar-scroll {
-  min-height: 4rem;
-}
 .sidebar-link {
   width: 100%;
   min-height: 36px;

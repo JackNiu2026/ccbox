@@ -210,8 +210,8 @@ func TestWindowsPhoneDesktopProductionHandlerSharesWindowAndGuardsInput(t *testi
 	if !bytes.Contains(requests, []byte(`"phone_focus":"editable-focus"`)) || !bytes.Contains(requests, []byte(`"mask":1`)) || !bytes.Contains(requests, []byte(`"mask":0`)) {
 		t.Fatal("native input guard or release missing")
 	}
-	if w := windowsBrowserRequestForTest(s, "POST", "/api/account/lock", []byte("{}")); w.Code != 200 {
-		t.Fatalf("manual lock: %d", w.Code)
+	if w := windowsBrowserRequestForTest(s, "POST", "/api/account/suspend", []byte("{}")); w.Code != 200 {
+		t.Fatalf("suspend: %d", w.Code)
 	}
 	if w := windowsPhoneRequest(t, s, "GET", base+"/frame", "", "phone-window-room"); w.Code != 423 {
 		t.Fatalf("frame after manual lock: %d", w.Code)

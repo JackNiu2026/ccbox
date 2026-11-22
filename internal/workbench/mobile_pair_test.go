@@ -44,6 +44,22 @@ func resumeRememberedPhoneHost(t *testing.T, s *Server) {
 
 // Drive the same management routes as the desktop settings page. Separate
 // workbench instances must recover the same on-disk pairing after a restart.
+// Exercise the retained transport independently of the retired desktop routes.
+func legacyPhoneManagementForTest(s *Server, method string) *httptest.ResponseRecorder {
+	r := httptest.NewRequest(method, s.origin+"/api/mobile-pair", strings.NewReader("{}"))
+	r.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	switch method {
+	case http.MethodGet:
+		s.phoneStatus(w, r)
+	case http.MethodPost:
+		s.pairPhone(w, r)
+	case http.MethodDelete:
+		s.removePhone(w, r)
+	}
+	return w
+}
+
 func TestDesktopPhonePairingLifecycle(t *testing.T) {
 	edge, err := relay.New(relay.Config{PublicRooms: true, AdminToken: strings.Repeat("x", 32)})
 	if err != nil {
@@ -60,16 +76,6 @@ func TestDesktopPhonePairingLifecycle(t *testing.T) {
 		t.Cleanup(server.Close)
 		t.Cleanup(s.stopPhone)
 	}
-	manage := func(s *Server, method string) *httptest.ResponseRecorder {
-		r := httptest.NewRequest(method, s.origin+"/api/mobile-pair", strings.NewReader("{}"))
-		r.Header.Set("Origin", s.origin)
-		r.Header.Set("Content-Type", "application/json")
-		r.AddCookie(&http.Cookie{Name: s.cookieName(), Value: s.session})
-		r.AddCookie(&http.Cookie{Name: s.cookieName() + "-desktop", Value: trustedViewProof(s.token)})
-		w := httptest.NewRecorder()
-		s.handler().ServeHTTP(w, r)
-		return w
-	}
 	s.preferences.MobileRelay = origin
 	serve(s)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
@@ -79,7 +85,7 @@ func TestDesktopPhonePairingLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	w := manage(s, "POST")
+	w := legacyPhoneManagementForTest(s, "POST")
 	var code struct{ Manual, Image string }
 	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &code) != nil || !strings.HasPrefix(code.Manual, "CAGE-") || !strings.HasPrefix(code.Image, "data:image/png;base64,") {
 		t.Fatalf("desktop pairing code unavailable (HTTP %d)", w.Code)
@@ -124,14 +130,14 @@ func TestDesktopPhonePairingLifecycle(t *testing.T) {
 	read(client, 200)
 	// Legacy pairings gain a model over the authenticated phone tunnel without
 	// changing their key, lookup token, or the optical pairing protocol.
-	if w := manage(s, "GET"); w.Code != 200 || !strings.Contains(w.Body.String(), `"device":null`) {
+	if w := legacyPhoneManagementForTest(s, "GET"); w.Code != 200 || !strings.Contains(w.Body.String(), `"device":null`) {
 		t.Fatal("legacy pairing should have no invented model")
 	}
 	reply, err := client.Do(ctx, "POST", "/api/mobile/device", []byte(`{"platform":"android","model":"Google Pixel 9 Pro"}`))
 	if err != nil || reply.Status != http.StatusOK {
 		t.Fatalf("device report failed: %+v, %v", reply, err)
 	}
-	if w := manage(s, "GET"); w.Code != 200 || !strings.Contains(w.Body.String(), `"model":"Google Pixel 9 Pro"`) || strings.Contains(w.Body.String(), record.Lookup) || strings.Contains(w.Body.String(), phone.Pin) {
+	if w := legacyPhoneManagementForTest(s, "GET"); w.Code != 200 || !strings.Contains(w.Body.String(), `"model":"Google Pixel 9 Pro"`) || strings.Contains(w.Body.String(), record.Lookup) || strings.Contains(w.Body.String(), phone.Pin) {
 		t.Fatal("pairing status must expose model without credentials")
 	}
 	for _, input := range []string{`{"platform":"other","model":"Unknown"}`, `{"platform":"ios","model":""}`, `{"platform":"ios","model":"bad\nmodel"}`} {
@@ -189,7 +195,7 @@ func TestDesktopPhonePairingLifecycle(t *testing.T) {
 	if err := newHost.restorePhone(); err != nil {
 		t.Fatal(err)
 	}
-	if w := manage(newHost, "GET"); w.Code != 200 || !strings.Contains(w.Body.String(), `"model":"Google Pixel 9 Pro"`) {
+	if w := legacyPhoneManagementForTest(newHost, "GET"); w.Code != 200 || !strings.Contains(w.Body.String(), `"model":"Google Pixel 9 Pro"`) {
 		t.Fatal("phone model was lost after restarting the host")
 	}
 	client = connect()
@@ -201,7 +207,6 @@ func TestDesktopPhonePairingLifecycle(t *testing.T) {
 		{"/api/mobile/cli/projects", ""},
 		{"/api/mobile/cli/projects", "old-room"},
 		{"/api/settings", proof},
-		{"/api/mobile-pair", proof},
 	} {
 		if got := windowsPhoneRequest(t, newHost, "GET", denied.path, "", denied.proof); got.Code != http.StatusLocked {
 			t.Fatalf("untrusted access to %s: HTTP %d", denied.path, got.Code)
@@ -224,7 +229,7 @@ func TestDesktopPhonePairingLifecycle(t *testing.T) {
 	if err != nil || reply.Status != http.StatusConflict {
 		t.Fatalf("network change must withhold attached frame: %+v, %v", reply, err)
 	}
-	if w := manage(newHost, "DELETE"); w.Code != 200 {
+	if w := legacyPhoneManagementForTest(newHost, "DELETE"); w.Code != 200 {
 		t.Fatalf("revoke: HTTP %d", w.Code)
 	}
 	newHost.phones.mu.Lock()
@@ -238,7 +243,7 @@ func TestDesktopPhonePairingLifecycle(t *testing.T) {
 	if _, err := os.Stat(newHost.phoneFile()); !os.IsNotExist(err) {
 		t.Fatal("revoked credentials still on disk")
 	}
-	if w := manage(newHost, "GET"); !strings.Contains(w.Body.String(), `"device":null`) || strings.Contains(w.Body.String(), "Pixel") {
+	if w := legacyPhoneManagementForTest(newHost, "GET"); !strings.Contains(w.Body.String(), `"device":null`) || strings.Contains(w.Body.String(), "Pixel") {
 		t.Fatal("removed phone model remains in pairing status")
 	}
 	for {

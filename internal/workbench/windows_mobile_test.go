@@ -274,7 +274,7 @@ func TestWindowsMobileRealPairingTransportReachesNativeSession(t *testing.T) {
 	if strings.Contains(string(reply.Body), record.GuestWorkspace) || strings.Contains(string(reply.Body), privateProof) {
 		t.Fatal("private backend capability reached phone")
 	}
-	if w := windowsBrowserRequestForTest(s, "DELETE", "/api/mobile-pair", []byte(`{}`)); w.Code != http.StatusOK {
+	if w := legacyPhoneManagementForTest(s, http.MethodDelete); w.Code != http.StatusOK {
 		t.Fatalf("pair removal: %d", w.Code)
 	}
 	if reply, err := client.Do(ctx, "GET", "/api/mobile/cli/sessions/"+record.ID, nil); err == nil && reply.Status == http.StatusOK {
@@ -296,10 +296,10 @@ func pairedWindowsPhoneForTest(t *testing.T, s *Server) (*mobilelink.Client, con
 	t.Cleanup(server.Close)
 	t.Cleanup(s.stopPhone)
 	s.preferences.MobileRelay = relayHTTP.URL
-	response := windowsBrowserRequestForTest(s, "POST", "/api/mobile-pair", []byte(`{}`))
+	response := legacyPhoneManagementForTest(s, http.MethodPost)
 	var invitation struct{ Manual string }
 	if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &invitation) != nil {
-		t.Fatalf("actual pairing route: %d", response.Code)
+		t.Fatalf("pairing fixture: %d", response.Code)
 	}
 	phone, err := remotelink.NewIdentity()
 	if err != nil {

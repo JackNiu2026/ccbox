@@ -23,7 +23,7 @@ import claudeLogo from "./claude-logo.svg";
 import { projectName } from "./workspace-state.mjs";
 import { WorkspaceTabs } from "./workspace-tabs";
 import { projectSessionRows, sessionKey } from "./session-order.mjs";
-import { AccountMenu } from "./account";
+import { AccountIdentity } from "./account";
 import { useSSHNavigation } from "./remote-hosts";
 import { GuestSystemIcon } from "./guest-system-icon";
 
@@ -79,7 +79,6 @@ export function WorkspaceSidebar({
   desktopOpen,
   onEditor,
   onSettings,
-  onAccountConfirm,
   onAccountStatus,
   onSafety,
   onCollapse,
@@ -97,6 +96,7 @@ export function WorkspaceSidebar({
   }, [active, activeWorkspace]);
   if (ssh?.expanded) return null;
   const healthy = ready && network.mode === "open";
+  const networkClosed = network.mode === "closed";
   return (
     <aside className="workspace-sidebar" aria-label="项目与终端">
       <div className="sidebar-top">
@@ -117,8 +117,8 @@ export function WorkspaceSidebar({
       <button className={`sidebar-environment ${healthy ? "healthy" : ""}`} onClick={onSafety} title="网络与隔离检查">
         <span className="sidebar-environment-icon"><EnvironmentShield size={17} healthy={healthy} /></span>
         <span className="sidebar-environment-text">
-          <strong>{healthy ? "环境运行正常" : runtimeLabel}</strong>
-          <small>{running ? network.label : "网络与隔离检查"}</small>
+          <strong>{healthy ? "环境运行正常" : networkClosed ? "外网已关闭" : runtimeLabel}</strong>
+          <small>{networkClosed ? "检测并启动" : running ? network.label : "网络与隔离检查"}</small>
         </span>
         <i className={`status-dot ${network.mode}`} aria-hidden="true" />
       </button>
@@ -338,7 +338,7 @@ export function WorkspaceSidebar({
       </div>
       <div className="sidebar-bottom">
         <div className="sidebar-footer-actions">
-          <AccountMenu onSettings={onSettings} onConfirm={onAccountConfirm} onStatus={onAccountStatus} busy={busy} />
+          <AccountIdentity onStatus={onAccountStatus} />
           <button className="icon-button" aria-label="设置" title={shortcut("设置 ⌘,")} onClick={() => onSettings("keyboard")}><Settings size={17} /></button>
           {updateAction}
         </div>

@@ -165,7 +165,7 @@ func TestDesktopCLIViewUsesOnlyItsLocalWorkload(t *testing.T) {
 	if w := gatewayRequest(gateway, path, generation); w.Code != http.StatusForbidden || local.commands.Load() != 1 {
 		t.Fatalf("mobile operation sent to SSH workload: %d", w.Code)
 	}
-	if w := gatewayRequest(gateway, "/api/mobile-pair", generation); w.Code != http.StatusForbidden || local.commands.Load() != 1 {
+	if w := gatewayRequest(gateway, "/api/mobile-pair", generation); w.Code != http.StatusNotFound || local.commands.Load() != 1 {
 		t.Fatalf("phone pairing management reached the SSH workload: %d", w.Code)
 	}
 }

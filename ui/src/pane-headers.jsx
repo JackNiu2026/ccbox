@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Archive, ArrowLeft, ArrowRight, ArrowUpRight, ChevronRight, FolderOpen,
   Globe2, Cookie, Settings, Puzzle, ScanEye, Maximize2, MoreHorizontal, PanelLeftOpen, Plus, RefreshCw, X } from "lucide-react";
-import { BrowserVaultBar } from "./password-vault";
 import { WorkspaceTabs } from "./workspace-tabs";
 import { BrowserFavorites } from "./browser-favorites";
 import { BrowserDownloads } from "./browser-downloads";
@@ -80,7 +79,7 @@ export function BrowserTabRail({ tabs, metadata, active, ready, busy, splitDrag,
   </aside>;
 }
 
-export function BrowserHeader({ vault, onManageVault, tab, tabs, metadata, ready, busy, focused, compact, triggerRef, vertical,
+export function BrowserHeader({ tab, tabs, metadata, ready, busy, focused, compact, triggerRef, vertical,
   sidebarButton, exitButton, splitDrag, onSelect, onClose, onRename, onPin, onReorder, onNew,
   location, menu, back, forward, action, onNavigate, onOpen, onNewPrivate, onNewRegular, onCloseBrowser, onSettings, onReload, downloads, onStatus, onEditor, onRecover, recoveringEditor }) {
   const [address, setAddress] = useState("");
@@ -224,7 +223,7 @@ export function BrowserHeader({ vault, onManageVault, tab, tabs, metadata, ready
       id={`browser-menu-${tab.id}`} role="menu" aria-label="浏览器菜单" onKeyDown={menuKey}
       onClick={event => {
         const item = event.target.closest('[role="menuitem"]');
-        if (item && !item.closest(".vault-browser")) { setToolsOpen(false); toolsTrigger.current?.focus(); }
+        if (item) { setToolsOpen(false); toolsTrigger.current?.focus(); }
       }}>
       <div className="browser-more-actions">
         <button className="browser-menu-item" role="menuitem" disabled={!ready || busy} onClick={onNewPrivate}><ScanEye size={16} />新建无痕标签</button>
@@ -237,7 +236,6 @@ export function BrowserHeader({ vault, onManageVault, tab, tabs, metadata, ready
           <RefreshCw size={16} className={recoveringEditor ? "spin" : ""} /><span>恢复编辑器</span>
         </button>}
       </div>
-      {vault && !tab.incognito && tab.kind === "web" && <BrowserVaultBar menu tab={tab} vault={vault} ready={ready} onManage={onManageVault} />}
       <div className="browser-settings-menu-row"><button className="browser-menu-item" role="menuitem" disabled={!ready || busy} onClick={() => onSettings('general')}><Settings size={16} />设置</button></div>
     </div>
     </div>

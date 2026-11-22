@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   networkState,
+  networkStartAction,
   reportForSharing,
   isGuestLocalURL,
   canonicalExitPolicy,
@@ -55,6 +56,15 @@ test("only a live gate lease displays networking as allowed", () => {
   assert.equal(networkState(status, now).mode, "unknown");
   status.vm_running = false;
   assert.equal(networkState(status, now).mode, "stopped");
+});
+
+test("detect and start checks a running environment without restarting it", () => {
+  assert.deepEqual(networkStartAction({ vm_running: true, ready: true, safety: { gate: { mode: "closed" } } }),
+    { path: "/safety/check", confirmRestart: false });
+  assert.deepEqual(networkStartAction({ vm_running: false, ready: false }),
+    { path: "/start", confirmRestart: false });
+  assert.deepEqual(networkStartAction({ vm_running: true, ready: false, safety: { gate: { mode: "closed" } } }),
+    { path: "/start", confirmRestart: true });
 });
 
 test("shared reports omit identifiers and secret-derived configuration hashes", () => {

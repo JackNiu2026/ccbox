@@ -3,8 +3,8 @@ CCBox for Windows 10 and Windows 11 (x64)
 Install CCBox for the current Windows user. On the Shortcuts page, choose a
 desktop shortcut and Start menu entries. Both are selected on a fresh install.
 Upgrades remember the selection. Open CCBox from either selected location.
-For a first installation, the default is D:\ccBox when D: is a local fixed
-drive, or %LOCALAPPDATA%\Programs\ccBox otherwise. Upgrades keep the existing
+For a first installation, the default is D:\CCBox when D: is a local fixed
+drive, or %LOCALAPPDATA%\Programs\CCBox otherwise. Upgrades keep the existing
 installation folder. You can choose another location in the installer.
 No Go, Node.js, .NET SDK, QEMU, OpenSSH or Clash installation is required.
 The installer includes the Microsoft WebView2 offline runtime installer.
@@ -33,14 +33,14 @@ Automatic updates stop application launch while recovery remains incomplete.
 Stop the environment and quit CCBox before running an installer manually.
 In-app updates stop the environment after your confirmation, verify the new
 installer and publisher, and restart the application after installation.
-If installation fails while the original program is intact, Cage reopens it
-without replacing its directory. If the new version cannot become ready, Cage
+If installation fails while the original program is intact, CCBox reopens it
+without replacing its directory. If the new version cannot become ready, CCBox
 attempts to restore the previous program and keeps the latest personal files.
 Unsigned development builds cannot install automatic updates.
 
 When upgrading from Windows v0.1.7 to a version containing the updater fix,
 install the full fixed package manually once. Save work, stop the environment,
-and quit Cage, then run the installer under the same Windows user and keep the
+and quit CCBox, then run the installer under the same Windows user and keep the
 existing installation folder. Accounts, configuration, credentials, projects
 and environment disks are preserved. After checking the reopened application,
 use in-app updates for subsequent versions. Resolve any pending recovery record

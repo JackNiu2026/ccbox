@@ -158,3 +158,23 @@ func TestSameInterfaceRecoveryRetainsOutageAfterFailedRebind(t *testing.T) {
 		t.Fatalf("validations=%d lost=%v gate=%s paused=%v", validations, s.proxyNetworkLost, gate.Status().Mode, s.networkPaused)
 	}
 }
+
+func TestProxyInterfaceMonitorLeavesStoppedEnvironmentAvailableForStart(t *testing.T) {
+	s := testServer(t)
+	previous := physicalProxyInterface
+	t.Cleanup(func() { physicalProxyInterface = previous })
+	physicalProxyInterface = func(context.Context) (string, error) { return "eth0", nil }
+	s.proxyNetworkLost = true
+	if s.vmRunning() {
+		t.Fatal("fixture has a running environment")
+	}
+	s.op.Lock()
+	s.monitorProxyInterface()
+	job := s.jobs.snapshot()
+	s.jobs.cancelRunning()
+	s.op.Unlock()
+	s.jobs.workers.Wait()
+	if job.Running {
+		t.Fatalf("%s occupied the job queue before the stopped environment could start", job.Kind)
+	}
+}

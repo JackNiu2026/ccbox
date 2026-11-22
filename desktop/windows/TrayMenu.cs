@@ -16,18 +16,17 @@ internal sealed class TrayMenu : ContextMenuStrip
     {
         base.OnOpening(e);
         Padding = new Padding(LogicalToDeviceUnits(6));
-        int width = LogicalToDeviceUnits(208);
+        int width = LogicalToDeviceUnits(156);
         foreach (ToolStripItem item in Items)
         {
-            if (item is ToolStripSeparator) continue;
             item.Padding = new Padding(LogicalToDeviceUnits(12), LogicalToDeviceUnits(7),
                 LogicalToDeviceUnits(12), LogicalToDeviceUnits(7));
             width = Math.Max(width, item.GetPreferredSize(Size.Empty).Width + Padding.Horizontal);
         }
         foreach (ToolStripItem item in Items)
         {
-            int height = item is ToolStripSeparator ? LogicalToDeviceUnits(9) : item.GetPreferredSize(Size.Empty).Height;
             item.AutoSize = false;
+            int height = Math.Max(LogicalToDeviceUnits(34), item.GetPreferredSize(Size.Empty).Height);
             item.Size = new Size(width - Padding.Horizontal, height);
         }
         MinimumSize = new Size(width, 0);
