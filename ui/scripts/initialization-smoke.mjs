@@ -1,6 +1,17 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
-import { createWorkbench } from "./workbench-fixture.mjs";
+import { createWorkbench as createFixture, chooseInline } from "./workbench-fixture.mjs";
+
+function createWorkbench({ beforeNavigate, ...options }) {
+  return createFixture({
+    ...options,
+    beforeNavigate: async (page, state) => {
+      await page.route("**/api/desktop-license", route => route.fulfill({ json: { state: "active" } }));
+      await page.route("**/api/environment/virtualization", route => route.fulfill({ json: { ready: true } }));
+      await beforeNavigate?.(page, state);
+    },
+  });
+}
 
 const evidence = process.env.CAGE_INITIALIZATION_EVIDENCE;
 if (evidence) await fs.mkdir(evidence, { recursive: true });
@@ -128,10 +139,11 @@ if (evidence) await fs.mkdir(evidence, { recursive: true });
   } finally { await f.browser.close(); }
 }
 
-for (const [platform, system] of [["darwin", "macos"], ["windows", "windows-11"], ["linux", "ubuntu-22.04"]]) {
+for (const [platform, hostSystem] of [["darwin", "macos"], ["windows", "windows-11"], ["linux", "ubuntu-22.04"]]) {
+  const system = "debian-13";
   let starts = 0, rejectComplete = true;
   let directory = "/preview/cage-state";
-  const initialDirectory = platform === "windows" ? "/preview/Cage/CageData" : directory;
+  const initialDirectory = platform === "windows" ? "D:\\CCBox\\BoxData" : directory;
   const fixture = await createWorkbench({
     initialization: { required: true, tracked: true, started: false },
     clientContext: { mode: "local", connection_id: "local", client_platform: platform, server_platform: platform },
@@ -148,13 +160,12 @@ for (const [platform, system] of [["darwin", "macos"], ["windows", "windows-11"]
         }
         return route.fulfill({ json: { directory, has_environment: false, suggested_directory: directory === "/preview/cage-state" ? initialDirectory : undefined } });
       });
-      await page.route("**/api/environment/guest-systems", route => route.fulfill({ json: { fresh: true, available: true, system, linux_systems: ["ubuntu-22.04"] } }));
-      await page.route("**/api/environment/guest-systems/clone", route => route.fulfill({ json: { key: "matched-image", enough_space: true, minimum_free_gib: 51, free_gib: 120, download_bytes: 19769944180, plan: { host: { system, version: system === "windows-11" ? "25H2" : "26.5", build: "123", edition: "Professional", language: "zh-CN" }, version: "26.5", build: "456", bytes: 19769944180 } } }));
+      await page.route("**/api/environment/guest-systems", route => route.fulfill({ json: { fresh: true, available: true, system: hostSystem, host_match_only: platform === "darwin", linux_systems: ["ubuntu-22.04"] } }));
       await page.route("**/api/start", route => {
         starts++;
         const submitted = route.request().postDataJSON();
         assert.equal(submitted.guest_system, system);
-        if (starts === 1) assert.equal(submitted.clone_key, "matched-image");
+        assert.ok(!submitted.clone_key, "fresh Debian installation must not request a host match");
         state.status.job = { id: "install-" + starts, running: true, kind: "guest-install", setup_progress: { system, phase: "image", operation: "download", label: "正在下载系统镜像", received: 25 * 1048576, total: 100 * 1048576, bytes_per_second: 1048576 }, log: "镜像下载已开始" };
         return route.fulfill({ json: state.status.job });
       });
@@ -170,7 +181,7 @@ for (const [platform, system] of [["darwin", "macos"], ["windows", "windows-11"]
   const { page, state, errors, browser } = fixture;
   try {
     assert.equal(await page.getByRole("complementary", { name: "项目与终端" }).count(), 0);
-    const picker = page.getByRole("combobox", { name: "客户机系统" });
+    const guest = page.locator(".guest-system-picker");
     const storage = page.getByRole("region", { name: "环境存储目录" });
     await storage.getByLabel("存储目录", { exact: true }).waitFor();
     assert.equal(await storage.getByLabel("存储目录", { exact: true }).inputValue(), initialDirectory);
@@ -182,26 +193,14 @@ for (const [platform, system] of [["darwin", "macos"], ["windows", "windows-11"]
         .filter(animation => animation.animationName === "initialization-enter")
         .map(animation => animation.finished));
     });
-    const before = await storage.boundingBox();
-    await picker.click();
-    const option = page.getByRole("option", { name: "自动匹配本机系统版本", exact: true });
-    await option.waitFor();
-    for (const name of [/^Debian/, /^Ubuntu/, /^macOS/, /^Windows/]) assert.equal(await page.getByRole("option", { name }).count(), 1);
-    const expanded = await storage.boundingBox();
-    assert.ok(Math.abs(expanded.y - before.y) < 1, "floating system choices must not move storage");
-    const menu = await page.getByRole("listbox").boundingBox();
-    assert.ok(menu.x >= 0 && menu.y >= 0 && menu.x + menu.width <= 1280 && menu.y + menu.height <= 850, "floating menu must stay inside the viewport");
-    if (evidence) await page.screenshot({ path: `${evidence}/${platform}-systems-floating.png`, fullPage: true });
-    await picker.press("Home"); await picker.press("Enter");
-    await page.getByText("CCBox 会检测本机系统版本，在下一步显示匹配的官方镜像、下载量与空间要求。").waitFor();
+    assert.match(await guest.innerText(), /Debian 13/);
+    assert.equal(await guest.getByRole("combobox", { name: "客户机系统" }).count(), 0);
     await page.getByText(/系统镜像通过主机网络下载.*系统代理或 TUN/).waitFor();
-    if (system === "windows-11") await page.getByRole("checkbox").check();
     if (evidence) await page.screenshot({ path: `${evidence}/${platform}-system.png`, fullPage: true });
     await page.getByRole("button", { name: "下一步：配置代理" }).click();
     await page.getByRole("heading", { name: "连接你的网络代理" }).waitFor();
-    await page.getByText("根据本机系统版本匹配官方镜像，安装到独立客机中。").waitFor();
     await page.getByRole("button", { name: "上一步", exact: true }).click();
-    await page.getByRole("combobox", { name: "客户机系统" }).getByText("自动匹配本机系统版本").waitFor();
+    await guest.getByText("Debian 13", { exact: true }).waitFor();
     await page.getByRole("button", { name: "下一步：配置代理" }).click();
     await page.getByRole("button", { name: "开始安装", exact: true }).click();
     const progress = page.getByRole("region", { name: "环境安装进度" });
@@ -251,7 +250,7 @@ for (const [platform, system] of [["darwin", "macos"], ["windows", "windows-11"]
     await quitDialog.getByRole("button", { name: "取消", exact: true }).click();
     assert.equal(await page.getByRole("heading", { name: "为 CCBox 准备独立环境" }).count(), 0);
     assert.deepEqual(errors, []);
-    console.log(`PASS ${platform}: independent initialization, inline keyboard selection, back navigation, progress, refresh, retry, completion gate and reopen`);
+    console.log(`PASS ${platform}: fixed Debian 13, back navigation, progress, refresh, retry and completion gate`);
   } finally { await browser.close(); }
 }
 
@@ -293,18 +292,19 @@ for (const [platform, system] of [["darwin", "macos"], ["windows", "windows-11"]
   } finally { await f.browser.close(); }
 }
 
-{
+for (const mode of ["manual", "subscription", "yaml"]) {
   let imported = false, applied = false;
+  const inputName = mode === "subscription" ? "proxy.example.invalid" : "本机测试代理";
   const f = await createWorkbench({ initialization: { required: true, tracked: true }, beforeNavigate: async (page, state) => {
     state.status.local_vm_storage = true;
-    await page.route("**/api/desktop-license", route => route.fulfill({ json: { state: "active" } }));
-    await page.route("**/api/environment/virtualization", route => route.fulfill({ json: { ready: true } }));
     await page.route("**/api/environment/storage", route => route.fulfill({ json: { directory: "/preview/cage-state", has_environment: false } }));
     await page.route("**/api/environment/guest-systems", route => route.fulfill({ json: { fresh: true, available: true, system: "macos" } }));
-    await page.route("**/api/proxy", route => route.fulfill({ json: { active: applied, selected: applied ? "node" : "", sources: imported ? [{ id: "source", name: "本机测试代理", nodes: [{ id: "node", name: "本机测试代理", type: "socks5" }] }] : [], port: 17896, core_available: true } }));
+    await page.route("**/api/proxy", route => route.fulfill({ json: { active: applied, selected: applied ? "node" : "", sources: imported ? [{ id: "source", name: inputName, nodes: [{ id: "node", name: "本机测试代理", type: "socks5" }] }] : [], port: 17896, core_available: true } }));
     for (const action of ["import", "route"]) await page.route(`**/api/proxy/${action}`, route => {
       if (action === "import") {
-        assert.equal(route.request().postDataJSON().name, "本机测试代理");
+        const submitted = route.request().postDataJSON();
+        assert.equal(submitted.name, inputName);
+        assert.equal(submitted.host_download, mode === "subscription");
         imported = true;
       } else {
         assert.deepEqual(route.request().postDataJSON().node_ids, ["node"]);
@@ -317,25 +317,40 @@ for (const [platform, system] of [["darwin", "macos"], ["windows", "windows-11"]
   try {
     const { page } = f;
     await page.getByRole("button", { name: "下一步：配置代理" }).click();
-    const config = page.getByRole("tab", { name: "配置代理", exact: true });
-    assert.equal(await config.getAttribute("aria-selected"), "true");
-    assert.equal(await page.getByRole("tab", { name: /订阅/ }).count(), 0);
-    await page.getByRole("region", { name: "导入来源", exact: true }).waitFor();
+    const importer = page.getByRole("region", { name: "导入节点", exact: true });
+    const config = page.getByRole("region", { name: "配置代理", exact: true });
+    await importer.waitFor();
+    await config.waitFor();
+    assert.equal(await page.getByRole("tablist", { name: "代理管理" }).count(), 0);
+    assert.equal(await page.getByRole("heading", { name: "可用节点", exact: true }).count(), 0);
+    assert.equal(await page.getByRole("button", { name: "日志与诊断", exact: true }).count(), 0);
     const start = page.getByRole("button", { name: "开始安装", exact: true });
     assert.ok(await start.isDisabled());
-    await page.getByRole("button", { name: "手动节点", exact: true }).click();
-    await page.getByLabel("节点名称", { exact: true }).fill("本机测试代理");
-    await page.getByLabel("服务器", { exact: true }).fill("127.0.0.1");
+    if (mode === "manual") {
+      await importer.getByRole("button", { name: "手动节点", exact: true }).click();
+      await importer.getByLabel("节点名称", { exact: true }).fill("本机测试代理");
+      await importer.getByLabel("服务器", { exact: true }).fill("127.0.0.1");
+    } else if (mode === "subscription") {
+      await importer.getByLabel("订阅链接", { exact: true }).fill("https://proxy.example.invalid/config");
+      if (evidence) await page.screenshot({ path: `${evidence}/windows-proxy-import.png`, fullPage: true });
+    } else {
+      await page.setViewportSize({ width: 600, height: 740 });
+      await importer.getByRole("button", { name: "本地 YAML", exact: true }).click();
+      await importer.locator('input[type="file"]').setInputFiles({
+        name: "本机测试代理.yaml", mimeType: "text/yaml",
+        buffer: Buffer.from("proxies: [{name: local, type: socks5, server: 127.0.0.1, port: 1080}]"),
+      });
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    }
     await page.getByRole("button", { name: "导入并验证", exact: true }).click();
-    const nodes = page.getByRole("region", { name: "选择节点", exact: true });
-    await nodes.waitFor();
-    assert.equal(await config.getAttribute("aria-selected"), "true");
-    await page.getByRole("tab", { name: "订阅管理", exact: true }).waitFor();
-    await nodes.getByRole("button", { name: "选择节点 本机测试代理", exact: true }).click();
-    await page.getByRole("button", { name: "应用代理", exact: true }).click();
+    await importer.getByRole("button", { name: "继续导入", exact: true }).waitFor();
+    assert.ok(await start.isDisabled(), "import alone must not enable guest installation");
+    await chooseInline(config.getByRole("combobox", { name: "最终出口", exact: true }), "node");
+    if (evidence && mode === "yaml") await page.screenshot({ path: `${evidence}/windows-proxy-config-narrow.png`, fullPage: true });
+    await config.getByRole("button", { name: "应用代理", exact: true }).click();
     await page.getByText("已完成", { exact: true }).waitFor();
     await page.waitForFunction(() => [...document.querySelectorAll('button')].some(button => button.textContent === '开始安装' && !button.disabled));
     assert.deepEqual(f.errors, []);
-    console.log("PASS first proxy: manual import, node selection and explicit apply unlock installation inside initialization");
+    console.log(`PASS first proxy (${mode}): two on-page steps, selection and direct apply unlock installation`);
   } finally { await f.browser.close(); }
 }

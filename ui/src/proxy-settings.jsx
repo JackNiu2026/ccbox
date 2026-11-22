@@ -244,7 +244,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
               : null;
         setNotice(
           importedSource
-            ? `已导入 ${importedSource.nodes.length} 个节点，跳过 ${importedSource.skipped?.length || 0} 个${importedSource.skipped?.length ? "；可在来源下查看跳过原因" : ""}`
+            ? `已导入 ${importedSource.nodes.length} 个节点，跳过 ${importedSource.skipped?.length || 0} 个${!initializing && importedSource.skipped?.length ? "；可在来源下查看跳过原因" : ""}`
             : current.message || "已完成",
         );
         setDelays({});
@@ -383,7 +383,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
       <SafetyMessage message={proxy.route_error} />
     </p>
   );
-  const undoRoute = routeDraft !== null && (
+  const undoRoute = routeDraft !== null && (!initializing || proxy.active) && (
     <button type="button" disabled={busy} onClick={() => setRouteDraft(null)}>
       撤销修改
     </button>
@@ -395,17 +395,9 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
         .toLowerCase()
         .includes(search.toLowerCase()),
   );
-  const showFirstImport = initializing && tab === "nodes" && !hasNodes;
-  const showSubscriptionTab = !initializing || proxy.sources.length > 0 || tab === "sources";
-  const networkPolicy = (
-    <p className="field-help">
-      仅允许经节点转发的 IPv4 TCP 和 DNS；公网 UDP、IPv6、ICMP
-      持续阻断。切换会关闭旧网络连接并重新检查出口。
-    </p>
-  );
   return (
-    <div className="proxy-manager">
-      <div className="section-title">
+    <div className={initializing ? "proxy-manager proxy-initializing" : "proxy-manager"}>
+      {!initializing && <div className="section-title">
         <div className="proxy-heading">
           <h3>内置代理</h3>
           <button
@@ -421,8 +413,8 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           </button>
         </div>
         <p>为 CCBox 导入代理来源，选择要使用的节点。</p>
-      </div>
-      {helpOpen && (
+      </div>}
+      {!initializing && helpOpen && (
         <section
           id="proxy-help"
           className="proxy-help"
@@ -461,7 +453,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
             <li>
               <strong>确认可以联网</strong>
               <p>
-                {initializing ? "点击“开始安装”，等待客机安装和网络检查完成。以初始化界面的检查结果为准；" : "回到工作台启动环境，等待网络检查通过。以工作台的联网状态为准；"}「测速」只检测节点延迟。CCBox
+                回到工作台启动环境，等待网络检查通过。以工作台的联网状态为准；「测速」只检测节点延迟。CCBox
                 内的浏览器、终端和开发工具会共用所选节点，无需分别配置代理。
               </p>
             </li>
@@ -481,7 +473,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           </div>
         </section>
       )}
-      {!showFirstImport && (
+      {!initializing && (
         <div className="proxy-summary">
           <Server size={22} />
           <div>
@@ -518,14 +510,18 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           安装包缺少随附代理核心，请重新构建或安装完整 CCBox 应用。
         </div>
       )}
-      {!showFirstImport && networkPolicy}
+      {!initializing && <>
+      <p className="field-help">
+        仅允许经节点转发的 IPv4 TCP 和 DNS；公网 UDP、IPv6、ICMP
+        持续阻断。切换会关闭旧网络连接并重新检查出口。
+      </p>
       <div role="tablist" aria-label="代理管理" className="proxy-tabs">
         {[
-          ["nodes", initializing ? "配置代理" : "节点"],
-          ["sources", initializing ? "订阅管理" : "订阅"],
+          ["nodes", "节点"],
+          ["sources", "订阅"],
           ["connections", "连接"],
           ["diagnostics", "诊断"],
-        ].filter(([id]) => id !== "sources" || showSubscriptionTab).map(([id, label]) => (
+        ].map(([id, label]) => (
           <button
             key={id}
             role="tab"
@@ -536,6 +532,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           </button>
         ))}
       </div>
+      </>}
       {tab === "sources" && (
         <>
           <label className="check-line">
@@ -647,11 +644,20 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           ))}
         </>
       )}
-      {form && (
+      {(form || initializing) && (
         <section className="proxy-import" aria-labelledby="proxy-import-title">
+          {initializing ? <div className="proxy-step-heading">
+            <h4 id="proxy-import-title" ref={importHeading} tabIndex={-1}>
+              <span aria-hidden="true">1</span>导入节点
+            </h4>
+            {!form && <button type="button" disabled={busy} onClick={openImport}>
+              <Plus size={14} />继续导入
+            </button>}
+          </div> :
           <h4 id="proxy-import-title" ref={tab === "nodes" ? importHeading : undefined} tabIndex={-1}>
             {tab === "nodes" ? "导入来源" : form.id ? "编辑来源" : "添加节点来源"}
-          </h4>
+          </h4>}
+          {form && <>
           {!form.id && (
             <div className="proxy-tabs">
               {[
@@ -698,7 +704,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                   placeholder="https://…"
                 />
               </label>
-              <label>
+              {!initializing && <label>
                 自动更新间隔
                 <InlineSelect
                   aria-label="自动更新间隔"
@@ -722,7 +728,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                     </option>
                   ))}
                 </InlineSelect>
-              </label>
+              </label>}
               {!form.id && (
                 <p className="field-help">
                   {proxy.active ? "通过当前应用的代理下载订阅。" : "通过主机网络下载订阅。"}
@@ -914,29 +920,33 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
               {form.id ? "保存来源" : "导入并验证"}
             </button>
           </div>
+          </>}
         </section>
       )}
-      {showFirstImport && networkPolicy}
-      {tab === "nodes" && hasNodes && (
+      {tab === "nodes" && (hasNodes || initializing) && (
         <section className="proxy-node-section" aria-labelledby="proxy-node-select-title">
           <div className="proxy-node-heading">
-            <h4 id="proxy-node-select-title" ref={nodeHeading} tabIndex={-1}>选择节点</h4>
-            {!showInlineImport && (
+            <h4 id="proxy-node-select-title" ref={nodeHeading} tabIndex={-1}>
+              {initializing ? <><span aria-hidden="true">2</span>配置代理</> : "选择节点"}
+            </h4>
+            {!initializing && !showInlineImport && (
               <button type="button" disabled={busy} onClick={openImport}>
                 <Plus size={14} />
                 添加来源
               </button>
             )}
           </div>
+          {!hasNodes && <p className="field-help">导入节点后，在这里选择出口并应用。</p>}
+          {hasNodes && (
           <section
             className="proxy-route"
-            aria-labelledby="proxy-route-title"
+            aria-labelledby={initializing ? undefined : "proxy-route-title"}
           >
             <div className="proxy-route-heading">
-              <div>
+              {!initializing && <div>
                 <h4 id="proxy-route-title">配置连接方式</h4>
                 <p>直接使用一个出口，或经中转连接住宅代理。</p>
-              </div>
+              </div>}
               <div
                 className="proxy-route-mode"
                 role="group"
@@ -1043,7 +1053,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                 添加中转
               </button>
             )}
-            {routePreview}
+            {(!initializing || route.length > 1) && routePreview}
             <div className="proxy-route-actions">
               <span aria-live="polite">
                 {routeChanged ? "有未应用的代理修改" : proxy.active ? "当前配置已应用" : "选择完成后应用代理"}
@@ -1074,6 +1084,8 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
               </div>
             )}
           </section>
+          )}
+          {!initializing && <>
           <h4>可用节点</h4>
           <div className="proxy-toolbar">
             <label className="proxy-search">
@@ -1162,6 +1174,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
               <p className="field-help">没有符合搜索条件的节点。</p>
             )}
           </div>
+          </>}
         </section>
       )}
       {tab === "connections" && (

@@ -41,6 +41,9 @@ func fakeAccountService(t *testing.T, store *license.Store) *http.Client {
 		case "/v1/auth/logout":
 			err = store.Logout(token)
 			reply = map[string]bool{"ok": true}
+		case "/v1/auth/reset":
+			err = store.ResetPassword(input["username"], input["code"], input["password"], now)
+			reply = map[string]bool{"ok": true}
 		case "/v1/account":
 			var info license.AccountInfo
 			info, err = store.Account(token, input["device"], now)
@@ -106,12 +109,11 @@ func TestOnlineAccountRegisterRedeemAndSignIn(t *testing.T) {
 	if !s.onlineEnabled() {
 		t.Fatal("online accounts should be enabled in a licensed build")
 	}
-	if _, err := s.createWithOnline("register", "x", "password1", "", request); err == nil {
+	if err := s.createWithOnline("register", "x", "password1", "", request); err == nil {
 		t.Fatal("invalid local name accepted")
 	}
-	recovery, err := s.createWithOnline("register", "Alice-1", "password1", "", request)
-	if err != nil || recovery == "" {
-		t.Fatalf("register: %q %v", recovery, err)
+	if err := s.createWithOnline("register", "Alice-1", "password1", "", request); err != nil {
+		t.Fatalf("register: %v", err)
 	}
 	record, token, err := s.onlineSession()
 	if err != nil || record.Username != "Alice-1" || len(token) != 64 {
@@ -131,7 +133,7 @@ func TestOnlineAccountRegisterRedeemAndSignIn(t *testing.T) {
 	if err := s.requireLicense(); err != nil {
 		t.Fatalf("redeemed account blocked: %v", err)
 	}
-	if _, err := s.createWithOnline("register", "other", "password1", "", request); err == nil {
+	if err := s.createWithOnline("register", "other", "password1", "", request); err == nil {
 		t.Fatal("second local account created")
 	}
 
@@ -149,14 +151,14 @@ func TestOnlineAccountRegisterRedeemAndSignIn(t *testing.T) {
 	// A new device signs in with the same account and gets its own local
 	// account under the canonical name.
 	other := onlineTestServer(t)
-	if _, err := other.createWithOnline("login", "ALICE-1", "wrong-pass", "", request); onlineCode(err) != "credentials" {
+	if err := other.createWithOnline("login", "ALICE-1", "wrong-pass", "", request); onlineCode(err) != "credentials" {
 		t.Fatalf("wrong password sign-in: %v", err)
 	}
 	if other.account.exists() {
 		t.Fatal("failed sign-in created a local account")
 	}
-	if _, err := other.createWithOnline("login", "ALICE-1", "password2", "", request); err != nil {
-		t.Fatal(err)
+	if err := other.createWithOnline("login", "ALICE-1", "password2", "", request); err != nil {
+		t.Fatalf("sign in: %v", err)
 	}
 	wantLocal := "Alice-1"
 	if other.macAccountHost() {
@@ -182,14 +184,65 @@ func TestOnlineAccountsOffWithoutLicenseKey(t *testing.T) {
 		t.Fatal("online accounts enabled without a license key")
 	}
 	request := httptest.NewRequest(http.MethodPost, "/api/account/create", nil)
-	if _, err := s.createWithOnline("login", "alice", "password1", "", request); !errors.Is(err, errOnlineDisabled) {
+	if err := s.createWithOnline("login", "alice", "password1", "", request); !errors.Is(err, errOnlineDisabled) {
 		t.Fatalf("login without service: %v", err)
 	}
-	if _, err := s.createWithOnline("register", "alice", "password1", "", request); err != nil {
+	if err := s.createWithOnline("register", "alice", "password1", "", request); err != nil {
 		t.Fatalf("local-only create: %v", err)
 	}
 	if _, err := os.Stat(s.onlinePath()); !os.IsNotExist(err) {
 		t.Fatal("local-only create wrote an online session")
+	}
+}
+
+func TestOnlinePasswordResetFromLockedDevice(t *testing.T) {
+	public, private, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, client := licensePublicKey, activationHTTP
+	t.Cleanup(func() { licensePublicKey, activationHTTP = key, client })
+	licensePublicKey = base64.RawURLEncoding.EncodeToString(public)
+	store := license.NewStore(t.TempDir(), private)
+	activationHTTP = fakeAccountService(t, store)
+
+	s := testServer(t)
+	s.account, err = loadLocalAccount(s.profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(s.account.lock)
+	const registration = `{"username":"test_user","password":"original-test-password","confirm_password":"original-test-password"}`
+	created := request(s, http.MethodPost, "/api/account/create", s.origin, registration, true)
+	if created.Code != http.StatusOK || !s.account.view().Unlocked || strings.Contains(created.Body.String(), "recovery") {
+		t.Fatal("registration failed or exposed retired recovery state", created.Code)
+	}
+	record, _, err := s.onlineSession()
+	if err != nil || record == nil {
+		t.Fatal("missing online account session", err)
+	}
+	code, _, err := store.IssueReset(record.User, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.account.lock()
+	body, err := json.Marshal(map[string]string{"username": "test_user", "reset_code": code, "password": "reset-online-password", "confirm_password": "reset-online-password"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w := request(s, http.MethodPost, "/api/account/online-reset", s.origin, string(body), true); w.Code != http.StatusOK || s.account.view().Unlocked {
+		t.Fatal("online reset failed or unlocked the device", w.Code)
+	}
+	if _, _, err := store.Login("test_user", "reset-online-password", strings.Repeat("e", 64), license.DeviceMeta{}, time.Now()); err != nil {
+		t.Fatal("new password cannot sign in online", err)
+	}
+	if err := s.account.unlock("original-test-password"); err != nil {
+		t.Fatal("online reset changed the device password", err)
+	}
+	for _, action := range []string{"recovery-generate", "recovery-reset"} {
+		if w := request(s, http.MethodPost, "/api/account/"+action, s.origin, `{}`, true); w.Code != http.StatusNotFound {
+			t.Fatalf("retired endpoint %s returned %d", action, w.Code)
+		}
 	}
 }
 

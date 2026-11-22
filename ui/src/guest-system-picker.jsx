@@ -8,6 +8,7 @@ import "./guest-system-picker.css";
 const names = { "debian-12": "Debian 12", "debian-13": "Debian 13", "ubuntu-22.04": "Ubuntu 22.04", "ubuntu-24.04": "Ubuntu 24.04", macos: "macOS", "windows-11": "Windows 11" };
 const editions = { Professional: "专业版", ProfessionalN: "专业版 N", Enterprise: "企业版", EnterpriseN: "企业版 N", Education: "教育版", EducationN: "教育版 N", Core: "家庭版", CoreSingleLanguage: "家庭单语言版" };
 const languages = { "zh-CN": "简体中文", "zh-TW": "繁体中文", "en-US": "英语（美国）" };
+const initialGuestSystem = "debian-13";
 
 export function HostCloneSummary({ pending, onChange }) {
   const [result, setResult] = useState(null);
@@ -48,7 +49,7 @@ export function HostCloneSummary({ pending, onChange }) {
   </div>;
 }
 
-export function GuestSystemPicker({ system, onChange, preserveOnUnmount = false, deferMatch = false }) {
+export function GuestSystemPicker({ system, onChange, preserveOnUnmount = false, deferMatch = false, initializing = false }) {
   const [view, setView] = useState(null);
   const [error, setError] = useState("");
   const [attempt, retry] = useState(0);
@@ -65,10 +66,15 @@ export function GuestSystemPicker({ system, onChange, preserveOnUnmount = false,
       if (!active) return;
       setView(next);
       if (next.fresh || next.pending) {
-        onChange(current => !next.pending && current && !current.pending && (current.guest_system !== next.system || !next.host_match_only || current.clone) ? current : ({ guest_system: next.pending?.system || (next.host_match_only ? next.system : "debian-13"), media: next.pending?.media || "",
-          sha256: next.pending?.sha256 || "", editor_terms: Boolean(next.pending?.editor_terms),
-          clone: Boolean(next.host_match_only && (!next.pending || next.pending.system === next.system) || next.pending?.source && !next.pending?.source_kind), clone_key: "", clone_ready: false,
-          activate: next.activate, pending: Boolean(next.pending) }));
+        if (initializing && !next.pending) {
+          onChange(current => current?.guest_system === initialGuestSystem && !current.pending && !current.clone
+            ? current : { guest_system: initialGuestSystem });
+        } else {
+          onChange(current => !next.pending && current && !current.pending && (current.guest_system !== next.system || !next.host_match_only || current.clone) ? current : ({ guest_system: next.pending?.system || (next.host_match_only ? next.system : initialGuestSystem), media: next.pending?.media || "",
+            sha256: next.pending?.sha256 || "", editor_terms: Boolean(next.pending?.editor_terms),
+            clone: Boolean(next.host_match_only && (!next.pending || next.pending.system === next.system) || next.pending?.source && !next.pending?.source_kind), clone_key: "", clone_ready: false,
+            activate: next.activate, pending: Boolean(next.pending) }));
+        }
       } else onChange(null);
     }).catch((e) => {
       if (!active) return;
@@ -76,7 +82,7 @@ export function GuestSystemPicker({ system, onChange, preserveOnUnmount = false,
       else setError(e.message);
     });
     return () => { active = false; if (!preserveOnUnmount) onChange(undefined); };
-  }, [onChange, attempt, preserveOnUnmount]);
+  }, [onChange, attempt, preserveOnUnmount, initializing]);
   const reportHostReady = useCallback((ready) => onChange((current) =>
     current && isLinuxGuest(current.guest_system) ? { ...current, host_ready: ready } : current), [onChange]);
   if (!view || !system) return error ? <div className="guest-system-picker"><span role="alert">{error}</span>
@@ -96,14 +102,14 @@ export function GuestSystemPicker({ system, onChange, preserveOnUnmount = false,
   return (
     <div className="guest-system-picker">
       <span>客户机系统</span>
-      <InlineSelect aria-label="客户机系统" value={system.clone ? "host" : os} disabled={system.pending}
+      {initializing ? <strong>{names[os]}</strong> : <InlineSelect aria-label="客户机系统" value={system.clone ? "host" : os} disabled={system.pending}
         onValueChange={(value) => onChange({ guest_system: value === "host" ? view.system : value, clone: value === "host", clone_key: "", clone_ready: false, media: "", sha256: "", editor_terms: false })}>
         {Boolean(view.system) && <option value="host" disabled={!view.available}>自动匹配本机系统版本{view.available ? "" : "（暂不可用）"}</option>}
         <option value="debian-13">Debian 13</option>
         <option value="ubuntu-22.04" disabled={!view.linux_systems?.includes("ubuntu-22.04")}>Ubuntu 22.04{view.linux_systems?.includes("ubuntu-22.04") ? "" : "（此构建暂不可用）"}</option>
         {!view.host_match_only && <option value="macos" disabled={view.system !== "macos" || !view.available}>macOS{view.system === "macos" ? view.available ? "" : "（暂不可用）" : "（需要兼容的 Mac）"}</option>}
         <option value="windows-11" disabled={view.system !== "windows-11" || !view.available}>Windows 11{view.system === "windows-11" ? view.available ? "" : "（暂不可用）" : "（需要 Windows 11 与 Hyper-V）"}</option>
-      </InlineSelect>
+      </InlineSelect>}
       {system.clone && !system.activate && (deferMatch ? <small className="guest-install-fields">CCBox 会检测本机系统版本，在下一步显示匹配的官方镜像、下载量与空间要求。</small> : <HostCloneSummary pending={system.pending} onChange={onChange} />)}
       {!system.activate && <small className="guest-install-fields">系统镜像通过主机网络下载，遵循主机系统代理或 TUN 设置，不使用 CCBox 的客机代理。使用 Clash 等软件时，请先开启系统代理或 TUN；代理规则决定镜像网站的实际出口。</small>}
       {!system.clone && os !== "debian-13" && !system.activate && <div className="guest-install-fields">
@@ -139,8 +145,8 @@ export function GuestSystemPicker({ system, onChange, preserveOnUnmount = false,
           onChange={(e) => change({ editor_terms: e.target.checked })} />我接受上述编辑器许可条款</label>
       </div>}
       {isLinuxGuest(os) && !system.activate && <VirtualizationNotice key={os} onReady={reportHostReady} />}
-      {view.reason && !view.available && <small className="guest-install-fields">{view.reason}</small>}
-      {view.reselect && <button type="button" className="guest-install-fields" onClick={async () => {
+      {view.reason && !view.available && (!initializing || system.pending) && <small className="guest-install-fields">{view.reason}</small>}
+      {!initializing && view.reselect && <button type="button" className="guest-install-fields" onClick={async () => {
         try {
           await api("/environment/guest-systems", { id: view.pending.id }, "DELETE");
           setView(await api("/environment/guest-systems"));

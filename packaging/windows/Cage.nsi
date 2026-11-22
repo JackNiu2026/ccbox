@@ -483,9 +483,8 @@ Section "CCBox" Main
   File /oname=verified-file-deletion.cs "verified-file-deletion.cs"
   DetailPrint "正在检查并保留已有项目和修改文件…"
   !insertmacro InstallPhase "preparing_file_transaction"
-  ; CageData is the default storage of a packaged Windows installation. It
-  ; stays in place: a VM registered on it keeps its paths and open handles.
-  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\installation-files.ps1" -Operation prepare -Target "$StageDir" -Source "$INSTDIR" -Backup "$BackupDir" -Receipt "$TransactionRecord" -KeepInPlace CageData $DiagnosticArguments'
+  ; Keep current and legacy data paths in place even if a VM holds a disk open.
+  nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\installation-files.ps1" -Operation prepare -Target "$StageDir" -Source "$INSTDIR" -Backup "$BackupDir" -Receipt "$TransactionRecord" -KeepApplicationData $DiagnosticArguments'
   Pop $0
   Pop $1
   StrCpy $HelperExit $0

@@ -24,7 +24,6 @@ import (
 )
 
 type accountRecord struct {
-	Recovery              *accountRecovery         `json:"recovery,omitempty"`
 	MacLogin              *macAccountEnvelope      `json:"mac_login,omitempty"`
 	TrustedDevice         string                   `json:"trusted_device,omitempty"`
 	TrustedUnlock         *accountDevice           `json:"trusted_unlock,omitempty"`
@@ -52,7 +51,6 @@ type localAccount struct {
 }
 
 type accountView struct {
-	RecoveryReady         bool              `json:"recovery_ready"`
 	MacOSAccountHost      bool              `json:"macos_account_host,omitempty"`
 	MacOSCredentialsReady bool              `json:"macos_credentials_ready,omitempty"`
 	MacOSUsernameBound    bool              `json:"macos_username_bound,omitempty"`
@@ -94,9 +92,6 @@ func loadLocalAccount(profile string) (*localAccount, error) {
 		return nil, errors.New("本机信任记录损坏，请从备份恢复")
 	}
 	a.record = &record
-	if record.Recovery != nil && (len(record.Recovery.Nonce) != 12 || len(record.Recovery.SealedKey) != 48) {
-		return nil, errors.New("账户恢复记录损坏，请从备份恢复；已有数据未修改")
-	}
 	for kind, device := range record.Devices {
 		if !validDeviceKind(kind) || len(device.ID) != 32 || len(device.Nonce) != 12 || len(device.SealedKey) != 48 {
 			return nil, errors.New("本地账户快捷登录记录损坏，请从备份恢复")
@@ -168,7 +163,6 @@ func (a *localAccount) viewFor(desktop bool) accountView {
 	v := accountView{Exists: a.record != nil, Unlocked: len(a.key) == 32 && (!a.trustedSession || desktop)}
 	v.DeviceBinding = fmtAccountBinding(a.path)
 	if a.record != nil {
-		v.RecoveryReady = a.record.Recovery != nil
 		if a.record.MacLogin != nil && v.Unlocked {
 			if login, err := a.openMacAccount(); err == nil {
 				v.MacOSCredentialsReady = true
@@ -231,56 +225,51 @@ func (a *localAccount) lock() {
 }
 
 func (a *localAccount) create(name, password, avatar string) error {
-	_, err := a.createAccount(name, password, avatar, false)
-	return err
+	return a.createAccount(name, password, avatar, false)
 }
 
-func (a *localAccount) createAccount(name, password, avatar string, mac bool) (string, error) {
+func (a *localAccount) createAccount(name, password, avatar string, mac bool) error {
 	name = strings.TrimSpace(name)
 	if mac {
 		if err := validMacAccount(name, password); err != nil {
-			return "", err
+			return err
 		}
 	}
 	if err := validAccountName(name); err != nil {
-		return "", err
+		return err
 	}
 	if err := validAccountPassword(password); err != nil {
-		return "", err
+		return err
 	}
 	normalized, err := normalizeAccountAvatar(avatar)
 	if err != nil {
-		return "", err
+		return err
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.record != nil {
-		return "", errors.New("此配置已创建本地账户，请登录")
+		return errors.New("此配置已创建本地账户，请登录")
 	}
 	key := make([]byte, 32)
 	if _, err = rand.Read(key); err != nil {
-		return "", err
+		return err
 	}
 	defer clear(key)
 	record := &accountRecord{Version: 1, Username: name, Avatar: normalized}
 	if err = sealAccountKey(record, password, key); err != nil {
-		return "", err
+		return err
 	}
 	if mac {
 		if err = sealMacAccount(record, key, macAccountData{Password: password}); err != nil {
-			return "", err
+			return err
 		}
 	}
-	recoveryKey, err := newAccountRecovery(record, key)
-	if err != nil {
-		return "", err
-	}
 	if err = writePrivate(a.path, record); err != nil {
-		return "", errors.New("账户未能保存，请检查磁盘空间与目录权限")
+		return errors.New("账户未能保存，请检查磁盘空间与目录权限")
 	}
 	a.record = record
 	a.setKey(append([]byte(nil), key...))
-	return recoveryKey, nil
+	return nil
 }
 
 func (a *localAccount) unlock(password string) error {
@@ -362,7 +351,7 @@ func (a *localAccount) changePassword(oldPassword, newPassword string) error {
 		return err
 	}
 	defer clear(key)
-	record, err := a.passwordRecord(key, newPassword, false)
+	record, err := a.passwordRecord(key, newPassword)
 	if err != nil {
 		return err
 	}
@@ -374,9 +363,8 @@ func (a *localAccount) changePassword(oldPassword, newPassword string) error {
 	return nil
 }
 
-// Caller holds mu. Recovery supplies the original data key without unlocking
-// the workspace. Keep any in-flight macOS target until it is confirmed.
-func (a *localAccount) passwordRecord(key []byte, newPassword string, recovering bool) (*accountRecord, error) {
+// Caller holds mu. Confirm any in-flight macOS password before permitting another change.
+func (a *localAccount) passwordRecord(key []byte, newPassword string) (*accountRecord, error) {
 	record := *a.record
 	if record.MacLogin != nil {
 		login, err := openMacAccountKey(&record, key)
@@ -386,15 +374,9 @@ func (a *localAccount) passwordRecord(key []byte, newPassword string, recovering
 		if err = validMacAccount(record.Username, newPassword); err != nil {
 			return nil, err
 		}
-		for id, guest := range login.Guests {
+		for _, guest := range login.Guests {
 			if guest.Password != login.Password || guest.PendingPassword != "" {
-				if !recovering {
-					return nil, errors.New("客机密码仍待同步，请先启动 macOS 客机并完成同步后再改密")
-				}
-				if guest.PendingPassword == "" {
-					guest.PendingPassword = login.Password
-					login.Guests[id] = guest
-				}
+				return nil, errors.New("客机密码仍待同步，请先启动 macOS 客机并完成同步后再改密")
 			}
 		}
 		login.Password = newPassword

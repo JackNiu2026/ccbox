@@ -31,7 +31,7 @@ function bridge() {
 
 test('native file replies remain pending beyond four minutes and through the backend deadline', async () => {
   for (const action of ['uploadHostFiles', 'chooseUploadFiles', 'clipboardSyncRead', 'clipboardSyncWrite',
-    'saveBrowserDownload', 'browserDownloadAction', 'desktopFileAction', 'exportDiagnostics', 'importTheme', 'exportTheme', 'saveRecoveryKey',
+    'saveBrowserDownload', 'browserDownloadAction', 'desktopFileAction', 'exportDiagnostics', 'importTheme', 'exportTheme',
     'shareLocalProject', 'chooseFolder', 'chooseGuestMedia']) {
     const fixture = bridge();
     const pending = fixture.call({ action });

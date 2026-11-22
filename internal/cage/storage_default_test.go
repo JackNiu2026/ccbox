@@ -8,7 +8,7 @@ import (
 
 func TestWindowsInitialDataDirectoryAndApplicationBoundary(t *testing.T) {
 	profile, root := newStorageFixture(t)
-	app := filepath.Join(root, "Cage")
+	app := filepath.Join(root, "CCBox")
 	backend := filepath.Join(app, "resources", "cage.exe")
 	writeStorageFixture(t, backend, []byte("backend"))
 	writeStorageFixture(t, filepath.Join(app, "Cage.exe"), []byte("launcher"))
@@ -24,7 +24,7 @@ func TestWindowsInitialDataDirectoryAndApplicationBoundary(t *testing.T) {
 		t.Fatalf("foreign installer identity accepted: %s", got)
 	}
 	writeStorageFixture(t, filepath.Join(app, "ccBox.install-id"), []byte("org.ccbox.desktop"))
-	data := filepath.Join(app, "CageData")
+	data := filepath.Join(app, "BoxData")
 	if got := initialStorageDirectory(backend, "windows"); got != data {
 		t.Fatalf("default=%s want=%s", got, data)
 	}

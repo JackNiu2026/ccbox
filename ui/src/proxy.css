@@ -730,6 +730,69 @@
 .proxy-node-section {
   margin-top: 20px;
 }
+.proxy-initializing .proxy-import {
+  padding: 0;
+  margin-top: 0;
+  border: 0;
+}
+.proxy-initializing .proxy-import label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  margin-top: 12px;
+}
+.proxy-initializing .proxy-import input:not([type="file"]) {
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--input);
+  color: inherit;
+  font: inherit;
+}
+.proxy-initializing .proxy-import > .field-help {
+  margin: 10px 0 0;
+}
+.proxy-initializing .proxy-node-section {
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+}
+.proxy-step-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.proxy-initializing .proxy-step-heading > h4,
+.proxy-initializing .proxy-node-heading > h4 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+.proxy-initializing .proxy-step-heading > h4 > span,
+.proxy-initializing .proxy-node-heading > h4 > span {
+  display: grid;
+  place-items: center;
+  inline-size: 24px;
+  block-size: 24px;
+  border-radius: 50%;
+  background: var(--chrome);
+  border: 1px solid var(--line);
+  font-size: 12px;
+}
+.proxy-initializing .proxy-route {
+  border: 0;
+  padding: 0;
+}
+.proxy-initializing .proxy-route-hop:only-child > .proxy-hop-number {
+  display: none;
+}
 .proxy-node-heading {
   margin-bottom: 12px;
 }

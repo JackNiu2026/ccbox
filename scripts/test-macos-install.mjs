@@ -67,23 +67,17 @@ try {
     try {
       await page.goto(entry.url);
       if (phase === "install") {
-        await page.getByRole("heading", { name: "注册 Cage 账户", exact: true }).waitFor();
+        await page.getByRole("heading", { name: "注册 CCBox 账户", exact: true }).waitFor();
         await page.getByRole("checkbox", { name: /^记住我/ }).uncheck();
         await page.getByLabel("用户名", { exact: true }).fill(username);
         await page.getByLabel("设置密码", { exact: true }).fill(password);
         await page.getByLabel("确认密码", { exact: true }).fill(password);
         await page.getByRole("button", { name: "创建本地账户", exact: true }).click();
-        await page.getByRole("heading", { name: "保存你的恢复密钥", exact: true }).waitFor();
-        const recoveryKey = await page.getByLabel("恢复密钥", { exact: true }).inputValue();
-        assert.ok(recoveryKey.trim(), "new accounts must receive a recovery key");
-        await fs.writeFile(path.join(root, "recovery-key.txt"), recoveryKey, { mode: 0o600 });
-        await page.getByRole("checkbox", { name: "我已安全保存完整恢复密钥", exact: true }).check();
-        await page.getByRole("button", { name: "继续使用 Cage", exact: true }).click();
       } else {
         await page.getByLabel("账户密码", { exact: true }).fill(password);
-        await page.getByRole("button", { name: "解锁 Cage", exact: true }).click();
+        await page.getByRole("button", { name: "解锁 CCBox", exact: true }).click();
       }
-      await page.getByRole("heading", { name: "为 Cage 准备独立环境", exact: true }).waitFor();
+      await page.getByRole("heading", { name: "为 CCBox 准备独立环境", exact: true }).waitFor();
       assert.equal(await page.getByRole("navigation", { name: "主导航" }).count(), 0, "workbench must remain hidden before initialization");
       if (evidence) await page.screenshot({ animations: "disabled", path: path.join(evidence, `${phase}-initialization.png`) });
       await page.getByRole("button", { name: "下一步：配置代理", exact: true }).click();
@@ -91,7 +85,7 @@ try {
       assert.ok(await page.getByRole("button", { name: "开始安装", exact: true }).isDisabled(), "a fresh profile must require a proxy before installing");
       // Do not start a VM or configure real network credentials in package-preservation QA.
       await page.getByRole("button", { name: "上一步", exact: true }).click();
-      await page.getByRole("heading", { name: "为 Cage 准备独立环境", exact: true }).waitFor();
+      await page.getByRole("heading", { name: "为 CCBox 准备独立环境", exact: true }).waitFor();
       const account = await page.evaluate(async () => {
         const context = await (await fetch("/api/client/context")).json();
         return (await fetch("/api/account", { headers: { "X-Cage-Connection": context.connection_id } })).json();

@@ -387,52 +387,51 @@ func (s *Server) onlineAccountRoute(w http.ResponseWriter, r *http.Request) {
 // createWithOnline creates the local account after registering or signing
 // in online, so both use the same username and password. Builds without the
 // online service keep the local-only account.
-func (s *Server) createWithOnline(mode, username, password, avatar string, r *http.Request) (string, error) {
+func (s *Server) createWithOnline(mode, username, password, avatar string, r *http.Request) error {
 	mac := s.macAccountHost()
 	if !s.onlineEnabled() {
 		if mode == "login" {
-			return "", errOnlineDisabled
+			return errOnlineDisabled
 		}
 		return s.account.createAccount(username, password, avatar, mac)
 	}
 	if s.account.exists() {
-		return "", errors.New("此配置已创建本地账户，请解锁后在「设置 → 账户」登录线上账户")
+		return errors.New("此配置已创建本地账户，请解锁后在「设置 → 账户」登录线上账户")
 	}
 	name := strings.TrimSpace(username)
 	if err := validAccountPassword(password); err != nil {
-		return "", err
+		return err
 	}
 	if mode == "register" {
 		if err := validAccountName(name); err != nil {
-			return "", err
+			return err
 		}
 	}
 	if mac {
 		// Check the macOS password rule before the service sees the request,
 		// so a successful sign-in is never followed by a local failure.
 		if err := validMacAccount(macLocalName(name), password); err != nil {
-			return "", err
+			return err
 		}
 	}
 	reply, err := onlineAuthenticate(r.Context(), mode, username, password)
 	if err != nil {
-		return "", err
+		return err
 	}
 	name = reply.Account.Username
 	if mac {
 		name = macLocalName(name)
 	}
-	recovery, err := s.account.createAccount(name, password, avatar, mac)
-	if err != nil {
+	if err := s.account.createAccount(name, password, avatar, mac); err != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = onlineCall(ctx, "/v1/auth/logout", reply.Token, map[string]string{}, nil)
-		return "", err
+		return err
 	}
 	// If saving the session fails the local account still exists; signing in
 	// again from settings recovers it.
 	_ = s.saveOnlineSession(reply)
-	return recovery, nil
+	return nil
 }
 
 // changeOnlinePassword keeps the online password in step with the local

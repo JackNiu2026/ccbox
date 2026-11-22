@@ -79,8 +79,6 @@
   outline-offset: 2px;
 }
 .account-field textarea { resize: vertical; line-height: 1.7; overflow-wrap: anywhere; }
-.account-recovery .field-help { text-align: left; line-height: 1.6; }
-.account-recovery-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
 .password-input {
   display: flex;
   position: relative;
@@ -109,12 +107,6 @@
   color: var(--muted);
   font-size: 12px;
   margin: 24px 0 8px;
-}
-.account-recovery-note {
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--muted);
-  margin: 0;
 }
 .account-error {
   color: var(--danger, #b33d36);

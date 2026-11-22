@@ -331,28 +331,37 @@ try {
     $retained = @(Get-ChildItem (Join-Path $old 'Cage-preserved-files') -File -Recurse)
     Check (@($retained | Where-Object { (Get-Content $_.FullName -Raw) -eq 'obsolete library' }).Count -eq 1) 'Legacy DLL bytes were lost.'
     Check (@($retained | Where-Object { (Get-Content $_.FullName -Raw) -eq 'user directory' }).Count -eq 1) 'Conflicting user directory was lost.'
-    # Packaged Windows installations keep their default storage in CageData.
-    # A registered VM may hold its disk open; the update must neither move
-    # nor wait for it, and the installation folder itself stays (#108).
+    # Both generations of the default data directory stay in place while a VM holds its disk open.
     $scenario = Join-Path $root 'kept-data'
     $old = Join-Path $scenario 'installed'; $stage = Join-Path $scenario 'staged'; $receipt = Join-Path $scenario 'receipt.json'
     $backup = $old + '-backup'
     App $old 'old'; App $stage 'new'
-    Write-File (Join-Path $old 'CageData/vm/disk.vhdx') 'persistent disk'
+    $dataFolders = @('BoxData', 'CageData')
+    foreach ($folder in $dataFolders) {
+        Write-File (Join-Path $old "$folder/vm/disk.vhdx") "persistent $folder disk"
+    }
     Write-File (Join-Path $old 'my-project/work.txt') 'kept project'
-    $disk = [IO.File]::Open((Join-Path $old 'CageData/vm/disk.vhdx'), 'Open', 'Read', 'Read')
+    $disks = foreach ($folder in $dataFolders) {
+        [IO.File]::Open((Join-Path $old "$folder/vm/disk.vhdx"), 'Open', 'Read', 'Read')
+    }
     try {
-        Invoke-Helper @('-Operation','prepare','-Source',$old,'-Target',$stage,'-Receipt',$receipt,'-Backup',$backup,'-KeepInPlace','CageData')
-        Check (!(@((Get-Content $receipt -Raw | ConvertFrom-Json).moves) | Where-Object { $_.path -like 'CageData*' })) 'Preparation scheduled the kept data folder for a move.'
+        Invoke-Helper @('-Operation','prepare','-Source',$old,'-Target',$stage,'-Receipt',$receipt,'-Backup',$backup,'-KeepApplicationData')
+        $plan = Get-Content $receipt -Raw | ConvertFrom-Json
+        foreach ($folder in $dataFolders) {
+            Check ($folder -in $plan.keepInPlace) "$folder was not reserved in the update plan."
+            Check (!($plan.moves | Where-Object { $_.path -eq $folder -or $_.path -like "$folder/*" })) "Preparation scheduled $folder for a move."
+        }
         Invoke-Helper @('-Operation','detach','-Source',$old,'-Target',$backup,'-Receipt',$receipt)
-        Check ((@(Get-ChildItem -LiteralPath $old -Force).Name -join ',') -eq 'CageData') 'Detaching left program entries or moved the kept data folder.'
+        Check ((((Get-ChildItem -LiteralPath $old -Force).Name | Sort-Object) -join ',') -eq 'BoxData,CageData') 'Detaching changed the data folders or left program entries.'
         Invoke-Helper @('-Operation','move','-Source',$backup,'-Target',$stage,'-Receipt',$receipt)
         Invoke-Helper @('-Operation','attach','-Source',$stage,'-Target',$old,'-Receipt',$receipt)
         Check (!(Test-Path -LiteralPath $stage)) 'Attaching left the staged folder behind.'
         Invoke-Helper @('-Operation','cleanup','-Source',$backup,'-Target',$old,'-Receipt',$receipt)
-    } finally { $disk.Dispose() }
+    } finally { foreach ($disk in $disks) { $disk.Dispose() } }
     Check ((Get-Content (Join-Path $old 'program.txt') -Raw) -eq 'new') 'The kept-data update did not publish the new program.'
-    Check ((Get-Content (Join-Path $old 'CageData/vm/disk.vhdx') -Raw) -eq 'persistent disk') 'The kept data changed.'
+    foreach ($folder in $dataFolders) {
+        Check ((Get-Content (Join-Path $old "$folder/vm/disk.vhdx") -Raw) -eq "persistent $folder disk") "$folder data changed."
+    }
     Check ((Get-Content (Join-Path $old 'my-project/work.txt') -Raw) -eq 'kept project') 'The kept-data update lost a project.'
     Check (!(Test-Path -LiteralPath $backup) -and !(Test-Path -LiteralPath $receipt)) 'The kept-data update left its backup or receipt.'
     if ($windows) {
@@ -365,7 +374,7 @@ try {
         Write-File (Join-Path $old 'CageData/vm/disk.vhdx') 'persistent disk'
         Write-File (Join-Path $old 'my-project/work.txt') 'kept project'
         $before = @(Get-ChildItem -LiteralPath $old -Force).Name -join ','
-        Invoke-Helper @('-Operation','prepare','-Source',$old,'-Target',$stage,'-Receipt',$receipt,'-Backup',$backup,'-KeepInPlace','CageData')
+        Invoke-Helper @('-Operation','prepare','-Source',$old,'-Target',$stage,'-Receipt',$receipt,'-Backup',$backup,'-KeepApplicationData')
         $held = [IO.File]::Open((Join-Path $old 'program.txt'), 'Open', 'Read', 'Read')
         try { Invoke-Helper @('-Operation','detach','-Source',$old,'-Target',$backup,'-Receipt',$receipt,'-Diagnostics',$diagnostic) 1 }
         finally { $held.Dispose() }

@@ -35,5 +35,5 @@ func windowsApplicationDataDirectory(app, platform string) string {
 	if info, err := os.Stat(filepath.Join(app, "Cage.exe")); err != nil || !info.Mode().IsRegular() {
 		return ""
 	}
-	return filepath.Join(app, "CageData")
+	return filepath.Join(app, "BoxData")
 }

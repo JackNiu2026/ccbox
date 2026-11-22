@@ -9,9 +9,7 @@ param(
     [string]$Backup,
     [string]$Diagnostics,
     [switch]$LegacyTarget,
-    # Top-level folders that stay in the installation folder during an update.
-    # A VM registered on a disk inside CageData keeps its path and handles.
-    [string[]]$KeepInPlace = @()
+    [switch]$KeepApplicationData
 )
 $ErrorActionPreference = 'Stop'
 $diagnosticStep = 'initializing'
@@ -38,6 +36,8 @@ trap {
 }
 $manifestName = 'Cage.install-files.json'
 $identityName = 'ccBox.install-id'
+# Current and legacy data can contain registered virtual disks with open handles.
+$keepInPlace = @(if ($KeepApplicationData) { 'BoxData', 'CageData' })
 
 function Read-FileManifest([string]$Path) {
     $files = [Collections.Generic.Dictionary[string,string]]::new([StringComparer]::OrdinalIgnoreCase)
