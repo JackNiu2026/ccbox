@@ -50,7 +50,7 @@ VIAddVersionKey /LANG=1033 "LegalCopyright" "Cage contributors"
 !define MUI_ABORTWARNING
 !define MUI_FINISHPAGE_RUN "$INSTDIR\Cage.exe"
 !define MUI_FINISHPAGE_RUN_NOTCHECKED
-!define MUI_FINISHPAGE_TEXT "CCBox is installed.$\r$\n$\r$\nIf virtualization is unavailable, enable Windows Hypervisor Platform in Windows Features and restart Windows. Your projects and CCBox data are preserved during upgrades and uninstall."
+!define MUI_FINISHPAGE_TEXT "CCBox is installed.$\r$\n$\r$\nOpen CCBox with the same Windows account to use your existing environment. If first-time setup appears unexpectedly, stop and check your original storage location."
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "${APP_DIR}/LICENSE.txt"
 !define MUI_DIRECTORYPAGE_TEXT_TOP "$(CageDirectoryHelp)"
@@ -63,8 +63,10 @@ Page custom ShortcutOptionsPage ShortcutOptionsLeave
 !insertmacro MUI_LANGUAGE "English"
 !insertmacro MUI_LANGUAGE "SimpChinese"
 
-LangString CageDirectoryHelp ${LANG_ENGLISH} "Choose where to install the CCBox application. On first launch, you can choose a separate drive for the Linux image, download cache, and virtual disks before starting the environment."
-LangString CageDirectoryHelp ${LANG_SIMPCHINESE} "请选择 CCBox 程序的安装目录。首次打开 CCBox 后，可以在启动环境前单独选择存放 Linux 镜像、下载缓存和虚拟磁盘的磁盘。"
+LangString CageDirectoryHelp ${LANG_ENGLISH} "To upgrade, keep the current CCBox installation folder. For a first installation, choose a dedicated application folder."
+LangString CageDirectoryHelp ${LANG_SIMPCHINESE} "升级时请保留原 CCBox 安装目录。首次安装可选择独立的程序目录。"
+LangString CageUpgradeDirectoryError ${LANG_ENGLISH} "Upgrade CCBox in the original installation folder: $0"
+LangString CageUpgradeDirectoryError ${LANG_SIMPCHINESE} "请在原安装目录升级 CCBox：$0"
 LangString CageShortcutsTitle ${LANG_ENGLISH} "Shortcuts"
 LangString CageShortcutsTitle ${LANG_SIMPCHINESE} "快捷方式"
 LangString CageShortcutsHelp ${LANG_ENGLISH} "Choose where to add CCBox shortcuts for your Windows account."
@@ -354,7 +356,22 @@ Function .onInit
   ${EndIf}
 FunctionEnd
 
+Function RequireRegisteredUpgradeDirectory
+  ReadRegStr $0 HKCU "${UNINSTALL_KEY}" "InstallLocation"
+  ${If} $0 == ""
+    Return
+  ${EndIf}
+  GetFullPathName $1 "$0"
+  GetFullPathName $2 "$INSTDIR"
+  ${If} $1 != $2
+    StrCpy $HelperExit "registered_upgrade_directory_mismatch"
+    SetErrorLevel 2
+    Abort "$(CageUpgradeDirectoryError)"
+  ${EndIf}
+FunctionEnd
+
 Function CheckDestination
+  Call RequireRegisteredUpgradeDirectory
   ${GetRoot} "$INSTDIR" $0
   ${If} $0 == ""
   ${OrIf} $INSTDIR == $0

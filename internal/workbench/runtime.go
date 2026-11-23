@@ -65,8 +65,11 @@ func (s *Server) environmentPrepared() bool {
 		state, err := environment.State(ctx)
 		return err == nil && state.Exists
 	}
-	_, err := os.Stat(filepath.Join(s.profile, "state", ".agent-vm-base-version"))
-	return err == nil
+	if _, err := os.Stat(filepath.Join(s.profile, "state", ".agent-vm-base-version")); !errors.Is(err, os.ErrNotExist) {
+		return true
+	}
+	retained, err := cage.HasRetainedLimaEnvironment(filepath.Join(s.profile, "state", "lima"))
+	return retained || err != nil
 }
 func (s *Server) sshCommand(ctx context.Context, args ...string) *exec.Cmd {
 	return s.sshCommandOptions(ctx, false, args...)
@@ -203,10 +206,19 @@ func (s *Server) attach() error {
 		return err
 	}
 	s.mu.Lock()
-	home := browserHomeURL(s.preferences)
+	prefs := s.preferences
 	s.mu.Unlock()
-	if err = s.setBrowserHome(ctx, credentials.Token, home); err != nil {
-		return err
+	if prefs.BrowserHomePending {
+		if err = s.setBrowserHome(ctx, credentials.Token, browserHomeURL(prefs)); err != nil {
+			return err
+		}
+		prefs.BrowserHomePending = false
+		if err = writePrivate(filepath.Join(s.profile, "workbench.json"), prefs); err != nil {
+			return err
+		}
+		s.mu.Lock()
+		s.preferences = prefs
+		s.mu.Unlock()
 	}
 	if containerenv.Configured(s.profile) {
 		if err := s.recoverClientMounts(ctx); err != nil {
@@ -271,7 +283,7 @@ func (s *Server) monitor(ctx context.Context) {
 }
 
 func (s *Server) runCage(args ...string) error {
-	if len(args) > 0 && args[0] == "up" {
+	if len(args) > 0 && (args[0] == "up" || args[0] == "update-components") {
 		if err := s.requireCurrentLinuxTransferMount(); err != nil {
 			return err
 		}
@@ -279,7 +291,7 @@ func (s *Server) runCage(args ...string) error {
 	ctx := s.operationContext()
 	// Setup and startup can both install dependencies. Downloads own their
 	// inactivity timeouts; the operation context still permits an explicit stop.
-	if len(args) != 1 || (args[0] != "setup" && args[0] != "up") {
+	if len(args) != 1 || (args[0] != "setup" && args[0] != "up" && args[0] != "update-components") {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, 30*time.Minute)
 		defer cancel()
@@ -416,8 +428,11 @@ func (s *Server) startEnvironment(syncTimezone bool) error {
 	}
 
 	attachErr := s.attach()
-	if errors.Is(attachErr, errGuestUpdateRequired) {
-		return s.synchronizeEnvironment()
+	if errors.Is(attachErr, errGuestUpdateRequired) && !containerenv.Configured(s.profile) {
+		info, err := os.Lstat(filepath.Join(s.instanceDir(), cage.LimaInitialProvision))
+		if err != nil || !info.Mode().IsRegular() {
+			return attachErr
+		}
 	}
 	if attachErr == nil {
 		client, gateErr := s.gateClient()
@@ -481,7 +496,7 @@ func (s *Server) startEnvironment(syncTimezone bool) error {
 	} else if probeErr != nil {
 		s.setMessage("代理出口无法通过检查，正在启动离线环境…")
 	}
-	if _, err = os.Stat(filepath.Join(s.profile, "state", ".agent-vm-base-version")); !containerenv.Configured(s.profile) && os.IsNotExist(err) {
+	if !containerenv.Configured(s.profile) && !s.environmentPrepared() {
 		s.setMessage("首次准备 Linux 环境与开发工具，可能需要数分钟…")
 		job := s.jobs.execution()
 		job.setSetupProgress(&SetupProgress{Phase: "image", System: linuxSystem, Label: "正在准备 " + guestProgressName(linuxSystem) + " 镜像"})
@@ -493,6 +508,9 @@ func (s *Server) startEnvironment(syncTimezone bool) error {
 	}
 	s.setMessage("正在启动浏览器、编辑器与共享文件…")
 	if err = s.runCage("up"); err != nil {
+		if attachErr := s.attach(); errors.Is(attachErr, errGuestUpdateRequired) {
+			return attachErr
+		}
 		return err
 	}
 	for i := 0; i < 8; i++ {
@@ -501,6 +519,8 @@ func (s *Server) startEnvironment(syncTimezone bool) error {
 		}
 		if err = s.attach(); err == nil {
 			return s.checkNetworkIfWanted()
+		} else if errors.Is(err, errGuestUpdateRequired) {
+			return err
 		}
 		time.Sleep(time.Second)
 	}
@@ -639,6 +659,9 @@ func (s *Server) apply(v savedProfile, validate bool) error {
 	if err != nil {
 		return err
 	}
+	if browserHomeURL(oldPrefs) != browserHomeURL(v.Preferences) {
+		v.Preferences.BrowserHomePending = true
+	}
 	if err = writePrivate(filepath.Join(s.profile, "workbench.json"), v.Preferences); err != nil {
 		_ = writePrivate(s.configPath, old)
 		return err
@@ -654,6 +677,13 @@ func (s *Server) apply(v savedProfile, validate bool) error {
 		if err = s.setBrowserHome(ctx, token, browserHomeURL(v.Preferences)); err != nil {
 			return fmt.Errorf("设置已保存，但浏览器暂时未能应用默认网站，请恢复连接后重试：%w", err)
 		}
+		v.Preferences.BrowserHomePending = false
+		if err = writePrivate(filepath.Join(s.profile, "workbench.json"), v.Preferences); err != nil {
+			return err
+		}
+		s.mu.Lock()
+		s.preferences.BrowserHomePending = false
+		s.mu.Unlock()
 	}
 	if changed && wasReady {
 		s.setMessage("正在重新连接客机…")

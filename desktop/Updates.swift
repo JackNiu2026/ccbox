@@ -371,9 +371,12 @@ final class CageAppUpdater {
     private func failure(_ message: String, retryAt: String = "") { change(["phase": "failed", "message": message, "retryable": true, "retryAt": retryAt]) }
     private var cage: URL { bundleURL.appendingPathComponent("Contents/Resources/cage") }
     private func startDownload(checkOnly: Bool) {
+        let target = state["latestVersion"] as? String
+        guard checkOnly || target != nil else { return }
         generation += 1; let operation = generation
         change(["phase": "checking", "message": "正在检查更新，优先使用主机网络", "receivedBytes": 0, "totalBytes": 0, "retryable": false, "retryAt": ""])
         let process = Process(); process.executableURL = cage; process.arguments = ["app-update", checkOnly ? "check" : "download"]
+        if let target, !checkOnly { process.arguments?.append(target) }
         let pipe = Pipe(); process.standardOutput = pipe; process.standardError = FileHandle.nullDevice
         worker = process
         do { try process.run() } catch { worker = nil; failure("无法启动更新检查，请确认应用组件完整"); return }
@@ -389,7 +392,16 @@ final class CageAppUpdater {
                     guard let value = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { continue }
                     last = value
                     var visible = value; visible.removeValue(forKey: "archivePath"); visible.removeValue(forKey: "sha256")
-                    DispatchQueue.main.async { if self.generation == operation { self.change(visible) } }
+                    let result = visible
+                    DispatchQueue.main.async {
+                        guard self.generation == operation else { return }
+                        if result["phase"] as? String == "available",
+                           (try? CageUpdateFiles.signingInfo(self.bundleURL, bundle: true)) == nil {
+                            self.change(result.merging(["phase": "manual", "message": "当前应用没有可用于应用内升级的发布者签名，请下载安装包升级。"]) { _, new in new })
+                        } else {
+                            self.change(result)
+                        }
+                    }
                 }
             }
             process.waitUntilExit()

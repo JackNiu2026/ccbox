@@ -11,7 +11,7 @@ on:
         type: choice
         required: true
         default: all
-        options: [all, windows, macos, linux, android]
+        options: [all, desktop, windows, macos, linux, android]
       unsigned_preview:
         description: Build Windows and macOS without signing and publish them only as labelled previews
         type: boolean
@@ -56,14 +56,16 @@ jobs:
             echo 'Replace the inherited default relay with the verified CCBox HTTPS relay before building public candidates.' >&2
             exit 1
           fi
-          if [[ "$PLATFORM" == all || "$PLATFORM" == linux ]]; then
+          if [[ "$PLATFORM" == all || "$PLATFORM" == desktop || "$PLATFORM" == linux ]]; then
             [[ -n "$MAINTAINER" && "$MAINTAINER" != *'@localhost'* && "$MAINTAINER" != *'@github.com'* ]] ||
               { echo 'Set CCBOX_DEB_MAINTAINER to a real release contact.' >&2; exit 1; }
           fi
-      - run: node scripts/check-version.mjs
+      - run: |
+          node scripts/check-ccbox-brand.mjs
+          node scripts/check-version.mjs
   windows:
     needs: validate
-    if: inputs.platform == 'all' || inputs.platform == 'windows'
+    if: inputs.platform == 'all' || inputs.platform == 'desktop' || inputs.platform == 'windows'
     uses: ./.github/workflows/windows-build.yml
     secrets: inherit
     with:
@@ -73,7 +75,7 @@ jobs:
       artifact_name: release-windows
   linux:
     needs: validate
-    if: inputs.platform == 'all' || inputs.platform == 'linux'
+    if: inputs.platform == 'all' || inputs.platform == 'desktop' || inputs.platform == 'linux'
     uses: ./.github/workflows/linux-build.yml
     with:
       ref: ${{ inputs.ref }}
@@ -81,7 +83,7 @@ jobs:
       artifact_name: release-linux
   macos:
     needs: validate
-    if: inputs.platform == 'all' || inputs.platform == 'macos'
+    if: inputs.platform == 'all' || inputs.platform == 'desktop' || inputs.platform == 'macos'
     uses: ./.github/workflows/macos-build.yml
     secrets: inherit
     with:

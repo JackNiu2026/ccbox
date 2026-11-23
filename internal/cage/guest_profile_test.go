@@ -33,6 +33,24 @@ func TestConfiguredGuestScripts(t *testing.T) {
 	}
 }
 
+func TestResumeScriptOnlyStartsInstalledServices(t *testing.T) {
+	script := DefaultConfig().ResumeScript()
+	for _, forbidden := range []string{"apt-get", "chromium-l10n", "profile/Default", "components.json", "cage-editor-migrate", ".zshrc", "systemctl restart", "systemctl stop"} {
+		if strings.Contains(script, forbidden) {
+			t.Fatalf("normal boot still runs guest maintenance: %s", forbidden)
+		}
+	}
+	bash, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash is unavailable")
+	}
+	cmd := exec.Command(bash, "-n")
+	cmd.Stdin = strings.NewReader(script)
+	if data, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("invalid resume script: %v %s", err, data)
+	}
+}
+
 func TestVirGLProvisioningAndCustomHomes(t *testing.T) {
 	p, err := guestprofile.New(guestprofile.Options{Username: "alex", BrowserUsername: "web", WorkHome: "/home/projects", BrowserHome: "/home/browsing", GPUBackend: "virgl", GraphicsBackend: "opengl"})
 	if err != nil {

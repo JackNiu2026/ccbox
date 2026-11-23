@@ -16,6 +16,27 @@ type EnvironmentRecord struct {
 	IdentityDirectory string `json:"identity_directory,omitempty"`
 }
 
+// This marker lives in a newly cloned instance, never in an existing VM.
+const LimaInitialProvision = "ccbox-initial-provision"
+
+// A disk can still contain user data even if its Lima configuration is missing.
+func HasRetainedLimaEnvironment(home string) (bool, error) {
+	entries, err := os.ReadDir(home)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if (entry.IsDir() || entry.Type()&os.ModeSymlink != 0) && name != vmname.Template && name != "base-building" && !strings.HasPrefix(name, "_") {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func LoadEnvironmentRecord(profile string) (EnvironmentRecord, error) {
 	var saved EnvironmentRecord
 	data, err := os.ReadFile(filepath.Join(profile, "environment.json"))

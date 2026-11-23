@@ -144,15 +144,21 @@ func (r *Runtime) Start(ctx context.Context, configPath string, log io.Writer) e
 	if err := r.InstallAccess(ctx); err != nil {
 		return err
 	}
+	helper, err := r.output(ctx, "exec", "--user", "0", inspection.State.ContainerID, "/bin/sh", "-c", `if test -x "$1"; then printf present; elif test -e "$1" || test -L "$1"; then exit 1; else printf missing; fi`, "sh", guestHelper)
+	if err != nil {
+		return err
+	}
 	executable, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	if _, err := r.output(ctx, "cp", executable, inspection.State.ContainerID+":"+guestHelper); err != nil {
-		return err
-	}
-	if _, err := r.output(ctx, "exec", "--user", "0", inspection.State.ContainerID, "chmod", "0755", guestHelper); err != nil {
-		return err
+	if string(helper) == "missing" {
+		if _, err := r.output(ctx, "cp", executable, inspection.State.ContainerID+":"+guestHelper); err != nil {
+			return err
+		}
+		if _, err := r.output(ctx, "exec", "--user", "0", inspection.State.ContainerID, "chmod", "0755", guestHelper); err != nil {
+			return err
+		}
 	}
 	file, err := os.OpenFile(filepath.Join(r.InstanceDir(), "network.log"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {

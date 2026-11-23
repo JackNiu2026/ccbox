@@ -22,11 +22,13 @@ type probeResult struct {
 // The guest's side of the probe, its arguments the project's path, the
 // project's env file and runtime script (by their paths in the VM), and the
 // token the host put in the project.
+const probeMount = `[ -z "$4" ] || [ ! -f "$1/$4" ] || echo share-ok
+p="$1/.agent-vm-write-probe.$$"; touch "$p" 2>/dev/null || exit 1; rm -f "$p"`
+
 const probeScript = `
 (umask 077 && rm -f "$HOME/.agent-vm.env" && { cat; [ -z "$2" ] || [ ! -f "$2" ] || awk "{ sub(/\r\$/, \"\"); print }" "$2"; } > "$HOME/.agent-vm.env") && echo env-ok
 [ -z "$3" ] || [ ! -f "$3" ] || echo runtime-found
-[ -z "$4" ] || [ ! -f "$1/$4" ] || echo share-ok
-p="$1/.agent-vm-write-probe.$$"; touch "$p" 2>/dev/null || exit 1; rm -f "$p"`
+` + probeMount
 
 // probe pushes the env and checks the project share, in one round trip:
 //   - writes ~/.agent-vm.env in the VM (mode 600, sourced by its ~/.zshenv):
@@ -55,16 +57,21 @@ func (s *start) probe(payload, guestEnv, guestRuntime string) probeResult {
 		in = payload + "\n"
 	}
 	var out strings.Builder
+	script := probeScript
+	if s.opts.ccboxBoot {
+		script = probeMount
+		in = ""
+	}
 	b, err := s.backend()
 	code := 1
 	if err == nil {
 		code, err = b.Shell(s.ctx, s.name, vm.ShellOpts{
-			Args:  []string{"sh", "-c", probeScript, "sh", paths.Guest(s.dir), guestEnv, guestRuntime, token},
+			Args:  []string{"sh", "-c", script, "sh", paths.Guest(s.dir), guestEnv, guestRuntime, token},
 			Stdin: strings.NewReader(in), Stdout: &out, Stderr: io.Discard,
 		})
 	}
 	r := probeResult{
-		envOK:        strings.Contains(out.String(), "env-ok"),
+		envOK:        s.opts.ccboxBoot || strings.Contains(out.String(), "env-ok"),
 		runtimeFound: strings.Contains(out.String(), "runtime-found"),
 		writable:     fmt.Sprint(err == nil && code == 0),
 	}

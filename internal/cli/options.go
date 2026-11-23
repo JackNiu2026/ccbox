@@ -17,6 +17,8 @@ type VMOpts struct {
 	UnsafeWritableGit  bool
 	UnsafeNoPrompts    bool
 	RM                 bool // --rm: delete the VM after the command
+	ccboxBoot          bool // boot without running user runtime hooks
+	existingOnly       bool
 }
 
 func newVMOpts() VMOpts {

@@ -13,6 +13,7 @@ param(
 )
 . (Join-Path $PSScriptRoot 'windows-common.ps1')
 $repository = Split-Path $PSScriptRoot -Parent
+Invoke-BuildTool (Get-BuildCommand @('node')) @((Join-Path $PSScriptRoot 'check-ccbox-brand.mjs'))
 $version = Get-CageVersion $repository
 $signed = $Release -or $Sign
 if ($UnsignedPreview -and $signed) { throw 'An unsigned preview cannot also be signed.' }
@@ -26,18 +27,19 @@ foreach ($dataFolder in @('BoxData', 'CageData')) {
     }
 }
 if (-not $SkipBuild) { & (Join-Path $PSScriptRoot 'build-windows.ps1') -Release:$Release -Sign:$Sign -OutputDirectory $AppDirectory }
-if ((Get-Content -LiteralPath (Join-Path $AppDirectory 'ccBox.install-id') -Raw) -ne 'org.ccbox.desktop') { throw 'Invalid Cage app directory.' }
+if ((Get-Content -LiteralPath (Join-Path $AppDirectory 'ccBox.install-id') -Raw) -ne 'org.ccbox.desktop') { throw 'Invalid CCBox app directory.' }
 if ((Get-Content -LiteralPath (Join-Path $AppDirectory 'version.txt') -Raw).Trim() -ne $version) { throw 'App version differs from VERSION; rebuild before packaging.' }
 $makeNSIS = Get-BuildCommand @('makensis.exe', 'makensis')
 $sevenZip = Get-BuildCommand @('7z.exe', '7zz', '7z')
 if ($IsWindows) {
-    if ([Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $AppDirectory 'Cage.exe')).ProductVersion -ne $version) { throw 'Cage.exe version differs from VERSION; rebuild before packaging.' }
+    $metadata = [Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $AppDirectory 'Cage.exe'))
+    if ($metadata.ProductName -cne 'CCBox' -or $metadata.ProductVersion -ne $version) { throw 'The launcher identity or version differs from this CCBox release. Rebuild before packaging.' }
     Invoke-BuildTool (Join-Path $AppDirectory 'resources/cage.exe') @('verify-vm-assets')
     Invoke-BuildTool (Join-Path $AppDirectory 'resources/cage.exe') @('verify-web-assets')
     if ($SkipBuild) { Assert-WindowsWorkbench $AppDirectory }
 } else {
     $metadata = & $sevenZip 'l' '-tPE' (Join-Path $AppDirectory 'Cage.exe')
-    if ($LASTEXITCODE -ne 0 -or -not ($metadata -match ('^ProductVersion: ' + [regex]::Escape($version) + '$'))) { throw 'Cage.exe version differs from VERSION; rebuild before packaging.' }
+    if ($LASTEXITCODE -ne 0 -or -not ($metadata -cmatch '^ProductName: CCBox$') -or -not ($metadata -match ('^ProductVersion: ' + [regex]::Escape($version) + '$'))) { throw 'The launcher identity or version differs from this CCBox release. Rebuild before packaging.' }
 }
 $signTool = $null
 if ($signed) {

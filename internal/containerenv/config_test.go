@@ -12,6 +12,31 @@ func fixtureConfig() Config {
 	return Config{Engine: "docker", Executable: filepath.Join(os.TempDir(), "cage-test-bin", "docker"), Socket: "unix:///tmp/cage-test.sock", Image: "sha256:" + strings.Repeat("a", 64), CPUs: 2, MemoryBytes: 4 << 30}
 }
 
+func TestInitialProvisionIsBoundToNewContainer(t *testing.T) {
+	r := Runtime{profile: t.TempDir()}
+	if pending, err := r.PendingInitialProvision("existing"); pending || err != nil {
+		t.Fatalf("an existing container was treated as new: %t %v", pending, err)
+	}
+	if err := os.MkdirAll(r.InstanceDir(), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(r.InstanceDir(), "initial-provision.json"), []byte(`"fresh"`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if pending, err := r.PendingInitialProvision("another"); pending || err == nil {
+		t.Fatal("a replaced container could use the initial provision record")
+	}
+	if pending, err := r.PendingInitialProvision("fresh"); !pending || err != nil {
+		t.Fatalf("the original new container cannot resume its first install: %v", err)
+	}
+	if err := r.CompleteInitialProvision(); err != nil {
+		t.Fatal(err)
+	}
+	if pending, err := r.PendingInitialProvision("fresh"); pending || err != nil {
+		t.Fatal("a completed container could be automatically provisioned again")
+	}
+}
+
 func TestConfigRequiresPinnedLocalRootlessEngine(t *testing.T) {
 	for _, change := range []func(*Config){
 		func(c *Config) { c.Socket = "tcp://127.0.0.1:2375" },

@@ -57,7 +57,7 @@ import { networkState, isGuestLocalURL } from "./safety-state.mjs";
 import { needsProxySetup } from "./onboarding-state.mjs";
 import { NetworkLatency } from "./network-latency";
 import { useWindowVisibility } from "./window-visibility";
-import { AppUpdateButton, useAppUpdates } from "./app-updates";
+import { AppUpdateButton, AppUpdateNotice, useAppUpdates } from "./app-updates";
 import "./appearance.css";
 import { stopAndExit } from "./quit";
 import { guestCapability } from "./guest-capabilities.mjs";
@@ -1443,6 +1443,7 @@ function App() {
   return (
     <SafetyChecklistContext.Provider value={() => setSafetyOpen(true)}>
     <div className={`app ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
+      {!settingsOpen && !quitting && <AppUpdateNotice updates={appUpdates} />}
       <div
         className="workbench-shell"
         inert={settingsOpen || undefined}

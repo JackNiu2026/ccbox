@@ -519,6 +519,15 @@ button.large {
   border: 1px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink);
   box-shadow: 0 8px 24px #00000018; font-size: 13px; line-height: 1.6;
 }
+.app-update-notice {
+  position: fixed; z-index: 35; right: 16px; bottom: 42px;
+  width: min(360px, calc(100vw - 32px)); padding: 14px 16px;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: var(--paper); color: var(--ink); box-shadow: 0 8px 24px #00000018;
+  font-size: 13px; line-height: 1.5;
+}
+.app-update-notice p { margin: 5px 0 0; }
+.app-update-notice-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 @keyframes app-update-turn { to { transform: rotate(270deg); } }
 @media (prefers-reduced-motion: reduce) {
   .app-update-ring.indeterminate { animation: none; }

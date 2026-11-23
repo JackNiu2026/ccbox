@@ -2,6 +2,7 @@
 # Build, notarize, and package a Developer ID distribution. No installation.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+node scripts/check-ccbox-brand.mjs
 if [[ "$(uname -s)" != Darwin || "$(uname -m)" != arm64 ]]; then
   echo 'The supported release target is Apple Silicon macOS 14+.' >&2; exit 1
 fi
@@ -39,11 +40,14 @@ elif [[ "${1:-}" != --from-notarized-app ]]; then
 fi
 actual_version="$(/usr/libexec/PlistBuddy -c 'Print :CageVersion' "$bundle/Contents/Info.plist")"
 if [[ "$actual_version" != "$version" ]]; then echo 'App version differs from VERSION; rebuild before packaging.' >&2; exit 1; fi
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$bundle/Contents/Info.plist")" == CCBox ]]
+[[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$bundle/Contents/Info.plist")" == org.ccbox.desktop ]]
 codesign --verify --deep --strict --verbose=2 "$bundle"
 if [[ $preview == 0 ]]; then
   xcrun stapler validate "$bundle"
   spctl --assess --type execute --verbose=2 "$bundle"
 fi
+"$bundle/Contents/Resources/cage" verify-web-assets
 guest_source="cage-macos-guest-$version-source.tar.gz"
 guest_materials="$bundle/Contents/Resources/guest-os/sources/$guest_source"
 node scripts/guest-os/collect-macos-sshfs-sources.mjs verify "$guest_materials" \
@@ -67,13 +71,16 @@ CCBox — 本机隔离编码工作区
 需要 Apple Silicon Mac、macOS 14 或更新版本。无需安装 Go、Node.js 或 Clash。
 代理服务与 Claude 账户需自行准备。具体版本与发布状态以发行说明为准。
 共享项目中的文件修改会直接写回 Mac；请备份重要项目。
-升级前请退出 CCBox 并停止环境，再替换应用程序；配置与项目文件会保留。
+已有环境：保存工作，在 CCBox 中停止环境并退出。将新版应用拖到原安装位置并选择「替换」。
+用原 macOS 帐户启动并沿用原配置与数据盘。若意外出现首次设置，请先核对原存储位置。
 
 Drag ccBox.app into Applications, then open it from Applications.
 Complete the local account and environment setup, add your own Clash/Mihomo
 YAML subscription or configuration, select a node, and start the environment.
 Initial setup downloads the selected guest system and developer tools.
 Requires Apple Silicon and macOS 14+. Your own proxy and Claude account are required.
+To upgrade, save your work, stop the environment, and quit CCBox. Replace the app
+in its original location and reopen it with the same macOS account.
 
 安装及故障排查见 CCBox 源码中的 docs/getting-started.md。
 EOF

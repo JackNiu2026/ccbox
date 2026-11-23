@@ -27,6 +27,7 @@ $savedGoOS, $savedGoArch, $savedCGO = $env:GOOS, $env:GOARCH, $env:CGO_ENABLED
 New-Item -ItemType Directory -Path $stage -Force | Out-Null
 Push-Location $repository
 try {
+    Invoke-BuildTool $node @('scripts/check-ccbox-brand.mjs')
     if (-not $SkipUI) {
         Invoke-BuildTool $npm @('--prefix', 'ui', 'ci', '--no-audit', '--no-fund')
         Invoke-BuildTool $npm @('run', '--prefix', 'ui', 'build')

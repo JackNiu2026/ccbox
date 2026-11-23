@@ -112,6 +112,60 @@ func TestCageRefusesSecondActiveEnvironment(t *testing.T) {
 	}
 }
 
+func TestCCBoxDoesNotDeleteDiskWithMissingLimaConfig(t *testing.T) {
+	se := newStartEnv(t)
+	se.base()
+	t.Setenv("CCBOX_CONFIG", "/unused-by-rejected-command")
+	name := se.app.instanceName(se.proj)
+	directory := filepath.Join(LimaHome(se.state), name)
+	if err := os.MkdirAll(directory, 0700); err != nil {
+		t.Fatal(err)
+	}
+	disk := filepath.Join(directory, "diffdisk")
+	const original = "existing project, browser session and installed clients"
+	if err := os.WriteFile(disk, []byte(original), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if code := se.run("run", "true"); code != 1 || !strings.Contains(se.out(), "已保留原磁盘") {
+		t.Fatalf("startup did not stop safely: %d %s", code, se.out())
+	}
+	if data, err := os.ReadFile(disk); err != nil || string(data) != original {
+		t.Fatalf("original guest disk changed: %q (%v)", data, err)
+	}
+	if strings.Contains(se.fake.CallLog(), "clone ") || strings.Contains(se.fake.CallLog(), "delete ") {
+		t.Fatal(se.fake.CallLog())
+	}
+}
+
+func TestCCBoxDoesNotCloneOverAnUnrecognizedRetainedEnvironment(t *testing.T) {
+	se := newStartEnv(t)
+	se.base()
+	t.Setenv("CCBOX_CONFIG", "/unused-by-rejected-command")
+	directory := filepath.Join(LimaHome(se.state), "retained-vm")
+	if err := os.MkdirAll(directory, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, "lima.yaml"), []byte("{}"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if code := se.run("run", "true"); code != 1 || !strings.Contains(se.out(), "无法找到 CCBox 原有客机") {
+		t.Fatalf("startup replaced or hid an unrecognized environment: %d %s", code, se.out())
+	}
+	if strings.Contains(se.fake.CallLog(), "clone ") || strings.Contains(se.fake.CallLog(), "delete ") {
+		t.Fatal(se.fake.CallLog())
+	}
+}
+
+func TestCCBoxRejectsDestructiveRunOptions(t *testing.T) {
+	se := newStartEnv(t)
+	t.Setenv("CCBOX_CONFIG", "/unused-by-rejected-command")
+	for _, flag := range []string{"--reset", "--rm"} {
+		if code := se.run("run", flag, "true"); code != 1 || !strings.Contains(se.out(), "原虚拟磁盘已保留") || se.fake.CallLog() != "" {
+			t.Fatalf("%s reached the VM engine: %d %s", flag, code, se.out())
+		}
+	}
+}
+
 func TestCageProjectGitWritesAndStoppedMountMigration(t *testing.T) {
 	se := newStartEnv(t)
 	se.base()

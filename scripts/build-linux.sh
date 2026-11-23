@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+node scripts/check-ccbox-brand.mjs
 [[ "$(uname -s)" == Linux && "$(uname -m)" == x86_64 ]] || { echo 'Build on x86_64 Linux (Ubuntu 22.04 baseline).' >&2; exit 1; }
 case "${1:-}" in ''|--prebuilt-backend) ;; *) echo 'Usage: scripts/build-linux.sh [--prebuilt-backend]' >&2; exit 2 ;; esac
 version=$(tr -d '\r\n' < VERSION)

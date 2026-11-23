@@ -756,12 +756,22 @@ static gboolean bridge_received(WebKitUserContentManager *manager, JSCValue *val
         else reply_error(reply, "Linux 版本使用 CCBox 账户密码解锁。");
     } else if (!strcmp(name, "appReference")) {
         GError *error = NULL;
-        if (g_app_info_launch_default_for_uri("https://ccbox.org/", NULL, &error)) reply_json(reply, context, "true");
+        const char *version = text_member(request, "version");
+        char *installer = NULL;
+        if (!strcmp(text_member(request, "kind"), "update-installer") && strlen(version) <= 32 &&
+            g_regex_match_simple("\\A[0-9]+\\.[0-9]+\\.[0-9]+\\z", version, 0, 0))
+            installer = g_strdup_printf("https://ccbox.org/downloads/%s/CCBox-%s-linux-amd64.deb", version, version);
+        if (g_app_info_launch_default_for_uri(installer ? installer : "https://ccbox.org/", NULL, &error)) reply_json(reply, context, "true");
         else { reply_error(reply, "无法打开 CCBox 官网"); g_clear_error(&error); }
+        g_free(installer);
     } else if (!strcmp(name, "appUpdate")) {
         const char *operation = text_member(request, "operation");
         if (strcmp(operation, "status") && strcmp(operation, "check") && strcmp(operation, "install") && strcmp(operation, "cancel"))
             reply_error(reply, "更新操作无效。");
+        else if (!CAGE_CLIENT_ONLY && !strcmp(operation, "check")) {
+            const char *args[] = {app.backend, "app-update", "check", "--final", NULL};
+            backend_arguments(args, 130, browser_file_finished, pending_reply(reply, context));
+        }
         else {
             char *version = quote(CAGE_VERSION);
             const char *update_message = CAGE_CLIENT_ONLY

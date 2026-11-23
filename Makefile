@@ -1,8 +1,7 @@
-# agent-vm 0.3, the Go binary, with Lima built in from third_party/.
+# CCBox builds with Lima from third_party/.
 #
-#   make              _output/bin/agent-vm, with the guest agent and templates
-#   make install      build it, then link it onto the PATH (AGENT_VM_BIN_DIR
-#                     to choose where; ~/.local/bin by default)
+#   make              build the CCBox backend and web workbench
+#   make agent-vm     build the upstream CLI for development
 #   make limactl      Lima's own limactl from third_party/, for debugging
 #   make test         the Go tests
 #   make check-windows      the Windows build and tests compile and vet, from any OS
@@ -11,7 +10,7 @@
 GO ?= go
 GOOS ?= $(shell $(GO) env GOOS)
 GOARCH ?= $(shell $(GO) env GOARCH)
-# Cage's VERSION file owns the default. Upstream release tooling can still
+# CCBox's VERSION file owns the default. Upstream release tooling can still
 # supply VERSION explicitly when building a historical agent-vm tag.
 VERSION ?= $(shell tr -d '\r\n' < VERSION)
 LIMA_VERSION := $(shell cat internal/limaembed/lima-version)
@@ -52,9 +51,8 @@ GO_BUILD := CGO_ENABLED=$(CGO_ENABLED) $(GO) build -trimpath -tags $(TAGS) -ldfl
 
 .PHONY: all agent-vm install limactl assets test test-go check-windows test-third-party fuzz clean
 
-all: agent-vm
+all: cage
 
-# Claude Cage ships a separate entry point with a mandatory proxy profile.
 cage: cage-ui assets tailnet-assets
 	$(GO_BUILD) -o _output/bin/cage$(EXE) ./cmd/cage
 ifeq ($(GOOS),darwin)
@@ -62,6 +60,7 @@ ifeq ($(GOOS),darwin)
 endif
 
 cage-ui:
+	node scripts/check-ccbox-brand.mjs
 	npm --prefix ui ci --no-audit --no-fund
 	npm run --prefix ui build
 
@@ -87,10 +86,9 @@ ifeq ($(GOOS),darwin)
 	codesign -f -v --entitlements third_party/lima/vz.entitlements -s - _output/bin/agent-vm
 endif
 
-# For developers: the binary install puts on the PATH, with its own
-# wording, replacement of earlier installs and next steps.
-install: agent-vm
-	./_output/bin/agent-vm$(EXE) install
+install:
+	@echo 'Install CCBox using the platform package from https://ccbox.org/.'
+	@exit 1
 
 limactl:
 	$(GO_BUILD) -o _output/bin/limactl$(EXE) github.com/lima-vm/lima/v2/cmd/limactl

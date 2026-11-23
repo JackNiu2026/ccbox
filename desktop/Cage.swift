@@ -426,10 +426,19 @@ final class CageApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNaviga
             appUpdater?.markLaunchReady()
             replyHandler(true,nil)
         case "appReference":
-            let opened = NSWorkspace.shared.open(URL(string: "https://ccbox.org/")!)
+            var reference = "https://ccbox.org/"
+            if body["kind"] as? String == "update-installer", let version = body["version"] as? String,
+               version.count <= 32, version.range(of: "\\A[0-9]+\\.[0-9]+\\.[0-9]+\\z", options: .regularExpression) != nil {
+                reference += "downloads/\(version)/CCBox-\(version)-macos-arm64.dmg"
+            }
+            let opened = NSWorkspace.shared.open(URL(string: reference)!)
             replyHandler(opened ? true : nil, opened ? nil : "无法打开项目页面，请检查默认浏览器")
         case "appUpdate":
             guard let operation = body["operation"] as? String, ["status", "check", "install", "cancel"].contains(operation) else { replyHandler(nil,"更新操作无效"); return }
+            if operation == "install", let expected = body["version"] as? String, appUpdater.handle("status")["latestVersion"] as? String != expected {
+                replyHandler(nil, "待升级版本已变化，请重新检查更新")
+                return
+            }
             replyHandler(appUpdater.handle(operation),nil)
         case "appearance":
             guard let mode = body["mode"] as? String, ["system", "light", "dark"].contains(mode), let background = body["background"] as? String, background.range(of: "^#[0-9a-fA-F]{6}$", options: .regularExpression) != nil else { replyHandler(nil,"外观参数无效"); return }

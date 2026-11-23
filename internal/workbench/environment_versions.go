@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os/exec"
 	"strings"
@@ -22,7 +23,7 @@ func parseGuestConnection(data []byte) (guestCredentials, *cage.GuestManifest, e
 	lines := strings.SplitN(strings.TrimSpace(string(data)), "\n", 3)
 	var credentials guestCredentials
 	if len(lines) != 3 || json.Unmarshal([]byte(lines[0]), &credentials) != nil || credentials.Token == "" || strings.TrimSpace(lines[1]) == "" {
-		return credentials, nil, errors.New("浏览器控制服务尚未安装")
+		return credentials, nil, fmt.Errorf("浏览器控制服务未完成初始化：%w", errGuestUpdateRequired)
 	}
 	credentials.VNCPassword = strings.TrimSpace(lines[1])
 	var manifest *cage.GuestManifest
@@ -160,7 +161,7 @@ func (s *Server) synchronizeEnvironment() error {
 	s.guestUpdateError = "环境组件更新尚未完成，请等待结果；失败时可以重试。"
 	s.mu.Unlock()
 	s.setMessage("正在重启浏览器与编辑器组件，工作台终端保持运行…")
-	if err := s.runCage("up"); err != nil {
+	if err := s.runCage("update-components"); err != nil {
 		return err
 	}
 	if err := s.attach(); err != nil {

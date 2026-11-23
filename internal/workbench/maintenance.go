@@ -183,7 +183,7 @@ umask 022
 
 // Read the workbench preference at service startup so CLI and desktop launches
 // use the same setting without modifying the network configuration.
-func StartGuestServices(ctx context.Context, configPath string, stdout, stderr io.Writer) error {
+func ProvisionGuestServices(ctx context.Context, configPath string, stdout, stderr io.Writer) error {
 	prefs := Preferences{BalancedDisplay: true}
 	data, err := os.ReadFile(filepath.Join(filepath.Dir(configPath), "workbench.json"))
 	if err == nil {
@@ -203,6 +203,24 @@ func StartGuestServices(ctx context.Context, configPath string, stdout, stderr i
 		return err
 	}
 	return runMaintenanceScript(ctx, configPath, cfg, "export CAGE_DISPLAY_SCALE="+scale+"\n"+cfg.StartScript(), stdout, stderr)
+}
+
+func ResumeGuestServices(ctx context.Context, configPath string, stdout, stderr io.Writer) error {
+	cfg, err := cage.Load(configPath)
+	if err != nil {
+		return err
+	}
+	s := &Server{profile: filepath.Dir(configPath), configPath: configPath}
+	cmd := s.sshCommand(ctx, "-T", s.sshTarget(), "--", "exec /bin/bash --noprofile --norc -c "+shellescape.Quote(cfg.ResumeScript()))
+	cmd.Stdout, cmd.Stderr = stdout, stderr
+	return cmd.Run()
+}
+
+func HasGuestComponentManifest(ctx context.Context, configPath string) (bool, error) {
+	s := &Server{profile: filepath.Dir(configPath), configPath: configPath}
+	probe := `if test -e /etc/claude-cage/components.json || test -L /etc/claude-cage/components.json; then printf installed; fi`
+	data, err := s.guest(ctx, "sudo /bin/sh -c "+shellescape.Quote(probe))
+	return string(data) == "installed", err
 }
 
 func RunMaintenanceScript(ctx context.Context, configPath, script string, stdout, stderr io.Writer) error {

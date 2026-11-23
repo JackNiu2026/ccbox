@@ -151,7 +151,7 @@ internal static class UpdateInstaller
                     CopyTree(backup, restored);
                     var receipt = plan.Target + ".ccbox-installation.json";
                     await PreserveFiles("prepare", plan.Target, restored, receipt, failed);
-                    // The installation folder and its CageData stay in place,
+                    // The installation folder, BoxData and CageData stay in place,
                     // as in NSIS: only the other top-level entries move.
                     await PreserveFiles("detach", plan.Target, failed, receipt);
                     try
@@ -240,7 +240,7 @@ internal static class UpdateInstaller
             using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(10));
             var executable = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe");
             var arguments = new List<string> { "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script,
-                "-Operation", operation, "-Source", source, "-Target", target, "-Receipt", receipt, "-LegacyTarget", "-KeepInPlace", "CageData" };
+                "-Operation", operation, "-Source", source, "-Target", target, "-Receipt", receipt, "-LegacyTarget", "-KeepApplicationData" };
             if (backupPath != null) { arguments.Add("-Backup"); arguments.Add(backupPath); }
             using var process = new Process { StartInfo = Backend.StartInfo(executable, arguments.ToArray()) };
             if (!process.Start()) throw new IOException("无法启动安装文件保留组件");
@@ -258,7 +258,7 @@ internal static class UpdateInstaller
         }
     }
 
-    private static void CopyTree(string source, string target)
+    internal static void CopyTree(string source, string target)
     {
         source = Path.GetFullPath(source).TrimEnd(Path.DirectorySeparatorChar);
         target = Path.GetFullPath(target).TrimEnd(Path.DirectorySeparatorChar);
@@ -280,29 +280,32 @@ internal static class UpdateInstaller
                     {
                         var path = entry.GetProperty("path").GetString();
                         var digest = entry.GetProperty("sha256").GetString();
-                        if (string.IsNullOrEmpty(path) || path.StartsWith('/') || path.Contains('\\') || path.Contains(':') ||
-                            path.Split('/').Any(part => part is "." or "..") || digest?.Length != 64 || !digest.All(char.IsAsciiHexDigit))
+                        if (string.IsNullOrEmpty(path) || path.Contains('\\') || path.Contains(':') ||
+                            path.Split('/').Any(part => part is "" or "." or "..") || digest?.Length != 64 || !digest.All(char.IsAsciiHexDigit) ||
+                            !paths.Add(path))
                             throw new JsonException("Invalid installation file record");
-                        paths.Add(path);
                     }
                     if (paths.Count > 0) { paths.Add("Cage.install-files.json"); owned = paths; }
                 }
             }
             catch (Exception error) when (error is IOException or JsonException or InvalidOperationException or KeyNotFoundException or FormatException) { }
         }
+        if (owned == null || !owned.Contains("Cage.exe") || !owned.Contains("resources/cage.exe") || !owned.Contains("Uninstall.exe"))
+            throw new IOException("当前程序文件清单不完整，无法安全自动更新。请使用 CCBox 完整安装包原位升级。");
         long size = 0; var count = 0;
         var pending = new Queue<string>(); pending.Enqueue(source);
         while (pending.TryDequeue(out var directory))
         foreach (var entry in Directory.EnumerateFileSystemEntries(directory))
         {
+            var relative = Path.GetRelativePath(source, entry);
+            if (relative.Equals("BoxData", comparison) || relative.Equals("CageData", comparison)) continue;
+            var key = relative.Replace(Path.DirectorySeparatorChar, '/');
+            if (!owned.Contains(key) && !owned.Any(path => path.StartsWith(key + "/", StringComparison.OrdinalIgnoreCase))) continue;
             var attributes = File.GetAttributes(entry);
             if (++count > 100000) throw new IOException("安装目录文件过多，无法安全备份");
             // User links remain in the installed tree. NSIS and rollback move
             // them with their user subtree, preserving link identity and targets.
             if ((attributes & FileAttributes.ReparsePoint) != 0) continue;
-            var relative = Path.GetRelativePath(source, entry);
-            var key = relative.Replace(Path.DirectorySeparatorChar, '/');
-            if (owned != null && !owned.Contains(key) && !owned.Any(path => path.StartsWith(key + "/", StringComparison.OrdinalIgnoreCase))) continue;
             var destination = Path.Combine(target, relative);
             if ((attributes & FileAttributes.Directory) != 0) { Directory.CreateDirectory(destination); pending.Enqueue(entry); }
             else

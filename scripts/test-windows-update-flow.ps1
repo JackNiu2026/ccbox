@@ -121,6 +121,7 @@ try {
     Write-Host 'Building signed old and new fixture packages.'
     $old = Build-Package '0.1.7'
     $new = Build-Package '0.1.8'
+    Run-Tool (Join-Path $old.app 'Cage.exe') @('--test-program-backup', (Join-Path $root 'program-backup-fixture'))
     foreach ($mode in @('success','installer-failure','startup-failure','signature-failure','digest-failure')) {
         Write-Host "Running Windows update transaction: $mode"
         $scenario = Join-Path $root $mode
@@ -148,15 +149,20 @@ try {
             }
             foreach ($entry in $personal.GetEnumerator()) { Write-Text (Join-Path $profile $entry.Key) $entry.Value }
             Write-Text (Join-Path $target 'my-project/work.txt') 'original project'
-            Write-Text (Join-Path $target 'CageData/state/persistent.img') 'existing-disk'
+            foreach ($folder in @('BoxData', 'CageData')) {
+                Write-Text (Join-Path $target "$folder/state/persistent.img") "existing-$folder"
+                Write-Text (Join-Path $target "$folder/browser/History") "existing-history-$folder"
+                Write-Text (Join-Path $target "$folder/guest-client/settings.json") "existing-client-$folder"
+            }
             Write-Text (Join-Path $scenario 'outside-project/file.txt') 'outside-project'
             $linkCommand = 'mklink /J "' + (Join-Path $target 'linked-project') + '" "' + (Join-Path $scenario 'outside-project') + '"'
             & cmd.exe /d /c $linkCommand | Out-Null
             Check ($LASTEXITCODE -eq 0) 'Could not create the isolated project junction.'
-            if ($mode -eq 'success') {
+            if ($mode -in @('success', 'startup-failure')) {
                 # A registered VM can keep its disk open while the update runs.
-                # CageData stays in place, so the open disk must not block it (#108).
-                $disk = [IO.File]::Open((Join-Path $target 'CageData/state/persistent.img'), 'Open', 'Read', 'Read')
+                $disk = foreach ($folder in @('BoxData', 'CageData')) {
+                    [IO.File]::Open((Join-Path $target "$folder/state/persistent.img"), 'Open', 'Read', 'Read')
+                }
             }
             if ($mode -eq 'installer-failure') {
                 $holder = Start-Fixture (Join-Path $old.app 'Cage.exe') $profile @('--hold-directory', $target)
@@ -202,7 +208,11 @@ try {
             }
             $project = if ($mode -eq 'startup-failure') { 'saved by new version' } else { 'original project' }
             Check ((Get-Content -LiteralPath (Join-Path $target 'my-project/work.txt') -Raw) -eq $project) 'Update or rollback lost the latest project contents.'
-            Check ((Get-Content -LiteralPath (Join-Path $target 'CageData/state/persistent.img') -Raw) -eq 'existing-disk') 'Persistent data in the installation directory changed.'
+            foreach ($folder in @('BoxData', 'CageData')) {
+                Check ((Get-Content -LiteralPath (Join-Path $target "$folder/state/persistent.img") -Raw) -eq "existing-$folder") "$folder disk changed."
+                Check ((Get-Content -LiteralPath (Join-Path $target "$folder/browser/History") -Raw) -eq "existing-history-$folder") "$folder browser history changed."
+                Check ((Get-Content -LiteralPath (Join-Path $target "$folder/guest-client/settings.json") -Raw) -eq "existing-client-$folder") "$folder guest client settings changed."
+            }
             Check ((Get-Item -LiteralPath (Join-Path $target 'linked-project')).LinkType -eq 'Junction') 'Update or rollback replaced the project junction.'
             Check ((Get-Content -LiteralPath (Join-Path $target 'linked-project/file.txt') -Raw) -eq 'outside-project') 'The project junction target changed.'
             foreach ($entry in $personal.GetEnumerator()) { Check ((Get-Content -LiteralPath (Join-Path $profile $entry.Key) -Raw) -eq $entry.Value) "Personal data changed: $($entry.Key)" }
@@ -231,7 +241,7 @@ try {
             Write-Host "Windows installer diagnostics ($mode): $($diagnostics | ConvertTo-Json -Depth 6 -Compress)"
             throw
         } finally {
-            if ($disk) { $disk.Dispose() }
+            foreach ($handle in $disk) { $handle.Dispose() }
             Write-Text (Join-Path $profile 'release.json') '{}'
             foreach ($owned in @($parent, $helper, $holder)) {
                 if (!$owned) { continue }

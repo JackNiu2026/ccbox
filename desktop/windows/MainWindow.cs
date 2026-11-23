@@ -373,7 +373,7 @@ internal sealed class MainWindow : Form
                 case "workbenchReady":
                     if (controllerNeedsUpdate) throw new IOException("后台版本尚未同步，更新未完成");
                     updater.MarkReady(); result = true; _ = CompleteSmoke(); break;
-                case "appUpdate": result = updater.Handle(request.Text("operation")); break;
+                case "appUpdate": result = updater.Handle(request.Text("operation"), request.Text("version")); break;
                 case "importTheme":
                     using (var picker = new OpenFileDialog { Filter = "CCBox 主题 (*.json)|*.json", Title = "导入主题", Multiselect = false })
                     {
@@ -467,7 +467,11 @@ internal sealed class MainWindow : Form
                         result = picker.ShowDialog(this) == DialogResult.OK ? picker.FileName : "";
                     break;
                 case "appReference":
-                    const string appReference = "https://ccbox.org/";
+                    var downloadVersion = request.Text("version");
+                    var appReference = request.Text("kind") == "update-installer" && downloadVersion.Length <= 32 &&
+                        System.Text.RegularExpressions.Regex.IsMatch(downloadVersion, @"\A[0-9]+\.[0-9]+\.[0-9]+\z")
+                        ? $"https://ccbox.org/downloads/{downloadVersion}/CCBox-{downloadVersion}-windows-amd64-setup.exe"
+                        : "https://ccbox.org/";
                     System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(appReference) { UseShellExecute = true });
                     result = true; break;
                 case "guestInstallReference":

@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 
 const localFiles = new Set([
-  "AGENTS.md", "CONTRIBUTING.md", "RELEASING.md", "CHANGELOG.md",
+  "CONTRIBUTING.md", "RELEASING.md", "CHANGELOG.md",
   "release.sh", "tests/release.sh", "flake.nix", "flake.lock", "packaging/nfpm.yaml",
   "docs/BACKLOG.md", "docs/agent-vm-upstream.md", "docs/ci-cd.md",
   "docs/public-releases.md", "docs/releasing.md", "patches/README.md",

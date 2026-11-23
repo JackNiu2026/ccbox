@@ -13,6 +13,32 @@ import (
 	"testing"
 )
 
+func TestPrepareEnvironmentPreservesExistingProfileBytes(t *testing.T) {
+	s := testServer(t)
+	record, err := json.Marshal(cage.EnvironmentRecord{Directory: cage.DefaultEnvironmentDir(s.profile)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := map[string][]byte{
+		"environment.json": append(record[:len(record)-1], []byte(", \"future_storage_state\":{\"location\":\"keep\"}}\n")...),
+		"workbench.json":   []byte("{\"future_browser_state\":{\"profile\":\"keep\"}}\n"),
+	}
+	for name, data := range files {
+		if err := os.WriteFile(filepath.Join(s.profile, name), data, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.prepareEnvironment(); err != nil {
+		t.Fatal(err)
+	}
+	for name, want := range files {
+		data, err := os.ReadFile(filepath.Join(s.profile, name))
+		if err != nil || !bytes.Equal(data, want) {
+			t.Errorf("%s changed: %s (%v)", name, data, err)
+		}
+	}
+}
+
 func TestEnvironmentUpgradeSeparatesPrivateLegacyWorkspaceFromVMIdentity(t *testing.T) {
 	home, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {

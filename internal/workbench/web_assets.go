@@ -1,6 +1,7 @@
 package workbench
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -38,6 +39,10 @@ func verifyWebAssets(web fs.FS) error {
 		hash := sha256.Sum256(data)
 		if hex.EncodeToString(hash[:]) != want {
 			return fmt.Errorf("前端资源损坏：%s，请重新构建界面", name)
+		}
+		if name == "index.html" && (!bytes.Contains(data, []byte("<title>CCBox</title>")) ||
+			!bytes.Contains(data, []byte(`href="/ccbox.svg"`))) {
+			return fmt.Errorf("内嵌工作台的品牌与 CCBox 不一致，请使用当前仓库重新构建")
 		}
 	}
 	return nil

@@ -56,6 +56,7 @@ type adminServer struct {
 	user     string
 	origins  []string
 	audit    *auditLog
+	updates  *updateChannel
 	now      func() time.Time
 
 	mu       sync.Mutex
@@ -82,7 +83,7 @@ func newAdminServer(store *license.Store, stateDir, username, password string, o
 	}
 	return &adminServer{
 		store: store, username: sha256.Sum256([]byte(username)), password: sha256.Sum256([]byte(password)), user: username, origins: origins,
-		audit: &auditLog{dir: stateDir}, now: time.Now,
+		audit: &auditLog{dir: stateDir}, updates: newUpdateChannel(stateDir), now: time.Now,
 		sessions: map[string]*session{}, failures: map[string][]time.Time{},
 	}
 }
@@ -121,6 +122,8 @@ func (a *adminServer) register(mux *http.ServeMux) {
 	mux.HandleFunc("POST "+adminPrefix+"api/devices/transfer", a.api(true, a.transfer))
 	mux.HandleFunc("POST "+adminPrefix+"api/devices/renew", a.api(true, a.renew))
 	mux.HandleFunc("GET "+adminPrefix+"api/audit", a.api(true, a.listAudit))
+	mux.HandleFunc("GET "+adminPrefix+"api/updates", a.api(true, a.viewDesktopUpdates))
+	mux.HandleFunc("POST "+adminPrefix+"api/updates", a.api(true, a.changeDesktopUpdates))
 	a.registerUsers(mux)
 }
 

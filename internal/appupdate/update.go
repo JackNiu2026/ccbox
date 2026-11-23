@@ -28,6 +28,7 @@ import (
 	"github.com/sylvinus/agent-vm/internal/managedproxy"
 	"github.com/sylvinus/agent-vm/internal/usererror"
 	"github.com/sylvinus/agent-vm/internal/version"
+	"golang.org/x/mod/semver"
 )
 
 const repository = catalog.Repository
@@ -71,10 +72,11 @@ func (e *proxyUnavailableError) Error() string { return e.message }
 func Run(configPath string, args []string, output io.Writer) int {
 	enc := json.NewEncoder(output)
 	state := State{CurrentVersion: version.Version}
+	finalOnly := len(args) == 2 && args[0] == "check" && args[1] == "--final"
 	emit := func() { _ = enc.Encode(state) }
 	fail := func(err error) int {
 		var unavailable *proxyUnavailableError
-		if len(args) == 1 && args[0] == "check" && errors.As(err, &unavailable) {
+		if len(args) > 0 && args[0] == "check" && errors.As(err, &unavailable) {
 			state.Phase, state.Message, state.Retryable = "waiting", err.Error(), true
 			emit()
 			return 0
@@ -84,7 +86,14 @@ func Run(configPath string, args []string, output io.Writer) int {
 		emit()
 		return 1
 	}
-	if len(args) != 1 || (args[0] != "check" && args[0] != "download") {
+	expected := ""
+	if len(args) == 2 && args[0] == "download" {
+		tag := "v" + args[1]
+		if !semver.IsValid(tag) || semver.Canonical(tag) != tag {
+			return fail(errors.New("更新版本无效"))
+		}
+		expected = args[1]
+	} else if !finalOnly && (len(args) != 1 || (args[0] != "check" && args[0] != "download")) {
 		return fail(errors.New("更新操作无效"))
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -92,7 +101,9 @@ func Run(configPath string, args []string, output io.Writer) int {
 	client := updateClient(configPath)
 	defer client.CloseIdleConnections()
 	state.Phase, state.Message = "checking", "正在检查更新"
-	emit()
+	if !finalOnly {
+		emit()
+	}
 	metadata, finished := context.WithTimeout(ctx, metadataTimeout)
 	defer finished()
 	c, err := findRelease(metadata, client, version.Version)
@@ -105,6 +116,12 @@ func Run(configPath string, args []string, output io.Writer) int {
 		return 0
 	}
 	state.LatestVersion = c.Version
+	if expected != "" && expected != c.Version {
+		state.Phase, state.Message = "current", "推送版本已变化，请重新检查更新"
+		state.LatestVersion = ""
+		emit()
+		return 0
+	}
 	if c.Archive.Manual || runtime.GOOS == "linux" || runtime.GOOS == "android" {
 		state.Phase, state.Message = "manual", "此发行包请通过 CCBox 官网手动安装。"
 		emit()

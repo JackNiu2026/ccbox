@@ -75,6 +75,8 @@ func run(args []string) error {
 		mux := http.NewServeMux()
 		mux.HandleFunc("POST /v1/redeem", redeemHandler(store))
 		registerAccountAPI(mux, store)
+		updates := newUpdateChannel(args[1])
+		updates.register(mux)
 		mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = io.WriteString(w, "ok\n") })
 		if path := os.Getenv("CCBOX_LICENSE_ADMIN_PASSWORD_FILE"); path != "" {
 			if err := host.CheckPrivateFile(path); err != nil {
@@ -99,7 +101,9 @@ func run(args []string) error {
 			if err != nil {
 				return err
 			}
-			newAdminServer(store, args[1], username, password, origins).register(mux)
+			admin := newAdminServer(store, args[1], username, password, origins)
+			admin.updates = updates
+			admin.register(mux)
 		}
 		address := "127.0.0.1:8791"
 		if os.Getenv("CCBOX_LICENSE_CONTAINER") == "1" {

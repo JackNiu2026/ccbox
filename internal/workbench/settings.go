@@ -27,6 +27,7 @@ type Preferences struct {
 	MobileRelay           string `json:"mobile_relay,omitempty"`
 	Workspace             string `json:"workspace"`
 	BrowserHomeURL        string `json:"browser_home_url"`
+	BrowserHomePending    bool   `json:"browser_home_pending,omitempty"`
 	ClaudeTerminalCommand string `json:"claude_terminal_command"`
 	Keyboard              string `json:"keyboard"`
 	Clock12Hour           bool   `json:"clock_12_hour"`
@@ -35,6 +36,20 @@ type Preferences struct {
 }
 
 const defaultBrowserHomeURL = "https://www.bing.com/"
+
+func defaultPreferences() Preferences {
+	return Preferences{Keyboard: defaultKeyboard(), AutoTimezone: true, AutoLanguage: true, BalancedDisplay: true, ProjectFileCache: true}
+}
+
+func readPreferences(profile string) Preferences {
+	p := defaultPreferences()
+	if data, err := os.ReadFile(filepath.Join(profile, "workbench.json")); err == nil {
+		// Existing profiles without these fields used manual language and sharp display.
+		p.AutoLanguage, p.BalancedDisplay = false, false
+		_ = json.Unmarshal(data, &p)
+	}
+	return p
+}
 
 func claudeTerminalCommand(p Preferences) string {
 	if strings.TrimSpace(p.ClaudeTerminalCommand) == "" {
@@ -64,6 +79,7 @@ func (s *Server) prepareEnvironment() error {
 	s.mu.Lock()
 	p := s.preferences
 	s.mu.Unlock()
+	originalRecord, originalPreferences := record, p
 	path := environmentWorkspace(s.profile)
 	// Promote an existing installation's VM once, preserving its disk and login state.
 	if _, err := os.Stat(filepath.Join(s.profile, "environment.json")); os.IsNotExist(err) {
@@ -95,8 +111,10 @@ func (s *Server) prepareEnvironment() error {
 		return err
 	}
 	record.Directory = path
-	if err = writePrivate(filepath.Join(s.profile, "environment.json"), record); err != nil {
-		return err
+	if record != originalRecord {
+		if err = writePrivate(filepath.Join(s.profile, "environment.json"), record); err != nil {
+			return err
+		}
 	}
 	if p.Workspace != "" && record.IdentityDirectory != "" && paths.Equal(paths.Host(p.Workspace), paths.Host(record.IdentityDirectory)) {
 		// A private legacy directory cannot remain an authorized project.
@@ -104,7 +122,12 @@ func (s *Server) prepareEnvironment() error {
 			p.Workspace = ""
 		}
 	}
-	if err := writePrivate(filepath.Join(s.profile, "workbench.json"), p); err != nil {
+	preferencesPath := filepath.Join(s.profile, "workbench.json")
+	if _, err := os.Stat(preferencesPath); p != originalPreferences || errors.Is(err, os.ErrNotExist) {
+		if err := writePrivate(preferencesPath, p); err != nil {
+			return err
+		}
+	} else if err != nil {
 		return err
 	}
 	s.mu.Lock()

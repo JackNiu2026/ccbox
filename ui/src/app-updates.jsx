@@ -3,8 +3,18 @@ import { ArrowDownToLine, RefreshCw } from "lucide-react";
 import { native, nativeAvailable } from "./api";
 
 const activePhases = new Set(["checking", "downloading", "downloaded", "verifying", "installing"]);
-const checkInterval = 6 * 60 * 60 * 1000;
+const checkInterval = 15 * 60 * 1000;
 const retryInterval = 5 * 60 * 1000;
+const reminderKey = "ccbox:update-reminder";
+
+function readReminder() {
+  try { return JSON.parse(localStorage.getItem(reminderKey)); }
+  catch { return null; }
+}
+
+function openInstaller(version) {
+  return native("appReference", { kind: "update-installer", version });
+}
 
 export function useAppUpdates() {
   const [state, setState] = useState({ phase: "idle", message: "" });
@@ -22,9 +32,10 @@ export function useAppUpdates() {
     if (["check", "install"].includes(operation) && Date.parse(current.current.retryAt || "") > Date.now()) return;
     requestPending.current = true;
     if (operation === "check") lastCheck.current = Date.now();
+    const version = operation === "install" ? current.current.latestVersion : undefined;
     if (operation === "install") setState(previous => ({ ...previous, phase: "checking" }));
     try {
-      const next = await native("appUpdate", { operation });
+      const next = await native("appUpdate", { operation, version });
       if (next?.phase) setState(next);
     } catch (error) {
       setState(previous => ({ ...previous, phase: "failed", message: error.message, retryable: true }));
@@ -119,7 +130,7 @@ export function AppUpdateButton({ updates }) {
   const hint = coolingDown ? `${state.message || "更新源请求受限"}，可于 ${new Date(state.retryAt).toLocaleString()} 后重试`
     : failed ? `${state.message || "更新未完成"}，点击重试`
     : busy ? label
-    : manual ? `新版本 ${state.latestVersion} 已发布。${state.message || ""}点击打开发布页面。`
+    : manual ? `新版本 ${state.latestVersion} 已发布。${state.message || ""}点击下载安装包。`
     : `更新至 ${state.latestVersion}。请先保存工作，点击后将自动停止环境、安装并重启。`;
   const circumference = 2 * Math.PI * 15;
   return (
@@ -131,7 +142,7 @@ export function AppUpdateButton({ updates }) {
         disabled={busy || coolingDown}
         onClick={() => {
           setFailure("");
-          if (manual) void native("appReference", { kind: "releases" }).catch(error => setFailure(error.message));
+          if (manual) void openInstaller(state.latestVersion).catch(error => setFailure(error.message));
           else void run("install");
         }}
       >
@@ -151,4 +162,41 @@ export function AppUpdateButton({ updates }) {
       {(failure || startupFailure) && <div className="app-update-error" role="alert">{failure || startupFailure}{visible ? coolingDown ? "。请等待更新源恢复后重试。" : "。可点击更新按钮重试。" : ""}</div>}
     </>
   );
+}
+
+export function AppUpdateNotice({ updates }) {
+  const { available, state, run } = updates;
+  const [reminder, setReminder] = useState(readReminder);
+  const [failure, setFailure] = useState(null);
+  const version = state.latestVersion;
+  const manual = state.phase === "manual";
+  if (!available || !version || (!manual && state.phase !== "available") ||
+      (reminder?.version === version && reminder.until > Date.now())) return null;
+
+  function remindLater() {
+    const next = { version, until: Date.now() + 24 * 60 * 60 * 1000 };
+    setReminder(next);
+    try { localStorage.setItem(reminderKey, JSON.stringify(next)); }
+    catch { /* The current window can still dismiss the notice. */ }
+  }
+
+  function install() {
+    if (manual) {
+      void openInstaller(version).then(remindLater, error => setFailure({ version, message: error.message }));
+    } else {
+      void run("install");
+    }
+  }
+
+  return <aside className="app-update-notice" aria-label="CCBox 版本更新">
+    <div role="status">
+      <strong>CCBox {version} 可更新</strong>
+      <p>{manual ? "保存工作、停止环境并退出 CCBox 后，用新版安装包在原位置升级。" : "请先保存工作。升级时会停止当前环境并重启 CCBox。"}</p>
+    </div>
+    {failure?.version === version && <p role="alert">{failure.message}</p>}
+    <div className="app-update-notice-actions">
+      <button type="button" onClick={remindLater}>明天提醒</button>
+      <button type="button" className="primary" onClick={install}>{manual ? "下载安装包" : "立即升级"}</button>
+    </div>
+  </aside>;
 }

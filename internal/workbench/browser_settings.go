@@ -62,6 +62,7 @@ func (s *Server) saveBrowserHome(w http.ResponseWriter, r *http.Request, value s
 	}
 	next := previous
 	next.BrowserHomeURL = home
+	next.BrowserHomePending = !ready
 	if err = writePrivate(filepath.Join(s.profile, "workbench.json"), next); err != nil {
 		if ready {
 			_ = s.setBrowserHome(r.Context(), token, browserHomeURL(previous))

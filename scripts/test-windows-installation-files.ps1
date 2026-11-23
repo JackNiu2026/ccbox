@@ -12,6 +12,7 @@ function Check([bool]$Value, [string]$Message) {
 $installerLines = Get-Content -LiteralPath (Join-Path $PSScriptRoot '../packaging/windows/Cage.nsi')
 Check ($installerLines -ccontains 'InstallDir "$LOCALAPPDATA\Programs\CCBox"') 'The Windows per-user default install path must end in CCBox.'
 Check ($installerLines -ccontains '    StrCpy $INSTDIR "D:\CCBox"') 'The Windows D-drive default install path must end in CCBox.'
+Check ($installerLines -ccontains '  Call RequireRegisteredUpgradeDirectory') 'The installer must check the registered upgrade directory before unpacking.'
 function Write-File([string]$Path, [string]$Value) {
     [IO.Directory]::CreateDirectory((Split-Path $Path -Parent)) | Out-Null
     [IO.File]::WriteAllText($Path, $Value)
@@ -130,6 +131,14 @@ function Test-InstallerTransaction {
         Check ((Get-Content (Join-Path $target 'program.txt') -Raw) -eq 'fixture') 'NSIS did not publish its text payload.'
         Check (!(Test-Path -LiteralPath ($target + '.ccbox-installation.json'))) 'NSIS left the first-install receipt unfinished.'
         Check ((Get-ItemProperty $key).InstallLocation -eq $target) 'NSIS registered a different fixture target.'
+        $other = Join-Path $scenario 'wrong upgrade directory'
+        $wrongReport = $report + '.wrong-upgrade.json'
+        Run-Fixture $setup @('/S','/DESKTOPSHORTCUT=0','/STARTMENUSHORTCUT=0',"/DIAGNOSTICS=`"$wrongReport`"","/D=$other") 2
+        Check (!(Test-Path -LiteralPath $other)) 'NSIS created a second installation when the upgrade target was wrong.'
+        Check ((Get-ItemProperty $key).InstallLocation -eq $target) 'An invalid upgrade changed the original installation registration.'
+        Check ((Get-Content (Join-Path $target 'program.txt') -Raw) -eq 'fixture') 'An invalid upgrade changed the original application.'
+        Run-Fixture $setup @('/S','/DESKTOPSHORTCUT=0','/STARTMENUSHORTCUT=0',"/DIAGNOSTICS=`"$report`"","/D=$target")
+        Check ((Get-Content (Join-Path $target 'program.txt') -Raw) -eq 'fixture') 'NSIS could not upgrade in the registered directory.'
     } finally {
         if (Test-Path $key) {
             if ((Get-ItemProperty $key).InstallLocation -ne $target) { throw 'NSIS fixture registration changed owner; retained for inspection.' }
@@ -339,6 +348,9 @@ try {
     $dataFolders = @('BoxData', 'CageData')
     foreach ($folder in $dataFolders) {
         Write-File (Join-Path $old "$folder/vm/disk.vhdx") "persistent $folder disk"
+        foreach ($file in @('guest-profile/History', 'guest-profile/Cookies', 'projects/repository/.git/config', 'guest-client/config.json')) {
+            Write-File (Join-Path $old "$folder/$file") "persistent $folder $file"
+        }
     }
     Write-File (Join-Path $old 'my-project/work.txt') 'kept project'
     $disks = foreach ($folder in $dataFolders) {
@@ -361,9 +373,32 @@ try {
     Check ((Get-Content (Join-Path $old 'program.txt') -Raw) -eq 'new') 'The kept-data update did not publish the new program.'
     foreach ($folder in $dataFolders) {
         Check ((Get-Content (Join-Path $old "$folder/vm/disk.vhdx") -Raw) -eq "persistent $folder disk") "$folder data changed."
+        foreach ($file in @('guest-profile/History', 'guest-profile/Cookies', 'projects/repository/.git/config', 'guest-client/config.json')) {
+            Check ((Get-Content (Join-Path $old "$folder/$file") -Raw) -eq "persistent $folder $file") "$folder/$file changed."
+        }
     }
     Check ((Get-Content (Join-Path $old 'my-project/work.txt') -Raw) -eq 'kept project') 'The kept-data update lost a project.'
     Check (!(Test-Path -LiteralPath $backup) -and !(Test-Path -LiteralPath $receipt)) 'The kept-data update left its backup or receipt.'
+    App $stage 'old'
+    Write-File (Join-Path $old 'my-project/work.txt') 'saved during the update'
+    $disks = foreach ($folder in $dataFolders) {
+        [IO.File]::Open((Join-Path $old "$folder/vm/disk.vhdx"), 'Open', 'Read', 'Read')
+    }
+    try {
+        Invoke-Helper @('-Operation','prepare','-Source',$old,'-Target',$stage,'-Receipt',$receipt,'-Backup',$backup,'-LegacyTarget','-KeepApplicationData')
+        Invoke-Helper @('-Operation','detach','-Source',$old,'-Target',$backup,'-Receipt',$receipt)
+        Invoke-Helper @('-Operation','move','-Source',$backup,'-Target',$stage,'-Receipt',$receipt)
+        Invoke-Helper @('-Operation','attach','-Source',$stage,'-Target',$old,'-Receipt',$receipt)
+        Invoke-Helper @('-Operation','cleanup','-Source',$backup,'-Target',$old,'-Receipt',$receipt)
+    } finally { foreach ($disk in $disks) { $disk.Dispose() } }
+    Check ((Get-Content (Join-Path $old 'program.txt') -Raw) -eq 'old') 'Rollback did not restore the original program.'
+    Check ((Get-Content (Join-Path $old 'my-project/work.txt') -Raw) -eq 'saved during the update') 'Rollback lost changes saved by the candidate.'
+    foreach ($folder in $dataFolders) {
+        Check ((Get-Content (Join-Path $old "$folder/vm/disk.vhdx") -Raw) -eq "persistent $folder disk") "Rollback changed the $folder disk."
+        foreach ($file in @('guest-profile/History', 'guest-profile/Cookies', 'projects/repository/.git/config', 'guest-client/config.json')) {
+            Check ((Get-Content (Join-Path $old "$folder/$file") -Raw) -eq "persistent $folder $file") "Rollback changed $folder/$file."
+        }
+    }
     if ($windows) {
         # An open program file blocks detaching; every moved entry returns and
         # the diagnostic names only the kind of entry, never its path.

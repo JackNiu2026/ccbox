@@ -21,6 +21,23 @@ import (
 // command. It returns the exit status.
 type session func(s *start) int
 
+// BootCCBox reports whether this invocation cloned the VM. Normal CCBox
+// startup can then provision a fresh disk without touching an existing one.
+func BootCCBox(io IO, existingOnly bool) (created bool, code int) {
+	e, err := newApp(io)
+	if err != nil {
+		fmt.Fprintln(io.Stderr, err)
+		return false, 1
+	}
+	opts := newVMOpts()
+	opts.ccboxBoot, opts.existingOnly = true, existingOnly
+	code = e.inVM(context.Background(), opts, func(s *start) int {
+		created = s.created
+		return 0
+	})
+	return created, code
+}
+
 // endedBySignal is ctx for a run that a kill or a closed terminal (SIGTERM,
 // SIGHUP) must end: the command in the VM stops with it, and the cleanup
 // that follows (--rm, --scratch) runs on a context that does not end. A
@@ -55,6 +72,10 @@ func endedBySignal(parent context.Context) (ctx context.Context, stop func()) {
 // (SIGTERM, SIGHUP) ends the command and still deletes. --scratch: see
 // scratch.
 func (e *app) inVM(ctx context.Context, opts VMOpts, fn session) int {
+	if cageWritableGit() && (opts.Reset || opts.RM) {
+		fmt.Fprintln(e.io.Stderr, "CCBox 禁止通过启动命令重置或删除持久客机。原虚拟磁盘已保留。")
+		return 1
+	}
 	dir, err := vmname.AbsDir("")
 	if err != nil {
 		fmt.Fprintf(e.io.Stderr, "Error: %v\n", err)
@@ -67,7 +88,7 @@ func (e *app) inVM(ctx context.Context, opts VMOpts, fn session) int {
 		return e.scratch(ctx, cleanup, opts, dir, fn)
 	}
 	s := &start{app: e, ctx: ctx, opts: opts, dir: dir, name: e.instanceName(dir)}
-	if os.Getenv("CCBOX_CONFIG") != "" {
+	if cageWritableGit() {
 		b, err := s.backend()
 		if err != nil {
 			fmt.Fprintln(e.io.Stderr, err)
@@ -80,7 +101,7 @@ func (e *app) inVM(ctx context.Context, opts VMOpts, fn session) int {
 		}
 		for _, inst := range instances {
 			if inst.Status == vm.Running && inst.Name != s.name {
-				fmt.Fprintf(e.io.Stderr, "Cage uses one persistent environment per profile; stop legacy VM %s before connecting it.\n", inst.Name)
+				fmt.Fprintf(e.io.Stderr, "CCBox uses one persistent environment per profile; stop legacy VM %s before connecting it.\n", inst.Name)
 				return 1
 			}
 		}

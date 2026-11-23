@@ -16,6 +16,7 @@ internal sealed class AppUpdater : IDisposable
     private CancellationTokenSource? cancellation;
     private InstallPlan? prepared;
     private bool committed;
+    private static bool ManualInstall => File.Exists(Path.Combine(AppContext.BaseDirectory, "DEVELOPMENT-BUILD.txt"));
 
     public AppUpdater(Action<Dictionary<string, object?>> changed, Action quit, Action reconnect)
     {
@@ -33,7 +34,7 @@ internal sealed class AppUpdater : IDisposable
         catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException) { }
     }
 
-    public Dictionary<string, object?> Handle(string operation)
+    public Dictionary<string, object?> Handle(string operation, string expectedVersion = "")
     {
         if (Backend.ClientOnly)
         {
@@ -48,7 +49,12 @@ internal sealed class AppUpdater : IDisposable
         {
             case "status": break;
             case "check": if (cancellation == null && prepared == null) _ = Run(true); break;
-            case "install": if (cancellation == null) _ = prepared != null ? Install() : Run(false); break;
+            case "install":
+                if (expectedVersion.Length > 0 && expectedVersion != state.GetValueOrDefault("latestVersion") as string)
+                    throw new InvalidDataException("待升级版本已变化，请重新检查更新");
+                if (cancellation == null && !ManualInstall)
+                    _ = prepared != null ? Install() : Run(false);
+                break;
             case "cancel": if (!committed && state["phase"] as string != "installing") cancellation?.Cancel(); break;
             default: throw new InvalidDataException("更新操作无效");
         }
@@ -71,6 +77,8 @@ internal sealed class AppUpdater : IDisposable
 
     private async Task Run(bool checkOnly)
     {
+        var target = state.GetValueOrDefault("latestVersion") as string;
+        if (!checkOnly && (target == null || !UpdatePolicy.IsNewer(target, Version))) return;
         // The backend reports progress at least once per retry. Bound its silence
         // rather than the transfer, so a slow connection can still finish.
         var silence = TimeSpan.FromMinutes(10);
@@ -80,6 +88,7 @@ internal sealed class AppUpdater : IDisposable
         string? archive = null;
         string retryAt = "";
         using var process = new Process { StartInfo = Backend.StartInfo(Backend.Executable, "app-update", checkOnly ? "check" : "download") };
+        if (!checkOnly) process.StartInfo.ArgumentList.Add(target!);
         var started = false;
         try
         {
@@ -94,6 +103,7 @@ internal sealed class AppUpdater : IDisposable
                 cancellation.CancelAfter(silence);
                 last = JsonDocument.Parse(line).RootElement.Clone();
                 retryAt = last.Text("retryAt");
+                if (last.Text("phase") == "current") state.Remove("latestVersion");
                 foreach (var property in last.EnumerateObject())
                     if (property.Name is not ("archivePath" or "sha256")) state[property.Name] = property.Value.ValueKind switch {
                         JsonValueKind.String => property.Value.GetString(),
@@ -101,6 +111,11 @@ internal sealed class AppUpdater : IDisposable
                         JsonValueKind.Number => property.Value.GetInt64(),
                         _ => property.Value.Clone(),
                     };
+                if (ManualInstall && last.Text("phase") == "available")
+                {
+                    state["phase"] = "manual";
+                    state["message"] = "当前为未签名预览版，请下载安装包升级。";
+                }
                 changed(new(state));
             }
             await process.WaitForExitAsync(token); await errors;

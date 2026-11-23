@@ -194,7 +194,7 @@ func serve(configPath string, clientOnly bool, fullConfigPath string) (returned 
 		return err
 	}
 	defer listener.Close()
-	s := &Server{profile: profile, configPath: configPath, exe: exe, clientOnly: clientOnly, origin: fmt.Sprintf("http://localhost:%d", port), token: randomToken(), session: randomToken(), preferences: Preferences{Keyboard: defaultKeyboard(), AutoTimezone: true, AutoLanguage: true, BalancedDisplay: true, ProjectFileCache: true}}
+	s := &Server{profile: profile, configPath: configPath, exe: exe, clientOnly: clientOnly, origin: fmt.Sprintf("http://localhost:%d", port), token: randomToken(), session: randomToken(), preferences: defaultPreferences()}
 	s.desktopEntry = fullConfigPath != ""
 	workload := !s.desktopEntry && !clientOnly
 	if s.desktopEntry {
@@ -241,13 +241,7 @@ func serve(configPath string, clientOnly bool, fullConfigPath string) (returned 
 		}
 		defer s.account.lock()
 		defer func() { returned = errors.Join(returned, s.closeService()) }()
-		if b, e := os.ReadFile(filepath.Join(profile, "workbench.json")); e == nil {
-			// Existing profiles without this field used manual language settings.
-			s.preferences.AutoLanguage = false
-			// Preserve the original density of profiles saved before this setting.
-			s.preferences.BalancedDisplay = false
-			_ = json.Unmarshal(b, &s.preferences)
-		}
+		s.preferences = readPreferences(profile)
 		if !s.storageRecoveryStatus().Required {
 			if err = s.prepareEnvironment(); err != nil {
 				if s.windowsGuest == nil {
@@ -807,6 +801,7 @@ func (s *Server) saveSettings(w http.ResponseWriter, r *http.Request) {
 	s.launch(w, kind, func() error {
 		s.mu.Lock()
 		v.Preferences.BrowserHomeURL = s.preferences.BrowserHomeURL
+		v.Preferences.BrowserHomePending = s.preferences.BrowserHomePending
 		s.mu.Unlock()
 		return s.apply(v, true)
 	})

@@ -121,6 +121,8 @@ const AUDIT_ACTION = {
   login: "登录",
   "login.failed": "登录失败",
   logout: "退出登录",
+  "updates.publish": "推送新版",
+  "updates.pause": "暂停更新推送",
   "codes.issue": "生成激活码",
   "codes.revoke": "停用激活码",
   "batches.revoke": "停用批次",
@@ -297,6 +299,7 @@ const ROUTES = [
   { id: "codes", label: "激活码", icon: "codes", render: renderCodes },
   { id: "batches", label: "批次", icon: "batches", render: renderBatches },
   { id: "devices", label: "设备", icon: "devices", render: renderDevices },
+  { id: "updates", label: "版本推送", icon: "download", render: renderUpdates },
   { id: "audit", label: "操作日志", icon: "audit", render: renderAudit },
 ];
 
@@ -1125,6 +1128,59 @@ async function userDialog(id, onChange) {
 
 // --------------------------------------------------------------------- Audit
 
+async function renderUpdates(view, _params, alive) {
+  view.append(pageHead("版本推送", "官网上架后，在这里选择何时通知桌面用户。"),
+    h("p", { role: "status" }, "正在读取发布状态…"));
+  const { publication, candidate, catalog_error: catalogError } = await api("updates");
+  if (!alive()) return;
+
+  const liveRelease = publication.release;
+  const liveTag = liveRelease?.tag_name;
+  const update = async (release, enabled) => {
+    const tag = release.tag_name;
+    const approved = await confirmAction({
+      title: enabled ? `推送 CCBox ${tag}？` : `暂停 CCBox ${tag} 的推送？`,
+      text: enabled ? "使用旧版本的用户会在下次检查时收到提醒，安装由用户确认。" : "暂停后，下次检查将停止提示该版本。已安装的用户不受影响。",
+      confirm: enabled ? "开始推送" : "暂停推送",
+      danger: !enabled,
+    });
+    if (!approved || !alive()) return;
+    try {
+      await api("updates", { enabled, version: tag.slice(1), revision: publication.revision });
+      toast(enabled ? `已推送 ${tag}` : `已暂停 ${tag}`);
+      if (alive()) route();
+    } catch (error) {
+      if (error.status !== 401) toast(error.message, "error");
+      if (alive() && error.status === 409) route();
+    }
+  };
+  const platformNames = { ".exe": "Windows x64", ".dmg": "macOS Apple Silicon", ".deb": "Linux amd64" };
+  const platforms = release => release?.assets.filter(asset => asset.name !== "SHA256SUMS").map(asset => {
+    const suffix = asset.name.slice(asset.name.lastIndexOf("."));
+    return h("li", {}, h("span", {}, platformNames[suffix]), h("span", { class: "muted" },
+      asset.manual || suffix === ".deb" ? "下载安装包" : "应用内升级"));
+  });
+  const currentCard = h("section", { class: "card update-panel", "aria-labelledby": "current-release-title" },
+    h("h2", { id: "current-release-title" }, "客户端推送"),
+    badge(publication.enabled ? ["推送中", "ok"] : ["未推送", "info"]),
+    liveTag && h("p", { class: "primary-text" }, `CCBox ${liveTag}`),
+    publication.changed && h("p", { class: "muted" }, `更新于 ${fmtTime(publication.changed)}`),
+    publication.enabled && h("ul", { class: "list" }, platforms(liveRelease)),
+    publication.enabled && h("button", { type: "button", class: "btn", onclick: () => update(liveRelease, false) }, "暂停推送"));
+  const alreadyLive = publication.enabled && liveTag === candidate?.tag_name;
+  const candidateCard = h("section", { class: "card update-panel", "aria-labelledby": "candidate-release-title" },
+    h("h2", { id: "candidate-release-title" }, "官网最新发行"),
+    candidate ? [
+      h("p", { class: "primary-text" }, `CCBox ${candidate.tag_name}`),
+      h("ul", { class: "list" }, platforms(candidate)),
+      h("button", { type: "button", class: "btn primary", disabled: alreadyLive,
+        onclick: () => update(candidate, true) }, alreadyLive ? "该版本已推送" : "推送此版本"),
+    ] : h("p", { role: catalogError ? "status" : undefined }, catalogError || "官网暂未上架可推送的桌面安装包。"));
+  view.replaceChildren(pageHead("版本推送", "官网上架后，在这里选择何时通知桌面用户。",
+    h("button", { type: "button", class: "btn", onclick: route }, icon("refresh"), "刷新状态")),
+    h("div", { class: "update-panels" }, currentCard, candidateCard));
+}
+
 async function renderAudit(view, params, alive) {
   const action = params.get("action") || "";
   const page = Number(params.get("page")) || 1;
@@ -1139,7 +1195,7 @@ async function renderAudit(view, params, alive) {
     h("td", { class: "mono muted" }, entry.address || "—")));
   view.replaceChildren(
     pageHead("操作日志", "记录登录与所有写操作，不包含激活码原文。保存在授权服务状态目录的 admin-audit.jsonl。"),
-    h("div", { class: "toolbar" }, chips([["", "全部"], ["login", "登录"], ["users", "用户"], ["codes", "激活码"], ["batches", "批次"], ["devices", "设备"]], action, value => navigate("audit", { action: value }), "操作类型")),
+    h("div", { class: "toolbar" }, chips([["", "全部"], ["login", "登录"], ["users", "用户"], ["codes", "激活码"], ["batches", "批次"], ["devices", "设备"], ["updates", "版本推送"]], action, value => navigate("audit", { action: value }), "操作类型")),
     h("section", { class: "card" }, data.items.length
       ? [table(["时间", "操作", "详情", "来源地址"], rows), pager(data, next => navigate("audit", { action, page: next }))]
       : emptyState("audit", "暂无记录", "管理员操作会记录在这里。")),

@@ -52,7 +52,7 @@ func containerOperation(configPath string, args []string, cfg cage.Config, keepP
 		return false, nil
 	}
 	switch args[0] {
-	case "setup", "up", "login", "stop", "list", "info", "doctor", "name", "run", "shell", "claude", "update-tools", "access":
+	case "setup", "up", "login", "stop", "list", "info", "doctor", "name", "run", "shell", "claude", "update-components", "update-tools", "access":
 	default:
 		return false, nil
 	}
@@ -110,23 +110,54 @@ func containerOperation(configPath string, args []string, cfg cage.Config, keepP
 	if err := os.MkdirAll(cage.EnvironmentDir(profile), 0700); err != nil {
 		return true, err
 	}
-	if err := environment.Prepare(ctx, os.Stdout); err != nil {
-		return true, err
-	}
 	state, err := environment.State(ctx)
 	if err != nil {
 		return true, err
 	}
-	needsServices := !state.Ready || args[0] == "up" || args[0] == "login"
+	if !state.Exists {
+		if args[0] == "update-components" || args[0] == "update-tools" {
+			return true, errors.New("找不到原容器环境，请检查原有存储")
+		}
+		if err := environment.Prepare(ctx, os.Stdout); err != nil {
+			return true, err
+		}
+		state, err = environment.State(ctx)
+		if err != nil {
+			return true, err
+		}
+	}
 	if err := environment.Start(ctx, configPath, os.Stdout); err != nil {
 		return true, err
 	}
-	if needsServices {
-		if err := workbench.StartGuestServices(ctx, configPath, os.Stdout, os.Stderr); err != nil {
+	initial, err := environment.PendingInitialProvision(state.ContainerID)
+	if err != nil {
+		return true, err
+	}
+	needsProvision := args[0] == "update-components"
+	if initial && !needsProvision {
+		installed, err := workbench.HasGuestComponentManifest(ctx, configPath)
+		if err != nil {
+			return true, err
+		}
+		needsProvision = !installed
+	}
+	if needsProvision {
+		if err := workbench.ProvisionGuestServices(ctx, configPath, os.Stdout, os.Stderr); err != nil {
+			return true, err
+		}
+	} else if !state.Ready || args[0] == "up" || args[0] == "login" {
+		if err := workbench.ResumeGuestServices(ctx, configPath, os.Stdout, os.Stderr); err != nil {
+			return true, err
+		}
+	}
+	if initial {
+		if err := environment.CompleteInitialProvision(); err != nil {
 			return true, err
 		}
 	}
 	switch args[0] {
+	case "update-components":
+		return true, nil
 	case "up":
 		fmt.Println("CCBox 容器服务已启动；工作台完成网络检查后才会放行外网。")
 		return true, nil

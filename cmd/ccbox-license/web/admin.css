@@ -302,6 +302,10 @@ textarea { resize: vertical; font-family: var(--mono); font-size: 13px; line-hei
 .list li:first-child { border-top: 0; }
 .list .primary-text { font-weight: 600; }
 .list .secondary-text { color: var(--muted); font-size: 12px; }
+.update-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 16px; }
+.update-panel { display: grid; justify-items: start; align-content: start; gap: 12px; padding: 18px; }
+.update-panel h2, .update-panel p { margin: 0; }
+.update-panel .list { width: 100%; }
 .empty-mini { padding: 18px 0 6px; color: var(--muted); text-align: center; }
 
 /* Tables */

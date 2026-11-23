@@ -14,6 +14,7 @@ import (
 	"time"
 
 	agentvm "github.com/sylvinus/agent-vm"
+	"github.com/sylvinus/agent-vm/internal/appupdate"
 	"github.com/sylvinus/agent-vm/internal/cage"
 	"github.com/sylvinus/agent-vm/internal/cli"
 	"github.com/sylvinus/agent-vm/internal/containerenv"
@@ -24,7 +25,6 @@ import (
 	"github.com/sylvinus/agent-vm/internal/hostproxy"
 	"github.com/sylvinus/agent-vm/internal/limaembed"
 	"github.com/sylvinus/agent-vm/internal/managedproxy"
-	"github.com/sylvinus/agent-vm/internal/version"
 	"github.com/sylvinus/agent-vm/internal/workbench"
 	"io"
 	"os/signal"
@@ -92,8 +92,8 @@ func run() int {
 		os.Unsetenv(name)
 	}
 	// The shared commands otherwise name agent-vm and suggest its installer.
-	cli.Command = "claude-cage"
-	cli.UpdateHint = "update Cage from the app, or with the installer or package that installed it"
+	cli.Command = "ccbox"
+	cli.UpdateHint = "update CCBox from the app, or with the installer or package that installed it"
 	args := os.Args[1:]
 	if len(args) > 0 && args[0] == "host-download" {
 		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -322,14 +322,7 @@ func run() int {
 		return relay(path, args[1])
 	}
 	if args[0] == "app-update" {
-		if len(args) != 2 || (args[1] != "check" && args[1] != "download") {
-			return fail(errors.New("更新操作无效"))
-		}
-		_ = json.NewEncoder(os.Stdout).Encode(map[string]string{
-			"phase": "manual", "currentVersion": version.Version,
-			"message": "CCBox 使用安装包手动更新，请向安装包提供方获取新版。",
-		})
-		return 0
+		return appupdate.Run(path, args[1:], os.Stdout)
 	}
 	connectionID := ""
 	if (args[0] == "clipboard-files" || args[0] == "upload-files" || args[0] == "browser-file" || args[0] == "desktop-file" || args[0] == "share-project") && len(args) >= 3 && args[2] == "--connection" {
@@ -575,7 +568,7 @@ func run() int {
 	}
 	// Every Cage operation targets this profile's one persistent environment.
 	switch args[0] {
-	case "up", "login", "shell", "run", "claude", "stop", "doctor", "access", "name":
+	case "up", "login", "shell", "run", "claude", "stop", "doctor", "access", "name", "update-components", "update-tools":
 		directory := cage.EnvironmentDir(filepath.Dir(path))
 		if err := os.MkdirAll(directory, 0700); err != nil {
 			return fail(err)
@@ -643,13 +636,37 @@ func run() int {
 		}
 		args = append([]string{"setup", "--memory", fmt.Sprint(memory), "--cpus", fmt.Sprint(cpus), "--disk", "24", "--preinstall=node,python,chromium,gh,claude,code-server"}, args[1:]...)
 	}
-	if args[0] == "up" || args[0] == "login" {
-		result := cli.Main([]string{"run", "true"}, cli.Stdio())
+	if args[0] == "up" || args[0] == "login" || args[0] == "update-components" {
+		explicitMaintenance := args[0] == "update-components"
+		created, result := cli.BootCCBox(cli.Stdio(), explicitMaintenance)
 		if result != 0 {
 			return result
 		}
-		if err := workbench.StartGuestServices(context.Background(), path, os.Stdout, os.Stderr); err != nil {
+		marker := filepath.Join(state, "lima", cage.InstanceName(profile, cage.EnvironmentDir(profile)), cage.LimaInitialProvision)
+		info, markerErr := os.Lstat(marker)
+		if markerErr != nil && !errors.Is(markerErr, os.ErrNotExist) {
+			return fail(markerErr)
+		}
+		initial := markerErr == nil && info.Mode().IsRegular()
+		needsProvision := created || explicitMaintenance
+		if initial && !needsProvision {
+			installed, err := workbench.HasGuestComponentManifest(context.Background(), path)
+			if err != nil {
+				return fail(err)
+			}
+			needsProvision = !installed
+		}
+		startServices := workbench.ResumeGuestServices
+		if needsProvision {
+			startServices = workbench.ProvisionGuestServices
+		}
+		if err := startServices(context.Background(), path, os.Stdout, os.Stderr); err != nil {
 			return fail(err)
+		}
+		if initial {
+			if err := os.Remove(marker); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return fail(err)
+			}
 		}
 		fmt.Println("CCBox local services are ready. Open CCBox or run cage desktop to complete the required network checks. External networking stays closed until the workbench approves this VM; no local access password is required.")
 		if args[0] == "login" {
@@ -658,7 +675,7 @@ func run() int {
 		return 0
 	}
 	if args[0] == "update-tools" {
-		if result := cli.Main([]string{"run", "true"}, cli.Stdio()); result != 0 {
+		if _, result := cli.BootCCBox(cli.Stdio(), true); result != 0 {
 			return result
 		}
 		if err := workbench.RunMaintenanceScript(context.Background(), path, cage.ToolsUpdateScript(), os.Stdout, os.Stderr); err != nil {

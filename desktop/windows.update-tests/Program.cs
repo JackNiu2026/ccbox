@@ -14,6 +14,38 @@ if (args is ["--install-update"])
     WriteRecord(Path.Combine(Backend.Root, "helper-finished.json"), new { exit });
     return exit;
 }
+if (args is ["--test-program-backup", var temporaryRoot])
+{
+    var source = Path.Combine(temporaryRoot, "installed");
+    var backup = Path.Combine(temporaryRoot, "backup");
+    string[] program = ["Cage.exe", "Uninstall.exe", "resources/cage.exe"];
+    string[] personal = ["BoxData/vm/disk.vhdx", "CageData/vm/disk.vhdx", "my-project/work.txt"];
+    foreach (var relative in program.Concat(personal))
+    {
+        var path = Path.Combine(source, relative);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, relative);
+    }
+    try
+    {
+        UpdateInstaller.CopyTree(source, backup);
+        throw new InvalidOperationException("Backup must reject a missing manifest.");
+    }
+    catch (IOException) { }
+    // Include data entries in this synthetic manifest to ensure the protected
+    // directories are skipped even if a stale manifest mistakenly claims them.
+    WriteRecord(Path.Combine(source, "Cage.install-files.json"), new {
+        version = 1, files = program.Concat(personal.Take(2)).Select(path => new { path, sha256 = new string('a', 64) }),
+    });
+    using var current = File.Open(Path.Combine(source, personal[0]), FileMode.Open, FileAccess.Read, FileShare.None);
+    using var legacy = File.Open(Path.Combine(source, personal[1]), FileMode.Open, FileAccess.Read, FileShare.None);
+    UpdateInstaller.CopyTree(source, backup);
+    if (program.Any(path => File.ReadAllText(Path.Combine(backup, path)) != path) ||
+        personal.Any(path => File.Exists(Path.Combine(backup, path))))
+        throw new InvalidOperationException("Only the program should appear in the update backup.");
+    Console.WriteLine("PASS: program backup excludes both VM data directories and existing projects.");
+    return 0;
+}
 if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Run the complete updater transaction on Windows.");
 
 var root = Backend.Root;

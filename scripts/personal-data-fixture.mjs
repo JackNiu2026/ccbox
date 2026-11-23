@@ -17,6 +17,8 @@ const entries = [
   '.ccbox/webview2/Default/Local Storage/leveldb/000001.log',
   '.ccbox/webkit/data/WebsiteData/LocalStorage/storage.sqlite3',
   '.ccbox/state/lima/persistent/disk',
+  '.ccbox/state/lima/native/macos-disk.img',
+  '.ccbox/state/container/environment/storage.json',
   '.ccbox-workspace/project.txt',
 ];
 const digest = (data) => createHash('sha256').update(data).digest('hex');

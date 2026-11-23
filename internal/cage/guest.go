@@ -312,12 +312,33 @@ printf 'Cage tool packages are ready; applying browser and editor components.\n'
 }
 
 func (c Config) EnvironmentScript() string {
-	return fmt.Sprintf("export CAGE_TZ=%s\nexport CAGE_LOCALE=%s\nexport CAGE_LANGUAGE=%s\n", shellescape.Quote(c.Timezone), shellescape.Quote(c.Locale), shellescape.Quote(c.BrowserLanguage)) + guestEnv
+	return c.regionVariables() + guestEnv
+}
+
+func (c Config) regionVariables() string {
+	return fmt.Sprintf("export CAGE_TZ=%s\nexport CAGE_LOCALE=%s\nexport CAGE_LANGUAGE=%s\n", shellescape.Quote(c.Timezone), shellescape.Quote(c.Locale), shellescape.Quote(c.BrowserLanguage))
 }
 
 func (c Config) StartScript() string {
 	body := c.EnvironmentScript() + "\n" + componentStartScript()
 	return c.GuestProfile.Linux(markGuestStart(body))
+}
+
+// ResumeScript starts only the installed units and applies changed regional
+// settings. It leaves browser profiles and installed executables alone.
+func (c Config) ResumeScript() string {
+	region, _, _ := strings.Cut(guestEnv, "\n# Remove only the exact prompt")
+	return c.regionVariables() + `set -eu
+region_file=/etc/claude-cage/environment
+if ! grep -Fxq "TZ=$CAGE_TZ" "$region_file" ||
+   ! grep -Fxq "LANG=$CAGE_LOCALE" "$region_file" ||
+   ! grep -Fxq "CAGE_LANGUAGE=$CAGE_LANGUAGE" "$region_file"; then
+` + region + `
+fi
+sudo systemctl reset-failed cage-display cage-window-manager cage-browser cage-webvnc cage-editor 2>/dev/null || true
+sudo systemctl start cage-display cage-window-manager cage-browser cage-webvnc cage-editor
+sudo python3 /usr/local/lib/cage-wait-services.py
+`
 }
 
 func (c Config) SetupScript() string { return c.GuestProfile.Linux(GuestSetup) }

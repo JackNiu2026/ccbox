@@ -70,6 +70,9 @@ func (r *Runtime) Prepare(ctx context.Context, log io.Writer) error {
 		}
 		return r.recordStorage(ctx, container.ID)
 	}
+	if _, err := os.Lstat(filepath.Join(r.InstanceDir(), "storage.json")); !errors.Is(err, os.ErrNotExist) {
+		return errors.New("找不到原 CCBox 容器，已保留存储记录。请恢复原有容器后重试")
+	}
 	for _, device := range []string{"/dev/fuse", "/dev/net/tun"} {
 		info, err := os.Stat(device)
 		if err != nil || info.Mode()&os.ModeDevice == 0 {
@@ -108,10 +111,36 @@ func (r *Runtime) Prepare(ctx context.Context, log io.Writer) error {
 	if err := r.recordStorage(ctx, container.ID); err != nil {
 		return err
 	}
+	if err := writePrivateJSON(filepath.Join(r.InstanceDir(), "initial-provision.json"), container.ID); err != nil {
+		return err
+	}
 	if log != nil {
 		fmt.Fprintln(log, "Cage container prepared with a persistent filesystem and no default network.")
 	}
 	return nil
+}
+
+func (r *Runtime) PendingInitialProvision(containerID string) (bool, error) {
+	data, err := os.ReadFile(filepath.Join(r.InstanceDir(), "initial-provision.json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	var pendingID string
+	if json.Unmarshal(data, &pendingID) != nil || containerID == "" || pendingID != containerID {
+		return false, errors.New("首次配置的容器身份与当前环境不一致，已保留原数据")
+	}
+	return true, nil
+}
+
+func (r *Runtime) CompleteInitialProvision() error {
+	err := os.Remove(filepath.Join(r.InstanceDir(), "initial-provision.json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	return err
 }
 
 func (r *Runtime) recordStorage(ctx context.Context, containerID string) error {

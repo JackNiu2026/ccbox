@@ -61,7 +61,7 @@ func (s *Server) recordInstallRecovery(detail string) {
 // lifecycle operations. It never creates or substitutes a MacOSProfile.
 func (s *Server) macOSInstallRecovery(w http.ResponseWriter, r *http.Request) {
 	if !s.hasTrustedView(r) || !s.localVMStorage() {
-		http.Error(w, "请在本机 Cage 窗口继续安装", http.StatusForbidden)
+		http.Error(w, "请在本机 CCBox 窗口继续安装", http.StatusForbidden)
 		return
 	}
 	recovery, err := guestos.LoadMacOSInstallRecovery(s.profile)

@@ -8,11 +8,14 @@ const calls = [];
 const references = [];
 let update = { phase: "idle", currentVersion: "0.1.3-alpha.1" };
 const fixture = await createWorkbench({ nativeRequest: async body => {
-  if (body.action === "appReference") { references.push(body.kind); return true; }
+  if (body.action === "appReference") { references.push([body.kind, body.version]); return true; }
   if (body.action !== "appUpdate") return body.action === "workbenchReady" ? true : null;
   calls.push(body.operation);
   if (body.operation === "check") update = { ...update, phase: "current", message: "已是最新版本" };
-  if (body.operation === "install") update = { ...update, phase: "downloading", receivedBytes: 50, totalBytes: 100 };
+  if (body.operation === "install") {
+    assert.equal(body.version, update.latestVersion);
+    update = { ...update, phase: "downloading", receivedBytes: 50, totalBytes: 100 };
+  }
   return update;
 } });
 const { page, browser, errors } = fixture;
@@ -31,7 +34,7 @@ try {
   await page.waitForFunction(async () => await window.updateCheckCount() === 1);
   await page.waitForFunction(() => !document.querySelector(".app-update-button"));
   assert.deepEqual(calls, ["status", "check"], "startup must check without a user click");
-  await page.clock.fastForward(6 * 60 * 60 * 1000 + 60000);
+  await page.clock.fastForward(15 * 60 * 1000 + 60000);
   await page.waitForFunction(async () => await window.updateCheckCount() === 2);
   await page.waitForFunction(() => !document.querySelector(".app-update-button"));
   assert.equal(count("check"), 2, "periodic checks run while the window is visible");
@@ -45,8 +48,15 @@ try {
   const button = page.getByRole("button", { name: "下载更新", exact: true });
   await button.waitFor();
   assert.match(await button.getAttribute("title"), /0.1.3-alpha.2.*保存工作.*自动停止环境/);
+  const notice = page.getByRole("complementary", { name: "CCBox 版本更新" });
+  await notice.getByText(/0\.1\.3-alpha\.2/).waitFor();
+  assert.equal(count("install"), 0, "checking must not install an update");
+  await notice.getByRole("button", { name: "明天提醒" }).click();
+  await notice.waitFor({ state: "hidden" });
+  await publish({ ...update, latestVersion: "0.1.3-alpha.3" });
+  await notice.getByText(/0\.1\.3-alpha\.3/).waitFor();
   await page.screenshot({ path: `${output}/available.png` });
-  await button.click();
+  await notice.getByRole("button", { name: "立即升级" }).click();
   await page.getByRole("button", { name: "正在下载更新 50%", exact: true }).waitFor();
   assert.equal(count("install"), 1);
   assert.equal(await page.getByRole("progressbar", { name: "更新下载进度" }).getAttribute("aria-valuenow"), "50");
@@ -77,14 +87,14 @@ try {
   await publish({ phase: "manual", currentVersion: "0.1.3-alpha.2" });
   await page.locator(".app-update-button").waitFor({ state: "hidden" });
   assert.equal(await page.locator(".app-update-button").count(), 0, "system package updates must not offer an automatic installation");
-  await publish({ phase: "manual", currentVersion: "0.1.3-alpha.2", latestVersion: "0.1.3-alpha.3", message: "Linux 版本使用系统安装包更新。" });
+  await publish({ phase: "manual", currentVersion: "0.1.3-alpha.2", latestVersion: "0.19.2", message: "Linux 版本使用系统安装包更新。" });
   const view = page.getByRole("button", { name: "查看新版本", exact: true });
   await view.waitFor();
-  assert.match(await view.getAttribute("title"), /0.1.3-alpha.3.*系统安装包.*发布页面/);
+  assert.match(await view.getAttribute("title"), /0.19.2.*系统安装包.*下载安装包/);
   const installs = count("install");
   await view.click();
   for (let attempt = 0; attempt < 50 && !references.length; attempt++) await new Promise(resolve => setTimeout(resolve, 100));
-  assert.deepEqual(references, ["releases"], "a system package update opens the release page");
+  assert.deepEqual(references, [["update-installer", "0.19.2"]], "a system package update opens its versioned installer");
   assert.equal(count("install"), installs, "a system package update must not start an automatic installation");
   assert.deepEqual(errors, []);
   const result = { checks: ["automatic startup and periodic checks", "failed background check retry", "latest version hidden", "single click without update dialog", "ring and percentage", "indeterminate progress", "verification and installation", "visible failure and retry", "collapsed sidebar", "Linux manual update remains separate", "Linux newer package opens the release page"], calls };

@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+node scripts/check-ccbox-brand.mjs
 [[ "$(uname -s)" == Linux && "$(uname -m)" == x86_64 ]] || { echo 'Package on x86_64 Linux.' >&2; exit 1; }
 case "${1:-}" in '') bash scripts/build-linux.sh ;; --skip-build) ;; *) echo 'Usage: scripts/package-linux.sh [--skip-build]' >&2; exit 2 ;; esac
 version=$(tr -d '\r\n' < VERSION)
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]] || { echo 'Invalid VERSION.' >&2; exit 1; }
 [[ "$(cat _output/linux-amd64/app/VERSION)" == "$version" ]] || { echo 'Build version does not match VERSION.' >&2; exit 1; }
+_output/linux-amd64/app/cage verify-web-assets
 deb_version="${version/-/\~}"
 output="$PWD/_output/releases/$version/linux"
 mkdir -p "$output"

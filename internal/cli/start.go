@@ -382,6 +382,10 @@ func (s *start) ensureRunningLocked() error {
 	// A run interrupted while Lima made it leaves a folder without lima.yaml.
 	// Under the VM's lock: no other run is making it now.
 	if d := filepath.Join(LimaHome(s.state), s.name); isDirNoYAML(d) {
+		if cageWritableGit() || o.ccboxBoot {
+			s.warnf("CCBox 客机配置缺失，已保留原磁盘。请核对原存储路径或导出诊断记录：%s", d)
+			return errStop
+		}
 		s.warnf("Detected partial VM state at %s (no lima.yaml): cleaning up.", d)
 		if err := os.RemoveAll(d); err != nil {
 			s.warnf("Error: could not remove %s:\n%v", d, err)
@@ -392,6 +396,13 @@ func (s *start) ensureRunningLocked() error {
 	if err != nil {
 		s.warnf("Error: could not query Lima: %v", err)
 		return errStop
+	}
+	if inst == nil && (cageWritableGit() || o.ccboxBoot) {
+		retained, err := cage.HasRetainedLimaEnvironment(LimaHome(s.state))
+		if o.existingOnly || retained || err != nil || exists(s.state.Marker(state.VersionOf, s.name)) {
+			s.warnf("无法找到 CCBox 原有客机，已停止操作。请检查原存储目录和虚拟机配置。")
+			return errStop
+		}
 	}
 	// Existing VMs have their own disks and do not need the template to run.
 	// Check it before a reset can stop or delete the retained environment.
@@ -462,6 +473,14 @@ func (s *start) ensureRunningLocked() error {
 			return errStop
 		}
 		s.created = true
+		if o.ccboxBoot {
+			marker := filepath.Join(LimaHome(s.state), s.name, cage.LimaInitialProvision)
+			if err := os.WriteFile(marker, []byte("pending\n"), 0600); err != nil {
+				s.warnf("无法记录新 CCBox 客机的初始化状态：%v", err)
+				s.dropNew()
+				return errStop
+			}
+		}
 		for _, k := range []string{state.BuiltByOf, state.SSHFSOf} {
 			os.Remove(s.state.Marker(k, s.name))
 		}
@@ -513,7 +532,7 @@ func (s *start) ensureRunningLocked() error {
 			return err
 		}
 	}
-	if s.staleState(s.name) == "1" {
+	if !cageWritableGit() && s.staleState(s.name) == "1" {
 		s.warnf("Warning: Base VM has been updated since this VM was cloned. Use --reset to re-clone from the new base.")
 	}
 
@@ -771,6 +790,9 @@ func (s *start) afterBoot(isNew, wasRunning, wantWritable bool) error {
 		fmt.Fprintln(s.io.Stdout, "Read-only: the project and every other share (enforced on the host).")
 	}
 
+	if o.ccboxBoot {
+		return nil
+	}
 	s.terminfo()
 	if _, err := os.Stat(s.state.Path("runtime.sh")); err == nil {
 		fmt.Fprintln(s.io.Stdout, "Running user runtime setup...")

@@ -110,10 +110,13 @@ func testServeShutdownHandoff(t *testing.T, saved string, timezone, language, ba
 		t.Fatal("control service did not become ready")
 	}
 	preferencesData, err := os.ReadFile(filepath.Join(profile, "workbench.json"))
-	var preferences Preferences
-	if err != nil || json.Unmarshal(preferencesData, &preferences) != nil {
+	if err != nil || !json.Valid(preferencesData) {
 		t.Fatalf("initialized preferences: %s, %v", preferencesData, err)
 	}
+	if saved != "" && string(preferencesData) != saved {
+		t.Fatal("controller startup changed existing workbench preferences")
+	}
+	preferences := readPreferences(profile)
 	if preferences.AutoTimezone != timezone || preferences.AutoLanguage != language {
 		t.Fatalf("automatic defaults/override: timezone=%t language=%t", preferences.AutoTimezone, preferences.AutoLanguage)
 	}

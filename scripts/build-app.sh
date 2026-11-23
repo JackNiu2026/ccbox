@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-if [[ "$(uname -s)" != Darwin ]]; then echo 'ccBox.app must be built on macOS.' >&2; exit 1; fi
+if [[ "$(uname -s)" != Darwin ]]; then echo 'CCBox.app must be built on macOS.' >&2; exit 1; fi
+node scripts/check-ccbox-brand.mjs
 case "${1:-}" in ''|--install|--macos-trial|--install-macos-trial|--intel-macos-test) ;; *) echo 'Usage: scripts/build-app.sh [--install|--macos-trial|--install-macos-trial|--intel-macos-test]' >&2; exit 2 ;; esac
 bundle_id=org.ccbox.desktop
 app_name=CCBox
