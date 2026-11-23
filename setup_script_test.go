@@ -1,6 +1,7 @@
 package agentvm
 
 import (
+	"os"
 	"os/exec"
 	"runtime"
 	"testing"
@@ -11,10 +12,10 @@ func TestSetupScript(t *testing.T) {
 	runScript(t, "tests/setup-script.sh")
 }
 
-// tests/installer.sh: the curl installer and agent-vm.sh, against stub
-// releases and a stub clone.
-func TestInstaller(t *testing.T) {
-	runScript(t, "tests/installer.sh")
+func TestDoesNotShipUpstreamInstaller(t *testing.T) {
+	if _, err := os.Lstat("scripts/upstream-install.sh"); !os.IsNotExist(err) {
+		t.Fatalf("unexpected upstream installer: %v", err)
+	}
 }
 
 func runScript(t *testing.T, script string) {

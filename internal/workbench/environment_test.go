@@ -39,6 +39,35 @@ func TestPrepareEnvironmentPreservesExistingProfileBytes(t *testing.T) {
 	}
 }
 
+func TestPrepareEnvironmentPreservesExistingDirectoryAlias(t *testing.T) {
+	s := testServer(t)
+	directory := cage.DefaultEnvironmentDir(s.profile)
+	if err := os.MkdirAll(directory, 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Remove(directory) })
+	alias := filepath.Join(t.TempDir(), "alias")
+	if err := os.Symlink(filepath.Dir(directory), alias); err != nil {
+		t.Skipf("cannot create directory alias: %v", err)
+	}
+	record := cage.EnvironmentRecord{Directory: filepath.Join(alias, filepath.Base(directory))}
+	path := filepath.Join(s.profile, "environment.json")
+	if err := writePrivate(path, record); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = s.prepareEnvironment(); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatalf("existing environment record was rewritten: %s (%v)", after, err)
+	}
+}
+
 func TestEnvironmentUpgradeSeparatesPrivateLegacyWorkspaceFromVMIdentity(t *testing.T) {
 	home, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {

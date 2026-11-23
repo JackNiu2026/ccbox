@@ -112,20 +112,24 @@ try
     var snapshotSource = Path.Combine(integration, "snapshot source");
     var snapshotTarget = Path.Combine(integration, "snapshot target");
     Directory.CreateDirectory(Path.Combine(snapshotSource, "my-project"));
-    File.WriteAllText(Path.Combine(snapshotSource, "program.txt"), "program");
+    Directory.CreateDirectory(Path.Combine(snapshotSource, "resources"));
+    string[] snapshotProgram = ["Cage.exe", "resources/cage.exe", "Uninstall.exe", "program.txt"];
+    foreach (var file in snapshotProgram) File.WriteAllText(Path.Combine(snapshotSource, file), "program");
     File.WriteAllText(Path.Combine(snapshotSource, "my-project", "work.txt"), "personal data");
+    if (!OperatingSystem.IsWindows())
+        Directory.CreateSymbolicLink(Path.Combine(snapshotSource, "external-link"), Path.Combine(snapshotSource, "my-project"));
     File.WriteAllText(Path.Combine(snapshotSource, "Cage.install-files.json"), System.Text.Json.JsonSerializer.Serialize(new {
-        version = 1, files = new[] { new { path = "program.txt", sha256 = new string('a', 64) } },
+        version = 1, files = snapshotProgram.Select(path => new { path, sha256 = new string('a', 64) }),
     }));
-    var copyTree = typeof(UpdateInstaller).GetMethod("CopyTree", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
-    copyTree.Invoke(null, [snapshotSource, snapshotTarget]);
+    UpdateInstaller.CopyTree(snapshotSource, snapshotTarget);
     Check(File.ReadAllText(Path.Combine(snapshotTarget, "program.txt")) == "program", "update snapshot missed a declared program file");
     Check(!Directory.Exists(Path.Combine(snapshotTarget, "my-project")), "update snapshot copied live user data into the program rollback snapshot");
+    Check(!Directory.Exists(Path.Combine(snapshotTarget, "external-link")), "update snapshot followed a user link");
     Check(File.ReadAllText(Path.Combine(snapshotSource, "my-project", "work.txt")) == "personal data", "snapshot changed personal data");
     var nestedSnapshot = Path.Combine(snapshotSource, "updates", "backup");
     var rejectedNestedSnapshot = false;
-    try { copyTree.Invoke(null, [snapshotSource, nestedSnapshot]); }
-    catch (System.Reflection.TargetInvocationException error) when (error.InnerException is InvalidDataException) { rejectedNestedSnapshot = true; }
+    try { UpdateInstaller.CopyTree(snapshotSource, nestedSnapshot); }
+    catch (InvalidDataException) { rejectedNestedSnapshot = true; }
     Check(rejectedNestedSnapshot, "snapshot recursively copied its own output");
     Check(!Directory.Exists(nestedSnapshot), "overlapping snapshot destination was created before validation");
     var intactApp = Path.Combine(integration, "intact application");
@@ -164,15 +168,12 @@ try
     try { ensureComplete.Invoke(null, [Path.Combine(integration, "missing installation")]); }
     catch (System.Reflection.TargetInvocationException error) when (error.InnerException is IOException) { rejectedMissingInstallation = true; }
     Check(rejectedMissingInstallation, "updater accepted a missing installation and could restore a program-only snapshot");
-    if (!OperatingSystem.IsWindows())
-    {
-        File.Delete(Path.Combine(snapshotSource, "Cage.install-files.json"));
-        Directory.CreateSymbolicLink(Path.Combine(snapshotSource, "external-link"), Path.Combine(snapshotSource, "my-project"));
-        var legacySnapshot = Path.Combine(integration, "legacy snapshot");
-        copyTree.Invoke(null, [snapshotSource, legacySnapshot]);
-        Check(File.ReadAllText(Path.Combine(legacySnapshot, "my-project", "work.txt")) == "personal data", "legacy snapshot missed a regular file");
-        Check(!Directory.Exists(Path.Combine(legacySnapshot, "external-link")), "legacy snapshot followed a user link");
-    }
+    File.Delete(Path.Combine(snapshotSource, "Cage.install-files.json"));
+    var legacySnapshot = Path.Combine(integration, "legacy snapshot");
+    var rejectedLegacySnapshot = false;
+    try { UpdateInstaller.CopyTree(snapshotSource, legacySnapshot); } catch (IOException) { rejectedLegacySnapshot = true; }
+    Check(rejectedLegacySnapshot && !Directory.Exists(legacySnapshot), "a missing manifest allowed an unscoped snapshot");
+    Check(File.ReadAllText(Path.Combine(snapshotSource, "my-project", "work.txt")) == "personal data", "snapshot refusal changed personal data");
     await UpdateRecovery.PrepareRollback(backup);
     Check(File.Exists(Path.Combine(backup, "resources", "controller-invoked")), "recovery did not execute the old backend");
     Check(!File.Exists(Path.Combine(candidate, "resources", "controller-invoked")), "recovery executed the broken candidate backend");

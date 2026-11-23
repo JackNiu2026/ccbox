@@ -71,6 +71,15 @@ func environmentWorkspace(profile string) string { return cage.EnvironmentDir(pr
 
 func guestPath(path string) string { return paths.Guest(paths.Host(path)) }
 
+func sameEnvironmentDirectory(a, b string) bool {
+	if paths.Equal(a, b) {
+		return true
+	}
+	resolvedA, errA := paths.Resolve(a)
+	resolvedB, errB := paths.Resolve(b)
+	return errA == nil && errB == nil && paths.Equal(resolvedA, resolvedB)
+}
+
 func (s *Server) prepareEnvironment() error {
 	record, err := cage.LoadEnvironmentRecord(s.profile)
 	if err != nil {
@@ -92,7 +101,8 @@ func (s *Server) prepareEnvironment() error {
 	}
 	// Keep the original naming input so an existing virtual disk is reused.
 	// Project files remain at their original path; only transfers use this root.
-	if path != cage.DefaultEnvironmentDir(s.profile) {
+	defaultDirectory := cage.DefaultEnvironmentDir(s.profile)
+	if !sameEnvironmentDirectory(path, defaultDirectory) {
 		if info, e := os.Stat(path); e == nil && !info.IsDir() {
 			return errors.New("环境目录被文件占用，请保留原数据并恢复目录后重试")
 		} else if e != nil && !os.IsNotExist(e) {
@@ -101,7 +111,7 @@ func (s *Server) prepareEnvironment() error {
 		if record.IdentityDirectory == "" {
 			record.IdentityDirectory = path
 		}
-		path = cage.DefaultEnvironmentDir(s.profile)
+		path = defaultDirectory
 	}
 	if err := os.MkdirAll(path, 0700); err != nil {
 		return err
@@ -110,7 +120,9 @@ func (s *Server) prepareEnvironment() error {
 	if err != nil {
 		return err
 	}
-	record.Directory = path
+	if record.Directory == "" || !sameEnvironmentDirectory(record.Directory, path) {
+		record.Directory = path
+	}
 	if record != originalRecord {
 		if err = writePrivate(filepath.Join(s.profile, "environment.json"), record); err != nil {
 			return err

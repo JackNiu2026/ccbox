@@ -265,7 +265,7 @@ internal static class UpdateInstaller
         var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         if (string.Equals(source, target, comparison) || target.StartsWith(source + Path.DirectorySeparatorChar, comparison))
             throw new InvalidDataException("更新备份目录位于程序目录内，无法安全备份。请使用完整安装包手动更新。");
-        UpdatePolicy.PlainPath(source); UpdatePolicy.PlainPath(target); Directory.CreateDirectory(target);
+        UpdatePolicy.PlainPath(source); UpdatePolicy.PlainPath(target);
         HashSet<string>? owned = null;
         var manifest = Path.Combine(source, "Cage.install-files.json");
         if (File.Exists(manifest) && (File.GetAttributes(manifest) & FileAttributes.ReparsePoint) == 0)
@@ -292,6 +292,7 @@ internal static class UpdateInstaller
         }
         if (owned == null || !owned.Contains("Cage.exe") || !owned.Contains("resources/cage.exe") || !owned.Contains("Uninstall.exe"))
             throw new IOException("当前程序文件清单不完整，无法安全自动更新。请使用 CCBox 完整安装包原位升级。");
+        Directory.CreateDirectory(target);
         long size = 0; var count = 0;
         var pending = new Queue<string>(); pending.Enqueue(source);
         while (pending.TryDequeue(out var directory))
