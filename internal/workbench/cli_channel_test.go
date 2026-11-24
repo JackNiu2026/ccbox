@@ -40,12 +40,23 @@ func TestCLIChannelProtocol(t *testing.T) {
 }
 
 func TestCLIChannelCommandFitsWindows(t *testing.T) {
-	// Leave room in CreateProcessW's 32767 UTF-16 limit for SSH paths and the
-	// login-shell quoting around this command.
-	command := cliChannelCommand("launch", `{"id":"`+uuid.NewString()+`","prefix":["claude"]}`)
-	t.Logf("embedded command: %d UTF-16 units", len(utf16.Encode([]rune(command))))
-	if size := len(utf16.Encode([]rune(command))); size > 16000 {
-		t.Fatalf("channel command uses %d UTF-16 units", size)
+	// Include the login shell and SSH arguments used by Windows hosts running
+	// a Linux guest. The fixture also allows for long, quoted project paths.
+	workspace := "/projects/" + strings.Repeat("测试 project with ' quotes/", 64)
+	body := cliChannelCommand("launch", `{"id":"`+uuid.NewString()+`","prefix":["claude"]}`) + "; exec bash -i"
+	script := "cd " + shellescape.Quote(workspace) + " && exec env TERM=xterm-256color COLORTERM=truecolor CAGE_WORKBENCH=1 bash -lic " + shellescape.Quote(body)
+	server := &Server{profile: t.TempDir()}
+	cmd := server.sshCommand(t.Context(), "-tt", server.sshTarget(), "--", script)
+	units := 0
+	for _, arg := range cmd.Args {
+		// Conservatively count enclosing quotes, the separator or NUL, and
+		// escaping every backslash and quote, so the check also runs on Unix.
+		units += len(utf16.Encode([]rune(arg))) + strings.Count(arg, "\\") + strings.Count(arg, "\"") + 3
+	}
+	const createProcessLimit = 32767
+	t.Logf("Windows SSH command upper bound: %d UTF-16 units", units)
+	if units > createProcessLimit {
+		t.Fatalf("channel command uses up to %d UTF-16 units (limit %d)", units, createProcessLimit)
 	}
 }
 
