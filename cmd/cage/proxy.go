@@ -8,6 +8,7 @@ import (
 	"github.com/sylvinus/agent-vm/internal/managedproxy"
 	"os"
 	"path/filepath"
+	"slices"
 )
 
 func proxyCommand(command, profile string, cfg cage.Config) error {
@@ -26,14 +27,15 @@ func proxyCommand(command, profile string, cfg cage.Config) error {
 		_ = closeManagedGates(profile)
 		return err
 	}
-	bound, _ := managedproxy.BoundInterface(filepath.Join(managedproxy.Dir(profile), "config.yaml"))
-	if bound == name && managedproxy.Running(context.Background(), profile, p) {
+	bindingsMatch := managedproxy.BindingMatches(filepath.Join(managedproxy.Dir(profile), "config.yaml"), name)
+	if bindingsMatch && slices.Equal(p.CoreDNS(), cfg.DNSEndpoints()) && slices.Equal(p.NodeResolvers(), cfg.BootstrapEndpoints()) && managedproxy.Running(context.Background(), profile, p) {
 		return nil
 	}
 	if err = closeManagedGates(profile); err != nil {
 		return err
 	}
 	p.Revision = managedproxy.Token()
+	p.GuestDNS, p.BootstrapDNS = cfg.DNSEndpoints(), cfg.BootstrapEndpoints()
 	cfg.ProxyRevision = p.Revision
 	if err = p.Save(profile); err != nil {
 		return err

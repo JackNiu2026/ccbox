@@ -51,6 +51,8 @@ func (s *Server) mutateClaudeAccounts(w http.ResponseWriter, r *http.Request) {
 		err = s.joinClaudeDefault(r.Context(), input.Identity)
 	case "cancel":
 		_, err = s.cancelClaudeDraft(input.ID)
+	case "delete":
+		err = s.deleteClaudeAccount(r.Context(), input.ID)
 	case "usage_panel":
 		view, list, viewErr := s.claudePanelView(r.Context())
 		if viewErr != nil {
@@ -154,6 +156,73 @@ func (s *Server) cancelClaudeDraft(id string) (claudeAccountList, error) {
 		delete(m.attempted, id)
 	}
 	return list, err
+}
+
+// Removing a registry entry only affects CCBox scheduling. The CLI owns its
+// login directory and existing transcripts, which stay at their original paths.
+func (s *Server) deleteClaudeAccount(ctx context.Context, id string) error {
+	if !validClaudeID(id) {
+		return errors.New("未找到待移除的账号")
+	}
+	if !s.op.TryLock() {
+		return errTerminalBusy
+	}
+	defer s.op.Unlock()
+	m := &s.claudeAccounts
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	list, err := s.loadClaudeAccounts()
+	if err != nil {
+		return err
+	}
+	a := list.find(id)
+	if a == nil {
+		return nil
+	}
+	subject := claudeIdentityHash(a.Email, a.Organization)
+	if m.refreshing[id] != nil || m.usageActive[subject] != nil {
+		return errors.New("账号状态检查尚未结束，请稍后重试")
+	}
+	for _, terminal := range s.terminals.snapshot() {
+		if terminal["claude_account_id"] == id && terminal["closed"] == false {
+			return errors.New("请先结束该账号的登录或工作终端，再移除账号")
+		}
+	}
+	if s.mobileCLI.activeAccounts()[id] > 0 {
+		return errors.New("请等待该账号的手机任务完成，再移除账号")
+	}
+	if a.Source == "default" && s.macosGuest == nil && s.windowsGuest == nil && s.vmRunning() {
+		checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		state, err := s.guest(checkCtx, "systemctl show --property=ActiveState --value cage-claude-desktop.service")
+		if err != nil {
+			return errors.New("无法确认默认 Desktop 的状态，请重新连接环境后再移除账号")
+		}
+		if current := strings.TrimSpace(string(state)); current != "inactive" && current != "failed" {
+			return errors.New("请先关闭 Claude Desktop，再移除默认账号")
+		}
+	}
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if a.Email != "" && !slices.Contains(list.DismissedDefaults, subject) {
+		list.DismissedDefaults = append(list.DismissedDefaults, subject)
+	}
+	list.Accounts = slices.DeleteFunc(list.Accounts, func(account claudeAccount) bool { return account.ID == id })
+	if err := s.saveClaudeAccounts(list); err != nil {
+		return err
+	}
+	delete(m.attempted, id)
+	delete(m.detectedUsage, subject)
+	if m.lastPick == id {
+		m.lastPick = ""
+	}
+	for project, pick := range m.recent {
+		if pick.id == id {
+			delete(m.recent, project)
+		}
+	}
+	return nil
 }
 
 func (s *Server) claudeLoginActive(id string) bool {
@@ -356,6 +425,7 @@ func (s *Server) runClaudeRefresh(parent context.Context, id, guestID string, ca
 		if id != "" && id == list.PendingLogin {
 			switch {
 			case reading.subject() != "":
+				list.DismissedDefaults = slices.DeleteFunc(list.DismissedDefaults, func(subject string) bool { return subject == reading.subject() })
 				if existing := list.bySubject(reading.subject()); existing != nil {
 					if existing.Source == "default" {
 						// Keep the identity and terminal labels stable while future

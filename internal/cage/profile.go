@@ -42,8 +42,17 @@ func (r runningProfile) alive() bool {
 func (c Config) Fingerprint() string {
 	c.ExitPolicy = c.ExitPolicy.Normalized()
 	b, _ := json.Marshal(c)
-	h := sha256.Sum256(b)
-	return hex.EncodeToString(h[:])
+	h := sha256.New()
+	h.Write(b)
+	if c.DNS != (DNSOptions{}) {
+		extra, _ := json.Marshal(dnsOptionsFile{FallbackURLs: c.DNS.FallbackURLs(), BootstrapURLs: c.DNS.BootstrapURLs(), PublicFallback: c.DNS.PublicFallback})
+		h.Write([]byte{'\n'})
+		h.Write(extra)
+	}
+	if c.TLSClientHelloSplit {
+		h.Write([]byte("\ntls_client_hello_split=1"))
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 func (c Config) RecordRunning(state, name string) error {

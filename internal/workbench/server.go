@@ -46,6 +46,7 @@ type Server struct {
 	desktopDisplayUpdate                             func(bool) error
 	browserViews                                     displayViewDemand
 	desktopStatus                                    desktopStatusCache
+	deviceReset                                      deviceResetHooks
 	agentNativeQueue                                 agentNativeQueue
 	macSetupProjectsChecked                          time.Time
 	macSetupProjectsAttempt                          time.Time
@@ -74,6 +75,7 @@ type Server struct {
 	identity                                         ControllerIdentity
 	guestManifest                                    *cage.GuestManifest
 	guestUpdateRequired                              bool
+	guestUpdateGeneration                            uint64
 	macComponentsChecked                             bool
 	guestUpdateError                                 string
 	storageRecoveryError                             string
@@ -82,6 +84,7 @@ type Server struct {
 	claudeAccounts                                   claudeAccountManager
 	favoritesMu                                      sync.Mutex
 	diagnosticMu                                     sync.Mutex
+	tailnetMu                                        sync.Mutex
 	diagnosticRateMu                                 sync.Mutex
 	diagnosticWindow                                 time.Time
 	diagnosticCount                                  int
@@ -107,6 +110,7 @@ type Server struct {
 	networkIntentError                               string
 	credentials                                      guestCredentials
 	terminals                                        terminalManager
+	notifications                                    notificationHub
 	mobileCLI                                        mobileCLIStore
 	conversationMu                                   sync.Mutex
 	mobileConnectMu                                  sync.Mutex
@@ -382,6 +386,9 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("POST /api/desktop-license", s.desktopLicense)
 	mux.HandleFunc("GET /api/settings", s.getSettings)
 	mux.HandleFunc("GET /api/client/about", s.appAbout)
+	mux.HandleFunc("GET /api/client/notifications", s.notificationPreferences)
+	mux.HandleFunc("POST /api/client/notifications", s.notificationPreferences)
+	mux.HandleFunc("GET /api/notifications/events", s.notificationEvents)
 	mux.HandleFunc("POST /api/projects/open", s.openProject)
 	mux.HandleFunc("POST /api/projects/save", s.saveProject)
 	mux.HandleFunc("POST /api/projects/remove", s.removeProject)
@@ -395,6 +402,7 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("GET /api/environment/guest-profile", s.guestProfileOptions)
 	mux.HandleFunc("POST /api/environment/guest-profile/preview", s.guestProfileOptions)
 	s.registerCacheMaintenance(mux)
+	s.registerDeviceReset(mux)
 	mux.HandleFunc("GET /api/environment/guest-systems", s.guestInstallation)
 	mux.HandleFunc("GET /api/environment/guest-systems/clone", s.hostClone)
 	mux.HandleFunc("DELETE /api/environment/guest-systems", s.guestInstallation)
@@ -416,6 +424,7 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("GET /api/appearance/codex", s.codexAppearance)
 	mux.HandleFunc("POST /api/settings/probe", s.probe)
 	mux.HandleFunc("GET /api/proxy", s.proxyStatus)
+	mux.HandleFunc("GET /api/proxy/local-sources", s.proxyLocalSources)
 	mux.HandleFunc("POST /api/proxy/delay", s.proxyDelay)
 	mux.HandleFunc("GET /api/proxy/connections", s.proxyConnections)
 	mux.HandleFunc("GET /api/proxy/logs", s.proxyLogs)
@@ -538,7 +547,7 @@ func (s *Server) handler() http.Handler {
 		}
 		// App metadata belongs to this executable, even while an SSH workload
 		// is selected. Like client/context, it uses local session authentication.
-		if r.URL.Path == "/api/client/about" {
+		if r.URL.Path == "/api/client/about" || r.URL.Path == "/api/client/notifications" {
 			mux.ServeHTTP(w, r)
 			return
 		}
@@ -807,14 +816,16 @@ func (s *Server) saveSettings(w http.ResponseWriter, r *http.Request) {
 	})
 }
 func (s *Server) restore(w http.ResponseWriter, r *http.Request) {
-	var v savedProfile
+	var v restorableProfile
 	b, e := os.ReadFile(filepath.Join(s.profile, "previous-profile.json"))
 	if e != nil || json.Unmarshal(b, &v) != nil {
 		requestError(w, errors.New("没有可恢复的配置"))
 		return
 	}
+	v.Config.DNS = cage.NewDNSOptions(v.FallbackDNS, v.BootstrapDNS, v.PublicFallback)
+	v.Config.TLSClientHelloSplit = v.Preferences.TLSClientHelloSplit
 	s.launch(w, "restore", func() error {
-		if err := s.apply(v, false); err != nil {
+		if err := s.apply(v.savedProfile, false); err != nil {
 			return err
 		}
 		return s.startEnvironment(false)

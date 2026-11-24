@@ -460,12 +460,25 @@ func (d *desktopGateway) close() {
 	d.mu.Lock()
 	d.closed = true
 	d.mu.Unlock()
-	if t := d.active; t != nil && t.mode == "local" && t.state().State == "connected" {
+	active := d.active
+	if active != nil && active.mode == "local" && active.state().State == "connected" {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		_ = suspendLocalView(ctx, t)
+		_ = suspendLocalView(ctx, active)
 		cancel()
 	}
 	d.clearSelection()
+	if active == nil || active.mode != "local" || d.local == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	st, err := d.local.Status(ctx)
+	if err != nil || !st.Known || !st.ServiceRunning || st.Busy || st.Running || st.LiveTerminals > 0 {
+		return
+	}
+	if _, err := d.local.ReleaseOwnedIdle(ctx, st); err != nil {
+		diagnostics.Log("warn", "controller", "关闭桌面后未能确认空闲服务已释放")
+	}
 }
 
 func (d *desktopGateway) handle(path string, w http.ResponseWriter, r *http.Request) bool {

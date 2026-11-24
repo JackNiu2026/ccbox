@@ -1,3 +1,4 @@
+import { translate as tr } from "./message-catalog.mjs";
 import { ArchivedSessions } from "./cli-sessions";
 import { KeyRound } from "lucide-react";
 import { InlineSelect } from "./inline-select";
@@ -19,6 +20,7 @@ import {
   Info,
   Search,
   Power,
+  Bell,
 } from "lucide-react";
 import { api } from "./api";
 import "./settings.css";
@@ -29,6 +31,8 @@ import { ExitPolicyFields } from "./exit-policy";
 import { canonicalExitPolicy } from "./safety-state.mjs";
 import { EnvironmentVersions } from "./environment-versions";
 import { EnvironmentStorage } from "./environment-storage";
+import { EnvironmentDeviceReset } from "./environment-device-reset";
+import { InterfaceLanguageControl } from "./interface-language-control";
 import { EnvironmentCache } from "./environment-cache";
 import { ResourceSettings } from "./resources";
 import { DiagnosticSettings } from "./diagnostics.jsx";
@@ -38,12 +42,14 @@ import { AccountSettings } from "./account";
 import { DesktopLicenseSettings } from "./desktop-license";
 import { AboutSettings } from "./about-settings";
 import { bindDetectedMacOSExit } from "./safety";
+import { TerminalNotificationSettings } from "./terminal-notifications";
 const sections = [
   ["account", "账户", UserRound],
   ["license", "授权", KeyRound],
   ["archived-sessions", "已归档会话", Archive],
   ["keyboard", "通用", Settings],
   ["appearance", "外观", Palette],
+  ["terminal-notifications", "终端通知", Bell],
   ["network", "网络与代理", Globe2],
   ["region", "时区与语言", Clock3],
   ["project", "环境与恢复", RotateCcw],
@@ -52,7 +58,7 @@ const sections = [
 // Display grouping only; every section keeps its id and content.
 const sectionGroups = [
   ["个人", ["account", "license", "archived-sessions"]],
-  ["工作台", ["keyboard", "appearance"]],
+  ["工作台", ["keyboard", "appearance", "terminal-notifications"]],
   ["网络", ["network"]],
   ["系统", ["region", "project", "about"]],
 ];
@@ -91,6 +97,10 @@ export function SettingsPanel({
     });
   const environmentChanged = [
     "dns_url",
+    "dns_fallback_urls",
+    "dns_bootstrap_urls",
+    "dns_public_fallback",
+    "tls_client_hello_split",
     "timezone",
     "locale",
     "browser_language",
@@ -101,7 +111,7 @@ export function SettingsPanel({
     k === "exit_policy"
       ? JSON.stringify(canonicalExitPolicy(draft[k])) !==
         JSON.stringify(canonicalExitPolicy(current[k]))
-      : draft[k] !== current[k],
+      : JSON.stringify(draft[k]) !== JSON.stringify(current[k]),
   );
   const busy =
     Boolean(status.job?.running) || Boolean(status.storage_recovery?.required) || probing || submitting || Boolean(jobId);
@@ -110,7 +120,7 @@ export function SettingsPanel({
   const linuxGuest = !/^(windows|macos)/.test(status.guest_system || "");
   const update = (key, value) => {
     setDraft((p) => ({ ...p, [key]: value }));
-    if (["dns_url"].includes(key)) setProbe(null);
+    if (key.startsWith("dns_") || key === "tls_client_hello_split") setProbe(null);
     setError("");
   };
   const confirmDiscard = () => (!changed && !accountDirty && !proxyDirty && !resourceDirty) || onConfirm({
@@ -226,28 +236,26 @@ export function SettingsPanel({
     };
   }, []);
   return (
-    <section className="settings-page" aria-label="设置">
+    <section className="settings-page" aria-label={tr("设置")}>
       <aside className="settings-sidebar">
         <button
           id="settings-back"
           className="back-to-workspace"
           onClick={close}
         >
-          <ArrowLeft size={17} />
-          返回工作台
-        </button>
-        <h2>设置</h2>
+          <ArrowLeft size={17} />{tr("返回工作台")}</button>
+        <h2>{tr("设置")}</h2>
         <label className="settings-search">
           <Search size={15} aria-hidden="true" />
-          <input type="search" placeholder="搜索设置" aria-label="搜索设置" value={sectionQuery} onChange={event => setSectionQuery(event.target.value)} />
+          <input type="search" placeholder={tr("搜索设置")} aria-label={tr("搜索设置")} value={sectionQuery} onChange={event => setSectionQuery(event.target.value)} />
         </label>
-        <nav aria-label="设置分组">
+        <nav aria-label={tr("设置分组")}>
           {sectionGroups.map(([group, ids]) => {
             const items = sections.filter(([id, label]) => ids.includes(id) && (id !== "license" || !isRemoteClient()) &&
-              (!sectionQuery.trim() || label.toLowerCase().includes(sectionQuery.trim().toLowerCase()) || group.includes(sectionQuery.trim())));
+              (!sectionQuery.trim() || tr(label).toLowerCase().includes(sectionQuery.trim().toLowerCase()) || tr(group).toLowerCase().includes(sectionQuery.trim().toLowerCase())));
             if (!items.length) return null;
-            return <div className="settings-nav-group" key={group} role="group" aria-label={group}>
-              <span className="settings-nav-heading">{group}</span>
+            return <div className="settings-nav-group" key={group} role="group" aria-label={tr(group)}>
+              <span className="settings-nav-heading">{tr(group)}</span>
               {items.map(([id, label, Icon]) => (
                 <button
                   key={id}
@@ -260,7 +268,7 @@ export function SettingsPanel({
                   }}
                 >
                   <Icon size={17} />
-                  {label}
+                  {tr(label)}
                 </button>
               ))}
             </div>;
@@ -268,14 +276,14 @@ export function SettingsPanel({
         </nav>
         <div className="settings-sidebar-footer">
           <button className="settings-quit" onClick={quit} disabled={submitting}>
-            <Power size={17} />退出 CCBox
-          </button>
+            <Power size={17} />{tr("退出 CCBox")}</button>
         </div>
       </aside>
       <div className="settings-main">
         <div className={section === "archived-sessions" ? "settings-content settings-content--archives" : "settings-content"} ref={contentRef}>
           {section === "appearance" && <AppearanceSettings />}
           {section === "about" && <AboutSettings />}
+          {section === "terminal-notifications" && <TerminalNotificationSettings />}
           {section === "archived-sessions" && <ArchivedSessions ready={status.ready && !busy} />}
           {section === "account" && <AccountSettings busy={busy} onDirty={setAccountDirty} onConfirm={onConfirm} />}
           {section === "license" && <DesktopLicenseSettings />}
@@ -296,24 +304,31 @@ export function SettingsPanel({
                     await onSaved();
                   }}
                 />
-                <label>
-                  加密 DNS
-                  <input
+                <label>{tr("加密 DNS")}<input
                     value={draft.dns_url}
                     onChange={(e) => update("dns_url", e.target.value)}
                     spellCheck="false"
                   />
                 </label>
+                <details>
+                  <summary>高级 DNS 与 TLS</summary>
+                  <label>备用加密 DNS（每行一个）
+                    <textarea rows={3} value={(draft.dns_fallback_urls ?? []).join("\n")} onChange={(e) => update("dns_fallback_urls", e.target.value.split("\n"))} spellCheck={false} />
+                  </label>
+                  <label>节点引导 DNS（每行一个 IP 地址形式的 HTTPS 端点）
+                    <textarea rows={3} value={(draft.dns_bootstrap_urls ?? []).join("\n")} onChange={(e) => update("dns_bootstrap_urls", e.target.value.split("\n"))} spellCheck={false} />
+                  </label>
+                  <label><input type="checkbox" checked={Boolean(draft.dns_public_fallback)} onChange={(e) => update("dns_public_fallback", e.target.checked)} />使用公共备用加密 DNS</label>
+                  <label><input type="checkbox" checked={Boolean(draft.tls_client_hello_split)} onChange={(e) => update("tls_client_hello_split", e.target.checked)} />启用 TLS 握手兼容模式</label>
+                </details>
                 <div className="probe-line">
                   <button disabled={busy} onClick={check}>
                     {probing ? (
                       <LoaderCircle size={15} className="spin" />
                     ) : (
                       <Globe2 size={15} />
-                    )}
-                    验证出口
-                  </button>
-                  <span>通过当前节点查询 IP 和位置</span>
+                    )}{tr("验证出口")}</button>
+                  <span>{tr("通过当前节点查询 IP 和位置")}</span>
                 </div>
                 {currentLoc && (
                   <div className={`location-result ${probe ? "fresh" : ""}`}>
@@ -337,10 +352,8 @@ export function SettingsPanel({
                     {probe && <Check size={18} />}
                   </div>
                 )}
-                <p className="footnote">
-                  代理不可用时，CCBox 会停止对外联网。修改表单后需要重新验证。
-                </p>
-                <section className="network-exit-policy" aria-label="IP 变化规则">
+                <p className="footnote">{tr("代理不可用时，CCBox 会停止对外联网。修改表单后需要重新验证。")}</p>
+                <section className="network-exit-policy" aria-label={tr("IP 变化规则")}>
                   <ExitPolicyFields
                     value={draft.exit_policy}
                     onChange={(value) => update("exit_policy", value)}
@@ -364,20 +377,16 @@ export function SettingsPanel({
             {section === "region" && (
               <>
                 <div className="section-title">
-                  <h3>时区与语言</h3>
-                  <p>这些设置作用于 CCBox 内的系统、CLI 和浏览器。</p>
+                  <h3>{tr("时区与语言")}</h3>
+                  <p>{tr("这些设置作用于 CCBox 内的系统、CLI 和浏览器。")}</p>
                 </div>
                 {!draft.auto_timezone && !draft.auto_language && (
-                  <p className="field-help">
-                    时区和语言将使用下方手动选择的值。所有出口仍须查询国家或地区，确认不属于中国大陆；静态 IP 和不限地区也不能跳过此检查。
-                  </p>
+                  <p className="field-help">{tr("时区和语言将使用下方手动选择的值。所有出口仍须查询国家或地区，确认不属于中国大陆；静态 IP 和不限地区也不能跳过此检查。")}</p>
                 )}
                 <label className="toggle-row">
                   <span>
-                    <strong>跟随出口 IP 的时区</strong>
-                    <small>
-                      在启动或应用设置时重新查询，不会静默重启正在运行的任务。
-                    </small>
+                    <strong>{tr("跟随出口 IP 的时区")}</strong>
+                    <small>{tr("在启动或应用设置时重新查询，不会静默重启正在运行的任务。")}</small>
                   </span>
                   <input
                     role="switch"
@@ -411,17 +420,13 @@ export function SettingsPanel({
                       className="text-button"
                       onClick={check}
                       disabled={busy}
-                    >
-                      现在检测
-                    </button>
+                    >{tr("现在检测")}</button>
                   </div>
                 )}
                 <label className="toggle-row">
                   <span>
-                    <strong>跟随出口地区的语言建议</strong>
-                    <small>
-                      启动或应用设置时更新。多语言地区使用内置默认值；没有建议时保留已选语言。
-                    </small>
+                    <strong>{tr("跟随出口地区的语言建议")}</strong>
+                    <small>{tr("启动或应用设置时更新。多语言地区使用内置默认值；没有建议时保留已选语言。")}</small>
                   </span>
                   <input
                     role="switch"
@@ -442,15 +447,11 @@ export function SettingsPanel({
                       className="text-button"
                       onClick={check}
                       disabled={busy}
-                    >
-                      现在检测
-                    </button>
+                    >{tr("现在检测")}</button>
                   </div>
                 )}
-                <label>
-                  系统语言
-                  <InlineSelect
-                    aria-label="系统语言"
+                <label>{tr("系统语言")}<InlineSelect
+                    aria-label={tr("系统语言")}
                     value={draft.locale}
                     disabled={draft.auto_language}
                     onValueChange={(next) => update("locale", next)}
@@ -479,10 +480,8 @@ export function SettingsPanel({
                     )}
                   </InlineSelect>
                 </label>
-                <label>
-                  网页首选语言
-                  <InlineSelect
-                    aria-label="网页首选语言"
+                <label>{tr("网页首选语言")}<InlineSelect
+                    aria-label={tr("网页首选语言")}
                     value={draft.browser_language}
                     disabled={draft.auto_language}
                     onValueChange={(next) => update("browser_language", next)}
@@ -521,26 +520,21 @@ export function SettingsPanel({
             {section === "keyboard" && (
               <>
                 <div className="section-title">
-                  <h3>通用</h3>
+                  <h3>{tr("通用")}</h3>
                   <p>管理工作台的按键习惯与日常操作。</p>
                 </div>
-                <label>
-                  时间显示格式
-                  <InlineSelect inline
-                    aria-label="时间显示格式"
+                <InterfaceLanguageControl />
+                <label>{tr("时间显示格式")}<InlineSelect inline
+                    aria-label={tr("时间显示格式")}
                     value={draft.clock_12_hour ? "12" : "24"}
                     onValueChange={(next) => update("clock_12_hour", next === "12")}
                   >
-                    <option value="24">24 小时制</option>
-                    <option value="12">12 小时制（AM/PM）</option>
+                    <option value="24">{tr("24 小时制")}</option>
+                    <option value="12">{tr("12 小时制（AM/PM）")}</option>
                   </InlineSelect>
                 </label>
-                <p className="field-help">
-                  默认使用 24 小时制。保存后更新工作台底部时钟，无需重启环境；12 小时制使用 AM/PM 区分上午和下午。
-                </p>
-                <label>
-                  Claude 终端启动命令
-                  <input
+                <p className="field-help">{tr("默认使用 24 小时制。保存后更新工作台底部时钟，无需重启环境；12 小时制使用 AM/PM 区分上午和下午。")}</p>
+                <label>{tr("Claude 终端启动命令")}<input
                     value={draft.claude_terminal_command ?? "claude"}
                     onChange={(e) => update("claude_terminal_command", e.target.value)}
                     placeholder="claude"
@@ -549,27 +543,24 @@ export function SettingsPanel({
                     autoComplete="off"
                   />
                 </label>
-                <p className="field-help">
-                  选择“Claude 终端”后，在所选项目中运行此命令，例如 claude --continue。
-                  留空使用 claude；保存后仅影响新建的 Claude 终端，退出 Claude 后可继续使用 shell。
-                </p>
+                <p className="field-help">{tr("选择“Claude 终端”后，在所选项目中运行此命令，例如 claude --continue。 留空使用 claude；保存后仅影响新建的 Claude 终端，退出 Claude 后可继续使用 shell。")}</p>
                 {typeof current.balanced_display === "boolean" && <label className="toggle-row">
                   <span>
-                    <strong>优先流畅</strong>
-                    <small>降低浏览器和 Claude Desktop 的清晰度，Linux 环境同时减少 Claude Desktop 的动效。下次启动环境时生效。</small>
+                    <strong>{tr("优先流畅")}</strong>
+                    <small>{tr("降低浏览器和 Claude Desktop 的清晰度，Linux 环境同时减少 Claude Desktop 的动效。下次启动环境时生效。")}</small>
                   </span>
                   <input type="checkbox" role="switch" checked={draft.balanced_display}
                     onChange={(event) => update("balanced_display", event.target.checked)} />
                 </label>}
                 {typeof current.project_file_cache === "boolean" && linuxGuest && <label className="toggle-row">
                   <span>
-                    <strong>项目文件缓存</strong>
-                    <small>减少读取项目文件时与本机的往返。在本机上所做的改动最多 20 秒后在环境中可见，也可以在项目栏点“刷新项目文件”立即同步。下次启动环境时生效。</small>
+                    <strong>{tr("项目文件缓存")}</strong>
+                    <small>{tr("减少读取项目文件时与本机的往返。在本机上所做的改动最多 20 秒后在环境中可见，也可以在项目栏点“刷新项目文件”立即同步。下次启动环境时生效。")}</small>
                   </span>
                   <input type="checkbox" role="switch" checked={draft.project_file_cache}
                     onChange={(event) => update("project_file_cache", event.target.checked)} />
                 </label>}
-                <h4>键盘习惯</h4>
+                <h4>{tr("键盘习惯")}</h4>
                 <div className="choice-list">
                   {[
                     [
@@ -605,11 +596,9 @@ export function SettingsPanel({
                     </label>
                   ))}
                 </div>
-                <p className="field-help">
-                  终端使用 {usesControl ? "Ctrl+Shift+C / Ctrl+Shift+V" : "⌘C / ⌘V"} 复制粘贴；Ctrl+C 始终用于中断命令。
-                  {isRemoteClient() && "键盘习惯立即生效，仅保存在当前客户端，不修改云端设置。"}
+                <p className="field-help">{tr("终端使用") + " "}{usesControl ? "Ctrl+Shift+C / Ctrl+Shift+V" : "⌘C / ⌘V"}{" " + tr("复制粘贴；Ctrl+C 始终用于中断命令。")}{isRemoteClient() && "键盘习惯立即生效，仅保存在当前客户端，不修改云端设置。"}
                 </p>
-                <h4>工作台快捷键</h4>
+                <h4>{tr("工作台快捷键")}</h4>
                 <div className="shortcut-list">
                   {[
                     ["打开项目", "⌘O"],
@@ -631,12 +620,12 @@ export function SettingsPanel({
             {section === "project" && (
               <>
                 <div className="section-title">
-                  <h3>环境与恢复</h3>
+                  <h3>{tr("环境与恢复")}</h3>
                   <p>{isRemoteClient() ? "项目位于云端，CCBox 中的改动会直接保存到云端文件。" : "本机与 CCBox 中的改动会双向同步。"}</p>
                 </div>
                 {status.local_vm_storage && !isRemoteClient() && <EnvironmentStorage status={status} onConfirm={onConfirm} />}
                 <div className="setting-summary-row">
-                  <span>当前项目</span>
+                  <span>{tr("当前项目")}</span>
                   <strong title={current.workspace}>
                     {current.workspace || "尚未选择项目"}
                   </strong>
@@ -647,17 +636,11 @@ export function SettingsPanel({
                 <div className="project-explanation">
                   <FolderOpen size={22} />
                   <div>
-                    <strong>所有项目共用一个 CCBox 环境</strong>
-                    <p>
-                      明确打开的项目文件夹会共享到同一个环境。主机的 Claude
-                      登录、SSH 密钥和个人配置不会自动导入。浏览器下载统一保存到
-                      独立的下载暂存目录，可从下载面板查看或另存为。
-                    </p>
+                    <strong>{tr("所有项目共用一个 CCBox 环境")}</strong>
+                    <p>{tr("明确打开的项目文件夹会共享到同一个环境。主机的 Claude 登录、SSH 密钥和个人配置不会自动导入。浏览器下载统一保存到 独立的下载暂存目录，可从下载面板查看或另存为。")}</p>
                   </div>
                 </div>
-                <p className="footnote">
-                  切换项目只改变新终端和文件编辑器的起始位置；已有终端、网页和登录态会保留。
-                </p>
+                <p className="footnote">{tr("切换项目只改变新终端和文件编辑器的起始位置；已有终端、网页和登录态会保留。")}</p>
                 {!status.storage_recovery?.required && <EnvironmentVersions status={status} onConfirm={onConfirm} />}
                 {!status.storage_recovery?.required && <EnvironmentCache status={status} onConfirm={onConfirm} />}
                 {status.guest_system === "macos" && <section aria-label="客机系统权限">
@@ -671,6 +654,7 @@ export function SettingsPanel({
                 </section>}
                 {status.guest_system === "macos" && !isRemoteClient() && <MacOSScreenSharingSettings disabled={!status.ready || busy} onError={setError} />}
                 {!status.storage_recovery?.required && <ResourceSettings status={status} onConfirm={onConfirm} onDirtyChange={setResourceDirty} />}
+                {status.local_vm_storage && !isRemoteClient() && <EnvironmentDeviceReset status={status} onConfirm={onConfirm} />}
                 <DiagnosticSettings status={status} />
                 {status.can_restore && (
                   <button
@@ -693,9 +677,7 @@ export function SettingsPanel({
                       }
                     }}
                   >
-                    <RotateCcw size={14} />
-                    恢复上一份配置
-                  </button>
+                    <RotateCcw size={14} />{tr("恢复上一份配置")}</button>
                 )}
               </>
             )}
@@ -717,9 +699,7 @@ export function SettingsPanel({
                     setError("");
                     setSection("region");
                   }}
-                >
-                  手动设置时区和语言
-                </button>
+                >{tr("手动设置时区和语言")}</button>
               )}
             </div>
           )}
@@ -739,7 +719,7 @@ export function SettingsPanel({
                       : "有尚未保存的修改"
                     : "没有未保存的修改"}
               </span>
-              <button onClick={close}>返回工作台</button>
+              <button onClick={close}>{tr("返回工作台")}</button>
               <button
                 className="primary"
                 disabled={!changed || busy}
@@ -750,9 +730,9 @@ export function SettingsPanel({
                 ) : (
                   <Check size={15} />
                 )}{" "}
-                {environmentChanged && status.vm_running
+                {tr(environmentChanged && status.vm_running
                   ? "保存并重启"
-                  : "保存设置"}
+                  : "保存设置")}
               </button>
             </>
           </footer>

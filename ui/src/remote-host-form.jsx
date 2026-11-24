@@ -123,6 +123,8 @@ export function HostForm({ initial, platform, onSaved, onClose }) {
                   kind,
                   identity_file:
                     kind === "key_file" ? form.auth.identity_file || "" : "",
+                  agent_socket:
+                    kind === "agent" ? form.auth.agent_socket || "" : "",
                 })
               }
             >
@@ -152,6 +154,16 @@ export function HostForm({ initial, platform, onSaved, onClose }) {
                 spellCheck="false"
               />
               <small>填写绝对路径。密钥留在本机，不上传到云端。</small>
+            </label>
+          )}
+          {form.auth.kind === "agent" && (
+            <label>
+              SSH agent 套接字（可选）
+              <input value={form.auth.agent_socket || ""}
+                onChange={(event) => update("auth", { ...form.auth, agent_socket: event.target.value })}
+                placeholder={platform === "windows" ? "\\\\.\\pipe\\openssh-ssh-agent" : "/路径/agent.sock"}
+                autoComplete="off" spellCheck="false" />
+              <small>留空时使用系统 SSH agent。可填写当前电脑上的套接字或命名管道。</small>
             </label>
           )}
           <details>

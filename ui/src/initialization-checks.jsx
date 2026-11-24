@@ -1,4 +1,5 @@
 import React from "react";
+import { translate as tr } from "./message-catalog.mjs";
 import { MacOSLogin } from "./macos-login";
 
 // Recovery codes come from the operation that failed. Project status also
@@ -47,6 +48,6 @@ export function InitializationDetails({ status }) {
       <strong>{check.title} · {labels[check.state] || "尚未完成"}</strong>
       <p>{check.evidence}</p>{check.state !== "passed" && check.remedy && <p>{check.remedy}</p>}
     </li>)}</ol></>}
-    <h3>操作记录</h3><pre className="job-log">{job.log || "当前操作没有额外日志。失败原因显示在上方，完整记录可在「日志与诊断」中导出。"}</pre>
+    <h3>{tr("操作记录")}</h3><pre className="job-log" dir="auto">{job.log || "当前操作没有额外日志。失败原因显示在上方，完整记录可在「日志与诊断」中导出。"}</pre>
   </div>;
 }

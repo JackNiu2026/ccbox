@@ -177,10 +177,12 @@ enum UpdatesTests {
         let probe = resources.appendingPathComponent("cage")
         try Data(script.utf8).write(to: probe)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: probe.path)
-        #if arch(x86_64)
-        // Real Intel bundles must never invoke the ARM64-only update channel.
-        // The standalone process fixture below still verifies its retry protocol.
-        for suffix in ["", ".intel-macos-test"] {
+        let productionInfo: [String: Any] = ["CFBundleIdentifier": cageUpdateBundleID, "CFBundlePackageType": "APPL", "CageVersion": "0.0.0"]
+        let productionPlist = try PropertyListSerialization.data(fromPropertyList: productionInfo, format: .xml, options: 0)
+        try productionPlist.write(to: probeBundle.appendingPathComponent("Contents/Info.plist"))
+        // The production bundle checks its native architecture's catalog.
+        // Packages with independent identities keep their manual update policy.
+        for suffix in [".intel-macos-test", ".macos-trial"] {
             let manualBundle = root.appendingPathComponent("manual\(suffix).app")
             let manualResources = manualBundle.appendingPathComponent("Contents/Resources")
             try CageUpdateFiles.privateDirectory(manualResources)
@@ -190,11 +192,10 @@ enum UpdatesTests {
             try plist.write(to: manualBundle.appendingPathComponent("Contents/Info.plist"))
             let manual = CageAppUpdater(bundleURL: manualBundle, onChange: { _ in }, quit: {}, reconnect: {})
             for action in ["check", "install", "status"] {
-                try expect(manual.handle(action)["phase"] as? String == "manual", "Intel bundle uses independent package updates")
+                try expect(manual.handle(action)["phase"] as? String == "manual", "independent bundle uses manual package updates")
             }
-            try expect(!FileManager.default.fileExists(atPath: countFile.path), "Intel bundle launched the incompatible update channel")
+            try expect(!FileManager.default.fileExists(atPath: countFile.path), "independent bundle launched the production update channel")
         }
-        #endif
         var received: [String: Any] = [:]
         let limited = CageAppUpdater(bundleURL: probeBundle, onChange: { received = $0 }, quit: {}, reconnect: {})
         _ = limited.handle("check")

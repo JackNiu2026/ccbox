@@ -3,6 +3,7 @@ package workbench
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 )
@@ -168,6 +169,7 @@ func (s *Server) joinClaudeDefault(ctx context.Context, expected string) error {
 	if list.bySubject(expected) != nil {
 		return nil
 	}
+	list.DismissedDefaults = slices.DeleteFunc(list.DismissedDefaults, func(subject string) bool { return subject == expected })
 	id := randomToken()[:24]
 	list.Accounts = append(list.Accounts, claudeAccount{ID: id, Source: "default", Label: reading.email(), Enabled: true})
 	if err := list.observe(id, reading, now); err != nil {
@@ -224,7 +226,7 @@ func (s *Server) claudePanelView(ctx context.Context) (claudePanel, claudeAccoun
 	view.Accounts, view.LoginNotice = list.Accounts, m.loginNotice
 	view.Scheduling = list.Scheduling
 	view.UsagePanelRunning = m.panelRunning
-	if subject := reading.subject(); view.DetectionStatus == "ready" && list.bySubject(subject) == nil {
+	if subject := reading.subject(); view.DetectionStatus == "ready" && list.bySubject(subject) == nil && !slices.Contains(list.DismissedDefaults, subject) {
 		view.Detected = &claudeDetected{Identity: subject, Email: reading.email(), Organization: strings.TrimSpace(reading.Organization), Plan: reading.Plan, Quota: reading.Quota, CheckedAt: checked.Unix()}
 	}
 	for i := range view.Accounts {

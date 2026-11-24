@@ -15,6 +15,11 @@ version="$(tr -d '\r\n' < VERSION)"
 short_version="${version%%-*}"
 output_root="$PWD/_output/client-$platform-$arch"
 mkdir -p "$output_root"
+if [[ "$platform" == macos ]]; then
+  source scripts/macos-build-env.sh
+  macos_prepare_caches
+  macos_check_toolchain
+fi
 stage="$(mktemp -d "$output_root/.stage.XXXXXX")"
 trap 'rm -rf "$stage"' EXIT
 suffix="${stage##*.stage.}"
@@ -39,14 +44,15 @@ mkdir -p "$stage/result"
 if [[ "$platform" == macos ]]; then
   bundle="$stage/result/CCBox Client.app"
   mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
-  swiftc -O -target "$(uname -m)-apple-macosx14.0" -parse-as-library \
-    -framework Cocoa -framework WebKit -framework Security -framework LocalAuthentication \
+  xcrun swiftc ${swift_flags[@]+"${swift_flags[@]}"} -O -target "$(uname -m)-apple-macosx14.0" -parse-as-library \
+    -framework Cocoa -framework WebKit -framework Security -framework LocalAuthentication -framework UserNotifications \
     desktop/Cage.swift desktop/MacKeyboard.swift desktop/NativeInput.swift desktop/Updates.swift desktop/AccountDevice.swift desktop/MacGuestLogin.swift \
     -o "$bundle/Contents/MacOS/Cage"
   node scripts/bundle-cloud-kit.mjs "$bundle/Contents/Resources"
   cp "$stage/cage" "$bundle/Contents/Resources/cage"
   node scripts/collect-app-licenses.mjs "$bundle/Contents/Resources/licenses"
-  swift desktop/Icon.swift assets/ccbox-logo.png "$stage/Cage.iconset"
+  xcrun swiftc ${swift_flags[@]+"${swift_flags[@]}"} -framework Cocoa desktop/Icon.swift -o "$stage/make-icon"
+  "$stage/make-icon" assets/ccbox-logo.png "$stage/Cage.iconset"
   iconutil -c icns "$stage/Cage.iconset" -o "$bundle/Contents/Resources/Cage.icns"
   cat > "$bundle/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

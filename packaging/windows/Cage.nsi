@@ -50,7 +50,7 @@ VIAddVersionKey /LANG=1033 "LegalCopyright" "Cage contributors"
 !define MUI_ABORTWARNING
 !define MUI_FINISHPAGE_RUN "$INSTDIR\Cage.exe"
 !define MUI_FINISHPAGE_RUN_NOTCHECKED
-!define MUI_FINISHPAGE_TEXT "CCBox is installed.$\r$\n$\r$\nOpen CCBox with the same Windows account to use your existing environment. If first-time setup appears unexpectedly, stop and check your original storage location."
+!define MUI_FINISHPAGE_TEXT "$(CageFinishText)"
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_LICENSE "${APP_DIR}/LICENSE.txt"
 !define MUI_DIRECTORYPAGE_TEXT_TOP "$(CageDirectoryHelp)"
@@ -62,19 +62,146 @@ Page custom ShortcutOptionsPage ShortcutOptionsLeave
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "English"
 !insertmacro MUI_LANGUAGE "SimpChinese"
+!insertmacro MUI_LANGUAGE "TradChinese"
 
 LangString CageDirectoryHelp ${LANG_ENGLISH} "To upgrade, keep the current CCBox installation folder. For a first installation, choose a dedicated application folder."
 LangString CageDirectoryHelp ${LANG_SIMPCHINESE} "升级时请保留原 CCBox 安装目录。首次安装可选择独立的程序目录。"
+LangString CageDirectoryHelp ${LANG_TRADCHINESE} "升級時請保留原 CCBox 安裝目錄。首次安裝可選擇專用的應用程式資料夾。"
 LangString CageUpgradeDirectoryError ${LANG_ENGLISH} "Upgrade CCBox in the original installation folder: $0"
 LangString CageUpgradeDirectoryError ${LANG_SIMPCHINESE} "请在原安装目录升级 CCBox：$0"
+LangString CageUpgradeDirectoryError ${LANG_TRADCHINESE} "請在原安裝目錄升級 CCBox：$0"
 LangString CageShortcutsTitle ${LANG_ENGLISH} "Shortcuts"
 LangString CageShortcutsTitle ${LANG_SIMPCHINESE} "快捷方式"
+LangString CageShortcutsTitle ${LANG_TRADCHINESE} "捷徑"
 LangString CageShortcutsHelp ${LANG_ENGLISH} "Choose where to add CCBox shortcuts for your Windows account."
 LangString CageShortcutsHelp ${LANG_SIMPCHINESE} "选择为当前 Windows 用户添加的 CCBox 快捷方式。"
+LangString CageShortcutsHelp ${LANG_TRADCHINESE} "選擇要為目前 Windows 使用者新增的 CCBox 捷徑。"
 LangString CageDesktopShortcut ${LANG_ENGLISH} "Add a desktop shortcut"
 LangString CageDesktopShortcut ${LANG_SIMPCHINESE} "添加桌面快捷方式"
+LangString CageDesktopShortcut ${LANG_TRADCHINESE} "新增桌面捷徑"
 LangString CageStartMenuShortcuts ${LANG_ENGLISH} "Add to the Start menu"
 LangString CageStartMenuShortcuts ${LANG_SIMPCHINESE} "添加到开始菜单"
+LangString CageStartMenuShortcuts ${LANG_TRADCHINESE} "新增至開始功能表"
+
+LangString CageFinishText ${LANG_ENGLISH} "CCBox is installed.$\r$\n$\r$\nOpen CCBox with the same Windows account to use your existing environment. If first-time setup appears unexpectedly, stop and check your original storage location."
+LangString CageFinishText ${LANG_SIMPCHINESE} "CCBox 已安装。$\r$\n$\r$\n请使用同一个 Windows 账户打开 CCBox，以继续使用原有环境。如果意外出现首次设置，请先核对原存储位置。"
+LangString CageFinishText ${LANG_TRADCHINESE} "CCBox 已安裝。$\r$\n$\r$\n請使用同一個 Windows 帳戶開啟 CCBox，以繼續使用原有環境。如果意外出現首次設定，請先確認原儲存位置。"
+
+LangString CageInstallLockFailed ${LANG_ENGLISH} "Could not lock the CCBox installation. Check your system permissions and try again."
+LangString CageInstallLockFailed ${LANG_SIMPCHINESE} "无法锁定 CCBox 安装操作，请核对系统权限后重试。"
+LangString CageInstallLockFailed ${LANG_TRADCHINESE} "無法鎖定 CCBox 安裝作業，請檢查系統權限後再試。"
+
+LangString CageInstallBusy ${LANG_ENGLISH} "Another CCBox installation or uninstall is in progress. Wait for it to finish and try again."
+LangString CageInstallBusy ${LANG_SIMPCHINESE} "另一个 CCBox 安装或卸载仍在进行，请等待完成后重试。"
+LangString CageInstallBusy ${LANG_TRADCHINESE} "另一項 CCBox 安裝或解除安裝仍在進行，請等候完成後再試。"
+
+LangString CageQuitBeforeInstall ${LANG_ENGLISH} "Quit CCBox and stop its environment before installing or uninstalling."
+LangString CageQuitBeforeInstall ${LANG_SIMPCHINESE} "请先停止环境并退出 CCBox，再安装或卸载。"
+LangString CageQuitBeforeInstall ${LANG_TRADCHINESE} "請先停止環境並結束 CCBox，再安裝或解除安裝。"
+
+LangString CagePlatformRequired ${LANG_ENGLISH} "This CCBox package requires an Intel/AMD 64-bit version of Windows. Windows on ARM and 32-bit Windows are not supported."
+LangString CagePlatformRequired ${LANG_SIMPCHINESE} "此 CCBox 安装包需要 Intel 或 AMD 64 位 Windows，不支持 Windows on ARM 或 32 位 Windows。"
+LangString CagePlatformRequired ${LANG_TRADCHINESE} "此 CCBox 安裝套件需要 Intel 或 AMD 64 位元 Windows，不支援 Windows on ARM 或 32 位元 Windows。"
+
+LangString CageWindowsRequired ${LANG_ENGLISH} "CCBox requires Windows 10 22H2 (build 19045) or Windows 11. Update Windows and try again."
+LangString CageWindowsRequired ${LANG_SIMPCHINESE} "CCBox 需要 Windows 10 22H2（内部版本 19045）或 Windows 11。请更新 Windows 后重试。"
+LangString CageWindowsRequired ${LANG_TRADCHINESE} "CCBox 需要 Windows 10 22H2（組建 19045）或 Windows 11。請更新 Windows 後再試。"
+
+LangString CageChooseAppFolder ${LANG_ENGLISH} "Choose a dedicated application folder."
+LangString CageChooseAppFolder ${LANG_SIMPCHINESE} "请选择独立的程序目录。"
+LangString CageChooseAppFolder ${LANG_TRADCHINESE} "請選擇專用的應用程式資料夾。"
+
+LangString CageFolderInUse ${LANG_ENGLISH} "The destination contains files from another installation. Choose an empty folder."
+LangString CageFolderInUse ${LANG_SIMPCHINESE} "目标目录包含另一套安装的文件。请选择空文件夹。"
+LangString CageFolderInUse ${LANG_TRADCHINESE} "目標資料夾包含另一套安裝的檔案。請選擇空資料夾。"
+
+LangString CageRestorePending ${LANG_ENGLISH} "Installation recovery is incomplete. Keep both folders and try again: $BackupDir and $StageDir."
+LangString CageRestorePending ${LANG_SIMPCHINESE} "安装恢复尚未完成。文件分别保留在 $BackupDir 和 $StageDir，请保留这两个目录后重试。"
+LangString CageRestorePending ${LANG_TRADCHINESE} "安裝復原尚未完成。檔案分別保留在 $BackupDir 和 $StageDir，請保留這兩個資料夾後再試。"
+
+LangString CageRestoreFailed ${LANG_ENGLISH} "The original installation folder could not be restored. Your files are in $BackupDir and the new application is in $StageDir."
+LangString CageRestoreFailed ${LANG_SIMPCHINESE} "原安装目录未能恢复。文件保留在 $BackupDir，新程序保留在 $StageDir。"
+LangString CageRestoreFailed ${LANG_TRADCHINESE} "無法復原原安裝資料夾。檔案保留在 $BackupDir，新應用程式保留在 $StageDir。"
+
+LangString CageFilesReviewPending ${LANG_ENGLISH} "Some files still need review. Keep the installation record at $TransactionRecord and the related folders."
+LangString CageFilesReviewPending ${LANG_SIMPCHINESE} "仍有文件需要核对，安装回执保留在 $TransactionRecord。请保留相关目录后处理。"
+LangString CageFilesReviewPending ${LANG_TRADCHINESE} "仍有檔案需要確認。請保留位於 $TransactionRecord 的安裝紀錄及相關資料夾。"
+
+LangString CagePendingTransaction ${LANG_ENGLISH} "An installation transaction is pending: $TransactionRecord. Restore the folders listed there and try again."
+LangString CagePendingTransaction ${LANG_SIMPCHINESE} "存在未处理的安装事务记录：$TransactionRecord。请先按记录恢复保留的目录，再重试。"
+LangString CagePendingTransaction ${LANG_TRADCHINESE} "有一筆尚未完成的安裝交易：$TransactionRecord。請先按照紀錄復原保留的資料夾，再試一次。"
+
+LangString CageUnpackFailed ${LANG_ENGLISH} "Could not unpack CCBox. Check free disk space and folder permissions."
+LangString CageUnpackFailed ${LANG_SIMPCHINESE} "无法解压 CCBox。请检查磁盘可用空间和目录权限。"
+LangString CageUnpackFailed ${LANG_TRADCHINESE} "無法解壓縮 CCBox。請檢查磁碟可用空間和資料夾權限。"
+
+LangString CageInstallingWebView ${LANG_ENGLISH} "Installing the bundled Microsoft WebView2 runtime..."
+LangString CageInstallingWebView ${LANG_SIMPCHINESE} "正在安装随附的 Microsoft WebView2 运行时…"
+LangString CageInstallingWebView ${LANG_TRADCHINESE} "正在安裝隨附的 Microsoft WebView2 執行階段…"
+
+LangString CageWebViewFailed ${LANG_ENGLISH} "Microsoft WebView2 installation failed ($0). Install the runtime and retry."
+LangString CageWebViewFailed ${LANG_SIMPCHINESE} "安装 Microsoft WebView2 失败（$0）。请安装运行时后重试。"
+LangString CageWebViewFailed ${LANG_TRADCHINESE} "安裝 Microsoft WebView2 失敗（$0）。請安裝執行階段後再試。"
+
+LangString CageCheckingFiles ${LANG_ENGLISH} "Checking and preserving existing projects and modified files…"
+LangString CageCheckingFiles ${LANG_SIMPCHINESE} "正在检查并保留已有项目和修改文件…"
+LangString CageCheckingFiles ${LANG_TRADCHINESE} "正在檢查並保留現有專案及修改過的檔案…"
+
+LangString CagePreservationFailed ${LANG_ENGLISH} "Installation stopped because existing files could not be preserved safely. The original folder is intact. Check disk space, files in use, and the installation log."
+LangString CagePreservationFailed ${LANG_SIMPCHINESE} "无法安全保留现有文件，安装已停止。原安装目录已保留，请检查磁盘空间、文件占用和安装日志。"
+LangString CagePreservationFailed ${LANG_TRADCHINESE} "無法安全保留現有檔案，安裝已停止。原安裝資料夾已保留，請檢查磁碟空間、使用中的檔案和安裝日誌。"
+
+LangString CageMoveFailed ${LANG_ENGLISH} "Could not move the installed application. Quit CCBox, close programs using files in its folder, and retry."
+LangString CageMoveFailed ${LANG_SIMPCHINESE} "无法移动已安装的程序。请退出 CCBox 并关闭占用该目录文件的程序后重试。"
+LangString CageMoveFailed ${LANG_TRADCHINESE} "無法移動已安裝的應用程式。請結束 CCBox 並關閉使用該資料夾檔案的程式後再試。"
+
+LangString CageRestoringPersonalFiles ${LANG_ENGLISH} "Moving personal files and preserving existing links…"
+LangString CageRestoringPersonalFiles ${LANG_SIMPCHINESE} "正在迁入个人文件并保留原有链接…"
+LangString CageRestoringPersonalFiles ${LANG_TRADCHINESE} "正在移入個人檔案並保留現有連結…"
+
+LangString CagePersonalFilesFailed ${LANG_ENGLISH} "Personal files could not be moved into the new application folder. The previous installation was restored. Close programs using those files and try again."
+LangString CagePersonalFilesFailed ${LANG_SIMPCHINESE} "个人文件未能迁入新程序目录，原安装已恢复。请关闭占用文件的程序后重试。"
+LangString CagePersonalFilesFailed ${LANG_TRADCHINESE} "無法將個人檔案移入新應用程式資料夾，原安裝已復原。請關閉使用這些檔案的程式後再試。"
+
+LangString CageInstallRolledBack ${LANG_ENGLISH} "Could not install CCBox. The previous installation has been restored."
+LangString CageInstallRolledBack ${LANG_SIMPCHINESE} "无法安装 CCBox。原安装已恢复。"
+LangString CageInstallRolledBack ${LANG_TRADCHINESE} "無法安裝 CCBox。原安裝已復原。"
+
+LangString CageInstallReviewRequired ${LANG_ENGLISH} "Installation did not finish. Keep $TransactionRecord and the folders listed there for review."
+LangString CageInstallReviewRequired ${LANG_SIMPCHINESE} "安装未完成。请保留 $TransactionRecord 及其中记录的目录，以便核对。"
+LangString CageInstallReviewRequired ${LANG_TRADCHINESE} "安裝未完成。請保留 $TransactionRecord 和其中列出的資料夾以供確認。"
+
+LangString CageInstallFailed ${LANG_ENGLISH} "Could not install CCBox. Close other programs using the installation folder and retry."
+LangString CageInstallFailed ${LANG_SIMPCHINESE} "无法安装 CCBox。请关闭占用安装目录的其他程序后重试。"
+LangString CageInstallFailed ${LANG_TRADCHINESE} "無法安裝 CCBox。請關閉使用安裝資料夾的其他程式後再試。"
+
+LangString CageCleaningFiles ${LANG_ENGLISH} "Removing verified files from the previous application…"
+LangString CageCleaningFiles ${LANG_SIMPCHINESE} "正在清理已核对的旧程序文件…"
+LangString CageCleaningFiles ${LANG_TRADCHINESE} "正在清理已確認的舊應用程式檔案…"
+
+LangString CageRetainedFiles ${LANG_ENGLISH} "Files still need to be kept in the previous folder: $BackupDir"
+LangString CageRetainedFiles ${LANG_SIMPCHINESE} "旧目录中仍有需要保留的文件：$BackupDir"
+LangString CageRetainedFiles ${LANG_TRADCHINESE} "舊資料夾中仍有需要保留的檔案：$BackupDir"
+
+LangString CageFilesRestoreRequired ${LANG_ENGLISH} "Some files still need to be restored. Keep $TransactionRecord and the folders listed there before proceeding."
+LangString CageFilesRestoreRequired ${LANG_SIMPCHINESE} "安装仍有待恢复的文件。请保留 $TransactionRecord 及其中记录的目录，再处理恢复。"
+LangString CageFilesRestoreRequired ${LANG_TRADCHINESE} "安裝中仍有待復原的檔案。請保留 $TransactionRecord 和其中列出的資料夾，再處理復原。"
+
+LangString CageReceiptFailed ${LANG_ENGLISH} "The installation record could not be finalized. It is retained at $TransactionRecord."
+LangString CageReceiptFailed ${LANG_SIMPCHINESE} "安装回执未能完成，记录保留在 $TransactionRecord。"
+LangString CageReceiptFailed ${LANG_TRADCHINESE} "無法完成安裝紀錄，該紀錄保留在 $TransactionRecord。"
+
+LangString CageInvalidInstallFolder ${LANG_ENGLISH} "This is not a CCBox installation folder."
+LangString CageInvalidInstallFolder ${LANG_SIMPCHINESE} "这不是 CCBox 的安装目录。"
+LangString CageInvalidInstallFolder ${LANG_TRADCHINESE} "這不是 CCBox 的安裝資料夾。"
+
+LangString CageUninstallPendingTransaction ${LANG_ENGLISH} "An installation recovery is pending. First review the folders listed in $INSTDIR.ccbox-installation.json."
+LangString CageUninstallPendingTransaction ${LANG_SIMPCHINESE} "存在待恢复的安装事务，请先处理 $INSTDIR.ccbox-installation.json 中记录的目录。"
+LangString CageUninstallPendingTransaction ${LANG_TRADCHINESE} "有一筆待復原的安裝交易，請先處理 $INSTDIR.ccbox-installation.json 中記錄的資料夾。"
+
+LangString CageUninstallFilesInUse ${LANG_ENGLISH} "Some application files are in use or cannot be read. Uninstall did not finish. Personal files are preserved. Close the programs using these files and try again."
+LangString CageUninstallFilesInUse ${LANG_SIMPCHINESE} "部分程序文件正在使用或无法读取，卸载未完成。个人文件已保留，请关闭占用程序后重试。"
+LangString CageUninstallFilesInUse ${LANG_TRADCHINESE} "部分應用程式檔案正在使用或無法讀取，解除安裝未完成。個人檔案已保留，請關閉使用這些檔案的程式後再試。"
 
 Var UpdateMode
 Var StageDir
@@ -175,12 +302,12 @@ FunctionEnd
   Pop $1
   ${If} $0 == 0
     SetErrorLevel 2
-    Abort "无法锁定 CCBox 安装操作，请核对系统权限后重试。"
+    Abort "$(CageInstallLockFailed)"
   ${EndIf}
   StrCpy $InstallationMutex $0
   ${If} $1 == 183
     SetErrorLevel 2
-    Abort "另一个 CCBox 安装或卸载仍在进行，请等待完成后重试。"
+    Abort "$(CageInstallBusy)"
   ${EndIf}
 !macroend
 
@@ -315,7 +442,7 @@ FunctionEnd
     ${If} $0 == -1
       StrCpy $HelperExit "application_file_in_use"
       SetErrorLevel 2
-      Abort "Quit CCBox and stop its environment before installing or uninstalling."
+      Abort "$(CageQuitBeforeInstall)"
     ${EndIf}
     System::Call 'kernel32::CloseHandle(p r0)'
   ${EndIf}
@@ -334,13 +461,13 @@ Function .onInit
   SetShellVarContext current
   SetRegView 64
   ${IfNot} ${IsNativeAMD64}
-    MessageBox MB_ICONSTOP "This CCBox package requires an Intel/AMD 64-bit version of Windows. Windows on ARM and 32-bit Windows are not supported."
+    MessageBox MB_ICONSTOP "$(CagePlatformRequired)"
     SetErrorLevel 1633
     Quit
   ${EndIf}
   ReadRegStr $0 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion" "CurrentBuildNumber"
   ${If} $0 < 19045
-    MessageBox MB_ICONSTOP "CCBox requires Windows 10 22H2 (build 19045) or Windows 11. Update Windows and try again."
+    MessageBox MB_ICONSTOP "$(CageWindowsRequired)"
     SetErrorLevel 1633
     Quit
   ${EndIf}
@@ -377,13 +504,20 @@ Function CheckDestination
   ${OrIf} $INSTDIR == $0
   ${OrIf} $INSTDIR == "$0\"
     SetErrorLevel 2
-    Abort "Choose a dedicated application folder."
+    Abort "$(CageChooseAppFolder)"
   ${EndIf}
   StrCpy $ExistingInstall "0"
   IfFileExists "$INSTDIR\ccBox.install-id" existing
   ; IfFileExists with a wildcard also matches an empty directory.
   ${DirState} "$INSTDIR" $0
-  StrCmp $0 1 foreign done
+  ${If} $0 == 1
+    Goto foreign
+  ${EndIf}
+  ${If} $0 == -1
+  ${AndIf} ${FileExists} "$INSTDIR"
+    Goto foreign
+  ${EndIf}
+  Goto done
   existing:
     FileOpen $0 "$INSTDIR\ccBox.install-id" r
     FileRead $0 $1
@@ -400,7 +534,7 @@ Function CheckDestination
     Goto done
   foreign:
     SetErrorLevel 2
-    Abort "The destination contains files from another installation. Choose an empty folder."
+    Abort "$(CageFolderInUse)"
   done:
     ClearErrors
 FunctionEnd
@@ -412,7 +546,7 @@ Function RestorePreservedFiles
   ${If} $0 != 0
     DetailPrint "$1"
     SetErrorLevel 2
-    Abort "安装恢复尚未完成。文件分别保留在 $BackupDir 和 $StageDir，请保留这两个目录后重试。"
+    Abort "$(CageRestorePending)"
   ${EndIf}
   ; The installation folder was kept, so the previous entries move back into it.
   nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\installation-files.ps1" -Operation attach -Target "$INSTDIR" -Source "$BackupDir" $DiagnosticArguments'
@@ -421,14 +555,14 @@ Function RestorePreservedFiles
   ${If} $0 != 0
     DetailPrint "$1"
     SetErrorLevel 2
-    Abort "原安装目录未能恢复。文件保留在 $BackupDir，新程序保留在 $StageDir。"
+    Abort "$(CageRestoreFailed)"
   ${EndIf}
   nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\installation-files.ps1" -Operation complete -Target "$INSTDIR" -Receipt "$TransactionRecord" $DiagnosticArguments'
   Pop $0
   Pop $1
   ${If} $0 != 0
     SetErrorLevel 2
-    Abort "仍有文件需要核对，安装回执保留在 $TransactionRecord。请保留相关目录后处理。"
+    Abort "$(CageFilesReviewPending)"
   ${EndIf}
 FunctionEnd
 
@@ -438,7 +572,7 @@ Section "CCBox" Main
   StrCpy $TransactionRecord "$INSTDIR.ccbox-installation.json"
   ${If} ${FileExists} "$TransactionRecord"
     SetErrorLevel 2
-    Abort "存在未处理的安装事务记录：$TransactionRecord。请先按记录恢复保留的目录，再重试。"
+    Abort "$(CagePendingTransaction)"
   ${EndIf}
   !insertmacro InstallPhase "checking_destination"
   Call CheckDestination
@@ -460,7 +594,7 @@ Section "CCBox" Main
     SetOutPath "$TEMP"
     RMDir /r "$StageDir"
     SetErrorLevel 2
-    Abort "Could not unpack CCBox. Check free disk space and folder permissions."
+    Abort "$(CageUnpackFailed)"
   ${EndIf}
 
   ; Install the bundled offline runtime only when WebView2 is absent.
@@ -473,7 +607,7 @@ Section "CCBox" Main
   ${OrIf} $0 == "0.0.0.0"
     ${If} $1 == ""
     ${OrIf} $1 == "0.0.0.0"
-      DetailPrint "Installing the bundled Microsoft WebView2 runtime..."
+      DetailPrint "$(CageInstallingWebView)"
       !insertmacro InstallPhase "installing_webview_runtime"
       ExecWait '"$StageDir\resources\runtime\MicrosoftEdgeWebView2RuntimeInstallerX64.exe" /silent /install' $0
       StrCpy $HelperExit $0
@@ -482,7 +616,7 @@ Section "CCBox" Main
         SetOutPath "$TEMP"
         RMDir /r "$StageDir"
         SetErrorLevel 2
-        Abort "Microsoft WebView2 installation failed ($0). Install the runtime and retry."
+        Abort "$(CageWebViewFailed)"
       ${EndIf}
     ${EndIf}
   ${EndIf}
@@ -498,7 +632,9 @@ Section "CCBox" Main
   SetOutPath "$PLUGINSDIR"
   File /oname=installation-files.ps1 "installation-files.ps1"
   File /oname=verified-file-deletion.cs "verified-file-deletion.cs"
-  DetailPrint "正在检查并保留已有项目和修改文件…"
+  ; Keep NSIS's System.dll out of the PowerShell compiler working directory.
+  SetOutPath "$TEMP"
+  DetailPrint "$(CageCheckingFiles)"
   !insertmacro InstallPhase "preparing_file_transaction"
   ; Keep current and legacy data paths in place even if a VM holds a disk open.
   nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\installation-files.ps1" -Operation prepare -Target "$StageDir" -Source "$INSTDIR" -Backup "$BackupDir" -Receipt "$TransactionRecord" -KeepApplicationData $DiagnosticArguments'
@@ -508,12 +644,10 @@ Section "CCBox" Main
   Call WriteInstallDiagnostic
   DetailPrint "$1"
   ${If} $0 != 0
-    SetOutPath "$TEMP"
     RMDir /r "$StageDir"
     SetErrorLevel 2
-    Abort "无法安全保留现有文件，安装已停止。原安装目录已保留，请检查磁盘空间、文件占用和安装日志。"
+    Abort "$(CagePreservationFailed)"
   ${EndIf}
-  SetOutPath "$TEMP"
   ${If} $ExistingInstall == "1"
     !insertmacro InstallPhase "moving_previous_application"
     ; The installation folder itself stays; only its program and personal
@@ -530,9 +664,9 @@ Section "CCBox" Main
       Pop $1
       RMDir /r "$StageDir"
       SetErrorLevel 2
-      Abort "Could not move the installed application. Quit CCBox, close programs using files in its folder, and retry."
+      Abort "$(CageMoveFailed)"
     ${EndIf}
-    DetailPrint "正在迁入个人文件并保留原有链接…"
+    DetailPrint "$(CageRestoringPersonalFiles)"
     !insertmacro InstallPhase "moving_personal_files"
     nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\installation-files.ps1" -Operation move -Target "$StageDir" -Source "$BackupDir" -Receipt "$TransactionRecord" $DiagnosticArguments'
     Pop $0
@@ -544,7 +678,7 @@ Section "CCBox" Main
       Call RestorePreservedFiles
       RMDir /r "$StageDir"
       SetErrorLevel 2
-      Abort "个人文件未能迁入新程序目录，原安装已恢复。请关闭占用文件的程序后重试。"
+      Abort "$(CagePersonalFilesFailed)"
     ${EndIf}
   ${Else}
     RMDir "$INSTDIR"
@@ -552,8 +686,14 @@ Section "CCBox" Main
   !insertmacro InstallPhase "publishing_application"
   ClearErrors
   ${If} $BackupDir != ""
+  ${OrIf} ${FileExists} "$INSTDIR\*.*"
     ; The kept installation folder receives the staged entries one by one.
-    nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\installation-files.ps1" -Operation attach -Target "$INSTDIR" -Source "$StageDir" $DiagnosticArguments'
+    ; This also works when another process holds a pre-created empty folder open.
+    StrCpy $2 ""
+    ${If} $BackupDir == ""
+      StrCpy $2 "-RequireEmptyDestination"
+    ${EndIf}
+    nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\installation-files.ps1" -Operation attach -Target "$INSTDIR" -Source "$StageDir" $2 $DiagnosticArguments'
     Pop $0
     Pop $1
     StrCpy $HelperExit $0
@@ -568,14 +708,25 @@ Section "CCBox" Main
   ${If} ${Errors}
     ${If} $BackupDir != ""
       Call RestorePreservedFiles
+      RMDir /r "$StageDir"
+      SetErrorLevel 2
+      Abort "$(CageInstallRolledBack)"
+    ${EndIf}
+    nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\installation-files.ps1" -Operation abandon -Target "$INSTDIR" -Receipt "$TransactionRecord" $DiagnosticArguments'
+    Pop $0
+    Pop $1
+    ${If} $0 != 0
+      DetailPrint "$1"
+      SetErrorLevel 2
+      Abort "$(CageInstallReviewRequired)"
     ${EndIf}
     RMDir /r "$StageDir"
     SetErrorLevel 2
-    Abort "Could not install CCBox. The previous installation has been restored."
+    Abort "$(CageInstallFailed)"
   ${EndIf}
   ${If} $BackupDir != ""
     !insertmacro InstallPhase "cleaning_previous_application"
-    DetailPrint "正在清理已核对的旧程序文件…"
+    DetailPrint "$(CageCleaningFiles)"
     nsExec::ExecToStack '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\installation-files.ps1" -Operation cleanup -Target "$INSTDIR" -Source "$BackupDir" -Receipt "$TransactionRecord" $DiagnosticArguments'
     Pop $0
     Pop $1
@@ -583,9 +734,9 @@ Section "CCBox" Main
     Call WriteInstallDiagnostic
     DetailPrint "$1"
     ${If} $0 != 0
-      DetailPrint "旧目录中仍有需要保留的文件：$BackupDir"
+      DetailPrint "$(CageRetainedFiles)"
       SetErrorLevel 2
-      Abort "安装仍有待恢复的文件。请保留 $TransactionRecord 及其中记录的目录，再处理恢复。"
+      Abort "$(CageFilesRestoreRequired)"
     ${EndIf}
   ${Else}
     !insertmacro InstallPhase "completing_file_transaction"
@@ -596,7 +747,7 @@ Section "CCBox" Main
     Call WriteInstallDiagnostic
     ${If} $0 != 0
       SetErrorLevel 2
-      Abort "安装回执未能完成，记录保留在 $TransactionRecord。"
+      Abort "$(CageReceiptFailed)"
     ${EndIf}
   ${EndIf}
   !insertmacro InstallPhase "registering_installation"
@@ -650,7 +801,7 @@ Function un.onInit
     StrCpy $HelperExit "identity_mismatch"
     Call un.WriteInstallDiagnostic
     SetErrorLevel 2
-    Abort "This is not a CCBox installation folder."
+    Abort "$(CageInvalidInstallFolder)"
   ${EndIf}
   !insertmacro UninstallPhase "checking_stopped_processes"
   !insertmacro CheckStopped "Cage.exe"
@@ -667,7 +818,7 @@ Section "Uninstall"
     StrCpy $HelperExit "pending_install_transaction"
     Call un.WriteInstallDiagnostic
     SetErrorLevel 2
-    Abort "存在待恢复的安装事务，请先处理 $INSTDIR.ccbox-installation.json 中记录的目录。"
+    Abort "$(CageUninstallPendingTransaction)"
   ${EndIf}
   InitPluginsDir
   SetOutPath "$PLUGINSDIR"
@@ -686,7 +837,7 @@ Section "Uninstall"
   DetailPrint "$1"
   ${If} $0 != 0
     SetErrorLevel 2
-    Abort "部分程序文件正在使用或无法读取，卸载未完成。个人文件已保留，请关闭占用程序后重试。"
+    Abort "$(CageUninstallFilesInUse)"
   ${EndIf}
   !insertmacro UninstallPhase "removing_shortcuts_and_registration"
   Delete "$DESKTOP\CCBox.lnk"

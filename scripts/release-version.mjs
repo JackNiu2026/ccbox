@@ -5,7 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const numeric = /^(?:0|[1-9][0-9]*)$/;
 const syntax = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
-const releasePlatforms = ['macos', 'windows', 'linux', 'android'];
+const releasePlatforms = ['macos', 'macos-intel', 'windows', 'linux', 'android'];
 
 export function parseVersion(version) {
   if (typeof version !== 'string' || version !== version.trim()) throw new Error('Expected a canonical SemVer without build metadata');
@@ -206,7 +206,7 @@ function main([command, ...args]) {
   const record = { schema: 1, platform, version, commitSha };
   // An explicitly requested unsigned preview is labelled as such on the site.
   if (process.env.CCBOX_UNSIGNED_PREVIEW === '1') {
-    if (platform !== 'windows' && platform !== 'macos') throw new Error('Only Windows and macOS have unsigned previews');
+    if (!['windows', 'macos', 'macos-intel'].includes(platform)) throw new Error('Only Windows and macOS have unsigned previews');
     record.unsigned = true;
   }
   writeFileSync(destination, `${JSON.stringify(record, null, 2)}\n`);

@@ -100,8 +100,8 @@ func TestAgentNativeQueueClaimsOnceAndKeepsReceipts(t *testing.T) {
 	if replay := request(s, "POST", "/api/agent/native/window", s.origin, `{"ticket":"`+ticket+`"}`, true); replay.Code != 403 {
 		t.Fatal("native ticket replay accepted")
 	}
-	claim := func(connection string) *httptest.ResponseRecorder {
-		r := httptest.NewRequest("GET", s.origin+"/api/agent/native?consumer=window", nil)
+	claim := func(ctx context.Context, connection string) *httptest.ResponseRecorder {
+		r := httptest.NewRequestWithContext(ctx, "GET", s.origin+"/api/agent/native?consumer=window", nil)
 		r.Header.Set(connectionHeader, connection)
 		r.Header.Set("X-Cage-Agent-Window", grant.Proof)
 		r.AddCookie(&http.Cookie{Name: s.cookieName(), Value: s.session})
@@ -109,13 +109,18 @@ func TestAgentNativeQueueClaimsOnceAndKeepsReceipts(t *testing.T) {
 		s.handler().ServeHTTP(w, r)
 		return w
 	}
-	if w := claim("old-generation"); strings.Contains(w.Body.String(), item.ID) {
+	inactive, cancel := context.WithCancel(t.Context())
+	cancel()
+	if w := claim(inactive, "local"); strings.Contains(w.Body.String(), item.ID) {
+		t.Fatal("closed window claimed an action")
+	}
+	if w := claim(t.Context(), "old-generation"); strings.Contains(w.Body.String(), item.ID) {
 		t.Fatal("wrong window claimed action")
 	}
-	if w := claim("local"); !strings.Contains(w.Body.String(), item.ID) {
+	if w := claim(t.Context(), "local"); !strings.Contains(w.Body.String(), item.ID) {
 		t.Fatal("correct window cannot claim", w.Code, w.Body.String())
 	}
-	if w := claim("local"); strings.Contains(w.Body.String(), item.ID) {
+	if w := claim(t.Context(), "local"); strings.Contains(w.Body.String(), item.ID) {
 		t.Fatal("native operation replayed")
 	}
 	complete := "/api/agent/native/" + item.ID + "/complete"
@@ -143,6 +148,15 @@ func TestAgentNativeQueueClaimsOnceAndKeepsReceipts(t *testing.T) {
 	}
 	if w := request(s, "GET", "/api/agent/native/"+item.ID, "", "", true); w.Code != 403 {
 		t.Fatal("untrusted view read native secret")
+	}
+}
+
+func TestAgentNativeExpiredClaimIsNeverOfferedAgain(t *testing.T) {
+	now := time.Now()
+	item := &agentNativeItem{Status: "running", claimed: now.Add(-11 * time.Minute), Request: json.RawMessage(`{}`)}
+	item.expireLocked(now)
+	if item.Status != "failed" || item.Request != nil || !strings.Contains(item.Error, "Inspect state") {
+		t.Fatalf("expired claim did not preserve unknown operation result: %+v", item)
 	}
 }
 

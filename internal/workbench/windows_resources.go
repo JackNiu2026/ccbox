@@ -16,7 +16,7 @@ import (
 )
 
 func windowsResourceMaximum() (int, int) {
-	shareMemory, shareCPUs := cage.ResourceLimits()
+	shareMemory, shareCPUs := cage.HostResourceShare()
 	managerMemory, managerCPUs := guestos.WindowsVMResourceCeiling(host.MemGiB(), host.CPUs())
 	return min(shareMemory, managerMemory), min(shareCPUs, managerCPUs)
 }
@@ -117,8 +117,14 @@ func (s *Server) windowsResourceStatus(w http.ResponseWriter, r *http.Request) {
 func (s *Server) applyWindowsResources(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		Allocation *cage.ResourceAllocation `json:"allocation"`
+		DiskAction string                   `json:"disk_action"`
+		DiskGiB    int                      `json:"disk_gib"`
 	}
 	if !readJSON(w, r, &input) {
+		return
+	}
+	if input.DiskAction != "" || input.DiskGiB != 0 || input.Allocation != nil && input.Allocation.DiskGiB != 0 {
+		http.Error(w, "当前环境不支持调整虚拟硬盘", http.StatusBadRequest)
 		return
 	}
 	if input.Allocation != nil {

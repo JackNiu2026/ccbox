@@ -15,7 +15,22 @@ type agentNativeItem struct {
 	Result     json.RawMessage `json:"result,omitempty"`
 	Error      string          `json:"error,omitempty"`
 	created    time.Time
+	claimed    time.Time
 }
+
+func (item *agentNativeItem) expireLocked(now time.Time) {
+	switch {
+	case item.Status == "pending" && now.Sub(item.created) > 2*time.Minute:
+		item.Status = "failed"
+		item.Error = "Desktop did not claim this request in time. No native action was executed."
+		item.Request = nil
+	case item.Status == "running" && now.Sub(item.claimed) > 10*time.Minute:
+		item.Status = "failed"
+		item.Error = "Desktop did not report a result in time. Inspect state before repeating this request."
+		item.Request = nil
+	}
+}
+
 type agentNativeQueue struct {
 	mu      sync.Mutex
 	items   []*agentNativeItem
@@ -67,11 +82,7 @@ func (s *Server) agentNative(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()
 		kept := q.items[:0]
 		for _, item := range q.items {
-			if item.Status == "pending" && now.Sub(item.created) > 2*time.Minute {
-				item.Status = "failed"
-				item.Error = "Desktop did not claim this request in time. No native action was executed."
-				item.Request = nil
-			}
+			item.expireLocked(now)
 			if now.Sub(item.created) < 30*time.Minute {
 				kept = append(kept, item)
 			}
@@ -109,15 +120,15 @@ func (s *Server) agentNative(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Window consumer required", 400)
 			return
 		}
+		if r.Context().Err() != nil {
+			return
+		}
+		now := time.Now()
 		for _, item := range q.items {
+			item.expireLocked(now)
 			if item.Status == "pending" && item.Connection == requestConnection(r) {
-				if time.Since(item.created) > 2*time.Minute {
-					item.Status = "failed"
-					item.Error = "Desktop did not claim this request in time. No native action was executed."
-					item.Request = nil
-					continue
-				}
 				item.Status = "running"
+				item.claimed = now
 				jsonReply(w, item)
 				return
 			}
@@ -127,11 +138,7 @@ func (s *Server) agentNative(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, item := range q.items {
 		if item.ID == id {
-			if item.Status == "pending" && time.Since(item.created) > 2*time.Minute {
-				item.Status = "failed"
-				item.Error = "Desktop did not claim this request in time. No native action was executed."
-				item.Request = nil
-			}
+			item.expireLocked(time.Now())
 			if r.Method == "POST" {
 				if item.Status == "completed" || item.Status == "failed" {
 					jsonReply(w, map[string]bool{"ok": true})

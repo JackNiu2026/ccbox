@@ -7,17 +7,20 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"sort"
 	"sync"
 	"time"
 
 	"al.essio.dev/pkg/shellescape"
 )
 
+const terminalLimit = 12
+
 var (
 	errTerminalsClosed  = errors.New("后台正在退出，请重新打开 CCBox。")
 	errTerminalBusy     = errors.New("环境正在执行其他操作")
 	errTerminalNotReady = errors.New("环境尚未就绪或正在重启")
-	errTerminalLimit    = errors.New("最多保留 12 个终端，请先关闭不用的会话")
+	errTerminalLimit    = fmt.Errorf("最多同时运行 %d 个终端，请先关闭不用的会话", terminalLimit)
 	errTerminalStart    = errors.New("无法创建终端连接")
 )
 
@@ -62,6 +65,7 @@ func (m *terminalManager) startSessionWithPTY(cmd *exec.Cmd, workspace, kind str
 		title = "Claude 账号登录"
 	}
 	session := newTerminalSession(file)
+	session.creationOrder = m.sequence
 	session.id, session.title, session.workspace, session.cmd = randomToken()[:16], title, workspace, cmd
 	session.kind, session.claudeAccountID = kind, selection.ID
 	if kind == "claude-login" {
@@ -75,6 +79,7 @@ func (m *terminalManager) startSessionWithPTY(cmd *exec.Cmd, workspace, kind str
 	if m.sessions == nil {
 		m.sessions = make(map[string]*terminalSession)
 	}
+	m.evictEndedLocked()
 	m.sessions[session.id] = session
 	m.workers.Add(1)
 	go func() {
@@ -91,10 +96,33 @@ func (m *terminalManager) admissionErrorLocked() error {
 	if m.closed {
 		return errTerminalsClosed
 	}
-	if len(m.sessions) >= 12 {
-		return errTerminalLimit
+	live := 0
+	for _, session := range m.sessions {
+		if !session.ended() {
+			live++
+			if live >= terminalLimit {
+				return errTerminalLimit
+			}
+		}
 	}
 	return nil
+}
+
+// Reclaim only finished PTY snapshots. Claude transcripts are stored separately.
+func (m *terminalManager) evictEndedLocked() {
+	if len(m.sessions) < terminalLimit {
+		return
+	}
+	var ended []*terminalSession
+	for _, session := range m.sessions {
+		if session.ended() {
+			ended = append(ended, session)
+		}
+	}
+	sort.Slice(ended, func(i, j int) bool { return ended[i].creationOrder < ended[j].creationOrder })
+	for _, session := range ended[:min(len(ended), len(m.sessions)-terminalLimit+1)] {
+		delete(m.sessions, session.id)
+	}
 }
 
 func (m *terminalManager) canStart() error {
@@ -117,18 +145,8 @@ func (m *terminalManager) hasLive() bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, session := range m.sessions {
-		session.mu.Lock()
-		closed := session.closed
-		session.mu.Unlock()
-		if !closed {
+		if !session.ended() {
 			return true
-		}
-		if session.done != nil {
-			select {
-			case <-session.done:
-			default:
-				return true
-			}
 		}
 	}
 	return false
@@ -152,6 +170,20 @@ func (m *terminalManager) forConversation(connection string) *terminalSession {
 		}
 	}
 	return nil
+}
+
+func (m *terminalManager) managedConnections() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var connections []string
+	for _, session := range m.sessions {
+		session.mu.Lock()
+		if !session.closed && !session.conversationEnded && session.connectionID != "" {
+			connections = append(connections, session.connectionID)
+		}
+		session.mu.Unlock()
+	}
+	return connections
 }
 
 // Reattaching a repeated login request must not create a second OAuth flow.

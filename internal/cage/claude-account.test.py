@@ -510,5 +510,22 @@ else:
         self.assertEqual(observed["quota"]["seven_day"]["resets_at"], 0)
 
 
+    def test_project_memory_merge_preserves_same_name_notes(self):
+        own, memory = self.home / "account-memory", self.home / "shared-memory"
+        own.mkdir()
+        memory.mkdir()
+        (own / "note.md").write_text("account note", encoding="utf-8")
+        (memory / "note.md").write_text("shared note", encoding="utf-8")
+        (own / "MEMORY.md").write_text("[account](note.md)\n", encoding="utf-8")
+        (memory / "MEMORY.md").write_text("[shared](note.md)\n", encoding="utf-8")
+        helper.merge_project_memory(own, memory, self.home / "index-backups")
+        copied = next(memory.glob("note-*.md"))
+        self.assertEqual(copied.read_text(encoding="utf-8"), "account note")
+        self.assertEqual((memory / "note.md").read_text(encoding="utf-8"), "shared note")
+        self.assertEqual((own / "note.md").read_text(encoding="utf-8"), "account note")
+        self.assertEqual((memory / "MEMORY.md").read_text(encoding="utf-8"), f"[shared](note.md)\n[account]({copied.name})\n")
+        self.assertEqual(next((self.home / "index-backups").iterdir()).read_text(encoding="utf-8"), "[shared](note.md)\n")
+
+
 if __name__ == "__main__":
     unittest.main()

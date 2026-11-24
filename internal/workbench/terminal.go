@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -35,13 +36,25 @@ func (s *Server) newTerminal(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) closeTerminal(w http.ResponseWriter, r *http.Request) {
 	if terminal := s.terminals.get(r.PathValue("id")); terminal != nil {
+		if r.URL.Query().Get("dismiss") == "1" {
+			if !terminal.ended() {
+				http.Error(w, "运行中的终端不能以已结束状态关闭", http.StatusConflict)
+				return
+			}
+			s.terminals.remove(terminal.id)
+			jsonReply(w, map[string]bool{"ok": true})
+			return
+		}
 		if id, _ := terminal.summary()["cli_session_id"].(string); id != "" {
-			if err := s.setSessionArchived(id, true, nil); err != nil {
+			err := s.setSessionArchived(id, true, nil)
+			if err == nil {
+				jsonReply(w, map[string]bool{"ok": true})
+				return
+			}
+			if !errors.Is(err, os.ErrNotExist) {
 				requestError(w, err)
 				return
 			}
-			jsonReply(w, map[string]bool{"ok": true})
-			return
 		}
 	}
 	s.terminals.remove(r.PathValue("id"))

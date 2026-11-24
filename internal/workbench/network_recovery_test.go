@@ -89,6 +89,40 @@ func TestWindowsFastPacketReconnectSchedulesFreshCheck(t *testing.T) {
 	}
 }
 
+func TestHealthyProxySchedulesRecheckOnlyForItsCurrentOutage(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		paused bool
+		stale  bool
+		reason string
+		want   bool
+	}{
+		{name: "transient proxy outage", reason: proxyCoreUnavailableReason, want: true},
+		{name: "manual pause", paused: true, reason: proxyCoreUnavailableReason},
+		{name: "newer gate", stale: true, reason: proxyCoreUnavailableReason},
+		{name: "policy refusal", reason: "当前出口不符合已保存的地区约束"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			s, gate := grantedToolUpdateServer(t)
+			s.ready, s.networkPaused = true, tt.paused
+			gate.Close(tt.reason)
+			state := gate.Status()
+			s.publishGate(state)
+			if tt.stale {
+				newer := state
+				newer.Epoch++
+				s.publishGate(newer)
+			}
+			s.noteHealthyProxy(state, state.Configuration)
+			first := s.recovery
+			s.noteHealthyProxy(state, state.Configuration)
+			if (first.RunID != "") != tt.want || s.recovery != first || gate.Status().Mode != cage.GateClosed {
+				t.Fatalf("recovery = %+v, repeated = %+v, want queued = %t", first, s.recovery, tt.want)
+			}
+		})
+	}
+}
+
 func TestMacOSNetworkTickDispatchesRecoveryOnlyAfterSetup(t *testing.T) {
 	for _, tc := range []struct {
 		name, setupID string

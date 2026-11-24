@@ -10,6 +10,7 @@ import {
   ArrowLeft,
   Check,
   Computer,
+  Download,
   LoaderCircle,
   Plus,
   Server,
@@ -19,6 +20,7 @@ import { api, native, nativeAvailable } from "./api";
 import { setClientContext } from "./client-context.mjs";
 import { Modal } from "./modal";
 import { HostForm } from "./remote-host-form";
+import { SSHConfigImport } from "./ssh-config-import";
 import logo from "./logo.svg";
 import "./remote-hosts.css";
 
@@ -137,6 +139,7 @@ function Environment({ context, refresh, children }) {
   const [hosts, setHosts] = useState([]);
   const [selected, setSelected] = useState(context.host_id || recent());
   const [form, setForm] = useState(null);
+  const [importConfig, setImportConfig] = useState(false);
   const [remove, setRemove] = useState(null);
   const [stop, setStop] = useState(null);
   const [decision, setDecision] = useState(null);
@@ -562,15 +565,16 @@ function Environment({ context, refresh, children }) {
             <div className="ssh-sidebar-body">
               <div className="ssh-list-heading">
                 <span>已保存的主机</span>
-                <button
-                  className="icon-button"
-                  aria-label="添加远程主机"
-                  title="添加远程主机"
-                  disabled={Boolean(busy)}
-                  onClick={() => setForm({ host: null })}
-                >
-                  <Plus size={16} />
-                </button>
+                <span className="ssh-list-actions">
+                  <button className="icon-button" aria-label="导入本机 SSH 配置" title="导入本机 SSH 配置"
+                    disabled={Boolean(busy) || verifying} onClick={() => setImportConfig(true)}>
+                    <Download size={16} />
+                  </button>
+                  <button className="icon-button" aria-label="添加远程主机" title="添加远程主机"
+                    disabled={Boolean(busy)} onClick={() => setForm({ host: null })}>
+                    <Plus size={16} />
+                  </button>
+                </span>
               </div>
               {hosts.map((item) => (
                 <button
@@ -809,6 +813,16 @@ function Environment({ context, refresh, children }) {
             setForm(null);
           }}
         />
+      )}
+      {importConfig && (
+        <SSHConfigImport platform={context.client_platform} onClose={() => setImportConfig(false)}
+          onSaved={async (hosts) => {
+            await load();
+            if (hosts.length) {
+              setSelected(hosts[0].id);
+              setPassword("");
+            }
+          }} />
       )}
       {remove && (
         <Modal

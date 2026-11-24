@@ -15,6 +15,9 @@ const failureHelp = "在设置中导出诊断包，并附上出错时正在执�
 // Only recognize known diagnostics. Unrecognized process output stays in the
 // existing operation log and never becomes an arbitrary user-facing message.
 func executionFailure(action string, err error, output string) error {
+	if reason, next, ok := imageDownloadFailure(output); ok {
+		return usererror.New(action, reason, next, err)
+	}
 	lower := strings.ToLower(output)
 	for _, rule := range []struct {
 		patterns     []string
@@ -34,10 +37,12 @@ func executionFailure(action string, err error, output string) error {
 		{[]string{"desktop file service state=failed"}, "Claude Desktop 的文件服务已经退出", "请从 CCBox 重新打开 Claude Desktop；若应用反复退出，请在设置中查看资源用量并导出诊断包。"},
 		{[]string{"curl: (7)", "connection refused"}, "目标服务没有接受连接", "请确认环境及所选代理已启动；文件传递时请重新打开接收文件的应用，再重试。"},
 		{[]string{"no space left on device", "not enough space on the disk"}, "磁盘空间不足，无法继续写入", "请释放环境所在磁盘的空间后继续；不要删除 CCBox 的个人数据目录。"},
+		{[]string{"dpkg was interrupted"}, "上次中断的软件安装未能自动补完，环境的软件包管理器仍停在未完成状态", "请重试一次；仍失败时在设置中导出诊断包。不要手动删除 dpkg 的状态或锁文件。"},
 		{[]string{"could not get lock", "unable to acquire the dpkg", "another process using it"}, "环境中已有另一个软件安装或更新进程", "请等待当前安装结束后再继续；不要手动删除安装锁文件。"},
 		{[]string{"temporary failure resolving", "could not resolve host", "curl: (6)"}, "下载服务器的域名解析失败", "请在网络与代理设置中检查所选节点和 DNS，再继续安装。"},
 		{[]string{"curl: (28)", "connection timed out", "operation timed out"}, "下载或环境连接等待超时", "请检查所选代理是否可用，再继续；已保存的下载会尝试续传。"},
 		{[]string{"curl: (60)", "certificate verify failed", "certificate verification failed"}, "下载服务器的证书验证未通过", "请检查电脑时间和所选代理；仍失败时导出诊断包，不要关闭证书验证。"},
+		{[]string{"curl: (35)", "tls handshake failure", "tls handshake timeout"}, "下载时 TLS 握手未完成", "请检查所选代理与下载服务器能否连通，再重试本次操作。"},
 		{[]string{"407 proxy authentication", "proxy authentication required"}, "代理服务器拒绝了当前登录凭据", "请在网络与代理设置中更新代理账号或订阅，再应用节点。"},
 		{[]string{"permission denied", "access is denied"}, "系统拒绝访问安装所需的文件或程序", "请检查应用及环境目录的权限；若安全软件拦截了 CCBox，请先核实其拦截记录。"},
 		{[]string{"tried to start delayed item"}, "环境的软件包下载程序反复重试，未能完成安装", "请使用包含 APT 修复的 CCBox 构建后继续安装；仍失败时导出诊断包。"},
@@ -46,6 +51,24 @@ func executionFailure(action string, err error, output string) error {
 			if strings.Contains(lower, pattern) {
 				return usererror.New(action, rule.reason, rule.next, err)
 			}
+		}
+	}
+	if action == "启动 Linux 基础环境" {
+		var reason string
+		switch {
+		case strings.Contains(lower, "cloud-init did not report completion"):
+			reason = "Linux 客机未报告初始化完成"
+		case strings.Contains(lower, "host agent process has exited"),
+			strings.Contains(lower, "exiting, status={running:false degraded:false exiting:true"):
+			reason = "虚拟机后台在环境就绪前退出"
+		case strings.Contains(lower, "failed to read hostagent startup marker"):
+			reason = "无法读取虚拟机后台的启动状态"
+		case strings.Contains(lower, "hostagent (") && strings.Contains(lower, "did not start up in "),
+			strings.Contains(lower, "did not receive an event with the `running` status"):
+			reason = "等待虚拟机就绪超时"
+		}
+		if reason != "" {
+			return usererror.New(action, reason, "请打开“操作详情”查看启动记录。若继续安装仍失败，可从安装页底部的“日志与诊断”导出诊断包。", err)
 		}
 	}
 	return usererror.Wrap(action, err, "打开“操作详情”查看最后的错误；仍无法判断时，"+failureHelp)
@@ -80,13 +103,13 @@ func fileServiceFailure(status int, data []byte) error {
 		"每个文件不能超过 2 GB":           "单个文件超过 2 GB 上限。请缩小文件后重新上传。",
 		"项目文件夹尚未连接，请重新打开项目":       "项目文件夹尚未连接。请先在 CCBox 中重新打开该项目，再选择目录。",
 		"目标没有接收文件，请点击支持附件的输入框后重试": "目标没有接收文件。请先点击应用内支持附件的输入框，再重新选择文件。",
-		"上传已取消":       "上传已被取消。需要继续时，请重新选择文件。",
-		"当前窗口没有请求文件夹": "当前窗口需要选择文件，不能接收文件夹。请按应用的窗口提示重新选择。",
-		"文件夹正在交给应用":   "文件夹仍在传给应用。请等待当前操作结束后再选择。",
-		"文件位置无法读取":    "接收文件的应用无法读取该位置。请确认项目目录已连接，并重新选择。",
-		"下载服务不可用":     "环境内的下载服务尚未就绪。请重新打开应用；旧环境请先更新环境组件。",
-		"文件请求过大":      "这次文件请求超过服务允许的大小。请减少一次传递的文件数量。",
-		"请选择项目文件夹":    "当前操作需要一个已连接的项目文件夹。请先在 CCBox 中打开项目，再重新选择目录。",
+		"上传已取消":                   "上传已被取消。需要继续时，请重新选择文件。",
+		"当前窗口没有请求文件夹":             "当前窗口需要选择文件，不能接收文件夹。请按应用的窗口提示重新选择。",
+		"文件夹正在交给应用":               "文件夹仍在传给应用。请等待当前操作结束后再选择。",
+		"文件位置无法读取":                "接收文件的应用无法读取该位置。请确认项目目录已连接，并重新选择。",
+		"下载服务不可用":                 "环境内的下载服务尚未就绪。请重新打开应用；旧环境请先更新环境组件。",
+		"文件请求过大":                  "这次文件请求超过服务允许的大小。请减少一次传递的文件数量。",
+		"请选择项目文件夹":                "当前操作需要一个已连接的项目文件夹。请先在 CCBox 中打开项目，再重新选择目录。",
 	}
 	if reason := known[strings.TrimSpace(string(data))]; reason != "" {
 		return fmt.Errorf("传递文件失败：%s", reason)

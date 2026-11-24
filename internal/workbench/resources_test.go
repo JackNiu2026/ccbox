@@ -1,13 +1,90 @@
 package workbench
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
 	"os"
+	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/sylvinus/agent-vm/internal/cage"
 	"github.com/sylvinus/agent-vm/internal/host"
 )
+
+func TestDiskRestoreRequiresLimaToConfirmStopped(t *testing.T) {
+	for _, state := range []string{"stopped", "driver PID without a hostagent", "unreadable driver PID", "missing configuration", "CLI holds VM lock"} {
+		t.Run(state, func(t *testing.T) {
+			s := testServer(t)
+			t.Setenv("LIMA_HOME", "")
+			t.Setenv("CAGE_LOGICAL_LIMA_HOME", "")
+			dir := s.instanceDir()
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			disk, config := filepath.Join(dir, "diffdisk"), filepath.Join(dir, "lima.yaml")
+			write := func(path, value string) {
+				t.Helper()
+				if err := os.WriteFile(path, []byte(value), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			write(config, "vmType: qemu\nimages:\n- location: /unused-fixture-image\ndisk: 24GiB\n")
+			write(disk, "original disk")
+			if err := cage.BeginDiskResize(context.Background(), dir, "old-job"); err != nil {
+				t.Fatal(err)
+			}
+			write(disk, "partially resized disk")
+			switch state {
+			case "driver PID without a hostagent":
+				// The test process keeps the PID live but cannot be mistaken for QEMU.
+				write(filepath.Join(dir, "qemu.pid"), strconv.Itoa(os.Getpid()))
+			case "unreadable driver PID":
+				write(filepath.Join(dir, "qemu.pid"), "invalid")
+			case "missing configuration":
+				if err := os.Remove(config); err != nil {
+					t.Fatal(err)
+				}
+			case "CLI holds VM lock":
+				locks := filepath.Join(s.profile, "state", "locks")
+				if err := os.MkdirAll(locks, 0o700); err != nil {
+					t.Fatal(err)
+				}
+				f, err := os.OpenFile(filepath.Join(locks, filepath.Base(dir)), os.O_CREATE|os.O_RDWR, 0o600)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer f.Close()
+				if err := lockController(f); err != nil {
+					t.Fatal(err)
+				}
+				defer unlockController(f)
+			}
+			if s.vmRunning() {
+				t.Fatal("fixture unexpectedly has a running record")
+			}
+			w := request(s, "POST", "/api/environment/resources", s.origin, `{"disk_action":"restore"}`, true)
+			if w.Code != http.StatusOK {
+				t.Fatal(w.Code, w.Body.String())
+			}
+			s.jobs.workers.Wait()
+			job := s.jobs.snapshot()
+			got, err := os.ReadFile(disk)
+			if err != nil {
+				t.Fatal(err)
+			}
+			pending := cage.DiskResizePending(dir)
+			if state == "stopped" {
+				if job.Error != "" || pending || string(got) != "original disk" {
+					t.Fatalf("stopped VM did not restore its backup: %q, pending=%t, job error=%s", got, pending, job.Error)
+				}
+			} else if job.Error == "" || !pending || string(got) != "partially resized disk" {
+				t.Fatalf("unverified VM state must preserve both disk and backup: %q, pending=%t, job error=%s", got, pending, job.Error)
+			}
+		})
+	}
+}
 
 func TestResourceAllocationSaveAndStartup(t *testing.T) {
 	oldMem, oldCPU := host.MemGiB, host.CPUs

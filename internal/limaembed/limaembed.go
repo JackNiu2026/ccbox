@@ -5,6 +5,9 @@ package limaembed
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -21,6 +24,7 @@ import (
 	"github.com/lima-vm/lima/v2/pkg/hostagent"
 	"github.com/lima-vm/lima/v2/pkg/hostagent/dns"
 	"github.com/lima-vm/lima/v2/pkg/limatype"
+	"github.com/lima-vm/lima/v2/pkg/logrusutil"
 	"github.com/lima-vm/lima/v2/pkg/networks/usernet"
 	"github.com/lima-vm/lima/v2/pkg/osutil"
 	"github.com/lima-vm/sshocker/pkg/reversesshfs"
@@ -56,8 +60,9 @@ func Run(args []string) bool {
 			}
 			return cage.StartResourceManager(ctx, dir, uint64(maximum), *cfg.CPUs, read, balloon.SetMemoryTarget)
 		}
-		diagnosticStream = diagnostics.New(filepath.Dir(path)).Stream("vm-hostagent", "warn")
-		diagnostics.SetDefault(diagnostics.New(filepath.Dir(path)))
+		store := diagnostics.New(filepath.Dir(path))
+		diagnosticStream = hostagentLog(store, os.Stderr)
+		diagnostics.SetDefault(store)
 		logrus.SetOutput(diagnosticStream)
 		defer diagnosticStream.Close()
 	}
@@ -180,6 +185,22 @@ func Run(args []string) bool {
 	}
 	os.Exit(0)
 	return true
+}
+
+// CCBox keeps the full diagnostics in its bounded store. Lima's parent process
+// also reads the current attempt's QEMU output from the child's stderr file.
+func hostagentLog(store *diagnostics.Store, stderr io.Writer) *diagnostics.Stream {
+	encoder := json.NewEncoder(stderr)
+	relay := diagnostics.NewStream(nil, "vm-start", "debug", func(line string) {
+		_ = encoder.Encode(logrusutil.JSON{Level: "debug", Msg: strings.TrimSuffix(line, "\n")})
+	})
+	return diagnostics.NewStreamWithConsumer(store, "vm-hostagent", "warn", nil, func(line string) bool {
+		var entry logrusutil.JSON
+		if json.Unmarshal([]byte(line), &entry) == nil && strings.HasPrefix(entry.Msg, "qemu[stderr]: ") {
+			_, _ = fmt.Fprintln(relay, entry.Msg)
+		}
+		return false
+	})
 }
 
 // windowsPath puts QEMU's usual folders on PATH, as limactl's main does.

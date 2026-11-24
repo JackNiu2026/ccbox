@@ -216,10 +216,17 @@ func ResumeGuestServices(ctx context.Context, configPath string, stdout, stderr 
 	return cmd.Run()
 }
 
+const guestComponentManifestProbe = `
+if test -e /etc/claude-cage/components.updating || test -L /etc/claude-cage/components.updating; then
+  exit 0
+fi
+if test -e /etc/claude-cage/components.json || test -L /etc/claude-cage/components.json; then
+  printf installed
+fi`
+
 func HasGuestComponentManifest(ctx context.Context, configPath string) (bool, error) {
 	s := &Server{profile: filepath.Dir(configPath), configPath: configPath}
-	probe := `if test -e /etc/claude-cage/components.json || test -L /etc/claude-cage/components.json; then printf installed; fi`
-	data, err := s.guest(ctx, "sudo /bin/sh -c "+shellescape.Quote(probe))
+	data, err := s.guest(ctx, "sudo /bin/sh -c "+shellescape.Quote(guestComponentManifestProbe))
 	return string(data) == "installed", err
 }
 

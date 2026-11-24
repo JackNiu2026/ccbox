@@ -104,6 +104,10 @@ func (s *Server) clientRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	path := strings.TrimPrefix(r.URL.Path, "/api/client/")
+	if path == "ssh-config" {
+		s.clientSSHConfig(w, r)
+		return
+	}
 	if path == "browser-extensions" && (r.Method == http.MethodGet || r.Method == http.MethodPost) {
 		s.localBrowserExtensions(w, r)
 		return
@@ -273,6 +277,10 @@ func (s *Server) routeRemote(w http.ResponseWriter, r *http.Request) bool {
 	}
 	if remote && r.URL.Path == "/api/projects/client-share" {
 		http.NotFound(w, r)
+		return true
+	}
+	if remote && r.URL.Path == "/api/notifications/events" {
+		http.Error(w, "通知仅发送到本机 CCBox 窗口", http.StatusForbidden)
 		return true
 	}
 	if remote && (r.URL.Path == "/api/environment/storage" || r.URL.Path == "/api/environment/storage/recover") {

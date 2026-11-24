@@ -6,6 +6,13 @@ set -eu
 if [ "$ID" != debian ] || [ "${VERSION_ID:-}" != 13 ]; then
   exit 0
 fi
+# A package transaction cut off by a stopped environment or a power loss leaves
+# dpkg's journal behind, and every later apt-get refuses to run until it is
+# replayed. Replaying it only finishes the packages that were already chosen.
+if [ -n "$(ls -A /var/lib/dpkg/updates 2>/dev/null)" ]; then
+  printf 'Finishing an interrupted package installation...\n'
+  env DEBIAN_FRONTEND=noninteractive dpkg --configure -a </dev/null
+fi
 version=$(dpkg-query -W -f='${Version}' apt)
 if dpkg --compare-versions "$version" ge 3.0.4; then
   exit 0
@@ -15,9 +22,12 @@ stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT
 chmod 0755 "$stage"
 mkdir -m 0755 "$stage/lists"
-# HTTP also works in minimal images without a CA bundle. APT still requires the
-# Debian archive signature and package hashes; no insecure options are enabled.
-printf '%s\n' 'deb [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] http://deb.debian.org/debian-security trixie-security main' > "$stage/security.list"
+# Prefer HTTPS when the image has certificates. APT verifies Debian's signed
+# metadata and package hashes on both transports.
+schemes=http
+if [ -s /etc/ssl/certs/ca-certificates.crt ]; then
+  schemes='https http'
+fi
 apt_bootstrap_get() {
   env DEBIAN_FRONTEND=noninteractive apt-get \
     -o Acquire::Retries=0 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 \
@@ -25,7 +35,20 @@ apt_bootstrap_get() {
     -o Dir::Etc::sourcelist="$stage/security.list" -o Dir::Etc::sourceparts=- \
     -o Dir::State::lists="$stage/lists" "$@" </dev/null
 }
-apt_bootstrap_get update
+status=1
+for scheme in $schemes; do
+  printf 'deb [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] %s://deb.debian.org/debian-security trixie-security main\n' "$scheme" > "$stage/security.list"
+  if apt_bootstrap_get update; then
+    status=0
+    break
+  else
+    status=$?
+  fi
+done
+if [ "$status" != 0 ]; then
+  printf 'APT_FAILED exit=%s command=apt-get update\n' "$status" >&2
+  exit "$status"
+fi
 packages='apt libapt-pkg7.0'
 if [ "$(dpkg-query -W -f='${Status}' apt-utils 2>/dev/null || true)" = 'install ok installed' ]; then
   packages="$packages apt-utils"

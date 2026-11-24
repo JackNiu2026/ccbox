@@ -17,6 +17,7 @@ func TestPackageInstallFailureClassification(t *testing.T) {
 		{"timeout", "Could not connect to 10.0.2.2:7890 (10.0.2.2). - connect (110: Connection timed out)\n" + cmd, "连接下载服务器失败或超时", "git curl ripgrep"},
 		{"missing", "E: Unable to locate package ripgrep-x\n" + cmd, "找不到所需的软件包", "ripgrep-x"},
 		{"candidate", "E: Package 'fd-find' has no installation candidate\nnext line\n" + cmd, "找不到所需的软件包", "fd-find"},
+		{"interrupted", "E: dpkg was interrupted, you must manually run 'sudo dpkg --configure -a' to correct the problem.\n" + cmd, "上次中断的软件安装未能自动补完", "git curl ripgrep"},
 		{"unknown", "something odd happened\n" + cmd, "没有可识别的原因", "git curl ripgrep"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

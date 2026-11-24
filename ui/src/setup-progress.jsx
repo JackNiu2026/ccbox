@@ -1,5 +1,7 @@
 import React from "react";
 import { SafetyMessage } from "./safety-message";
+import { translate as tr } from "./message-catalog.mjs";
+import { setupFailureMessage } from "./onboarding-state.mjs";
 import { ArrowDownToLine, Box, Layers3, PackageOpen, SlidersHorizontal } from "lucide-react";
 import "./setup-progress.css";
 
@@ -22,7 +24,8 @@ export function SetupProgress({ job, onDetails, onStop, onRetry, disconnected })
   const native = job.kind === "guest-install";
   const windows = native && job.setup_progress.system === "windows-11";
   const stage = stages.find(([key]) => key === phase);
-  const Icon = stage?.[2] || Box;
+  const booting = operation === "boot";
+  const Icon = booting ? Box : stage?.[2] || Box;
   const hasBytes = Number.isFinite(received) && received >= 0;
   const knownSize = hasBytes && Number.isFinite(total) && total > 0 && received <= total;
   const percent = knownSize ? Math.floor(received / total * 100) : null;
@@ -30,21 +33,27 @@ export function SetupProgress({ job, onDetails, onStop, onRetry, disconnected })
   const waitingForWindows = windows && operation === "oobe";
   const canContinue = failed || (waitingForWindows && !job.running);
   const meter = knownSize ? `${bytes(received)} / ${bytes(total)}` : hasBytes ? `已接收 ${bytes(received)}` : "";
-  return <section className={`setup-progress${failed ? " setup-progress-failed" : ""}`} aria-label="环境安装进度">
-    <ol className="setup-stages" aria-label="安装阶段">
-      {stages.map(([key, name]) => <li key={key} aria-current={key === phase ? "step" : undefined}>{native && key === "image" ? "安装材料" : native && key === "packages" ? "系统安装" : name}</li>)}
+  const heading = tr(failed && booting ? "Linux 基础环境启动失败" : label || stage?.[1] || "正在准备环境");
+  const bootHelp = "请查看操作详情，或导出诊断包以确认启动失败的原因。";
+  const localizedBootHelp = tr(bootHelp);
+  const localizedError = setupFailureMessage(job.error, tr);
+  const errorText = booting && localizedError === job.error && localizedBootHelp !== bootHelp
+    ? localizedBootHelp : localizedError;
+  return <section className={`setup-progress${failed ? " setup-progress-failed" : ""}`} aria-label={tr("环境安装进度")}>
+    <ol className="setup-stages" aria-label={tr("安装阶段")}>
+      {stages.map(([key, name]) => <li key={key} aria-current={key === phase ? "step" : undefined}>{tr(key === "image" && booting ? "系统启动" : native && key === "image" ? "安装材料" : native && key === "packages" ? "系统安装" : name)}</li>)}
     </ol>
     <div className="setup-transfer">
       <div className="setup-transfer-heading">
         <span className="setup-transfer-icon"><Icon size={19} aria-hidden="true" /></span>
         <div className="setup-transfer-description">
-          <h2>{label || stage?.[1] || "正在准备环境"}</h2>
+          <h2>{heading}</h2>
           {meter && <span className="setup-transfer-bytes">{meter}</span>}
           {hasBytes && operation !== "verify" && Number.isFinite(bytes_per_second) && bytes_per_second > 0 && <span className="setup-transfer-bytes"> · {bytes(bytes_per_second)}/s</span>}
         </div>
         {knownSize && <strong className="setup-transfer-number">{percent}<small>%</small></strong>}
       </div>
-      {!failed && !waitingForWindows && <div role="progressbar" aria-label={label || stage?.[1] || "当前操作"}
+      {!failed && !waitingForWindows && <div role="progressbar" aria-label={heading}
         aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent ?? undefined}
         aria-valuetext={knownSize ? `${percent}%，${meter}` : meter || undefined}
         className={knownSize ? "setup-meter" : "setup-meter setup-meter-active"}>
@@ -55,15 +64,15 @@ export function SetupProgress({ job, onDetails, onStop, onRetry, disconnected })
       {windows && operation === "credentials" && <p className="setup-transfer-hint">确认客机已登录桌面，在 PowerShell 安装窗口输入客机管理员账户。请保持该窗口开启，等待组件安装结束。</p>}
       {windows && ["media", "tools", "services"].includes(operation) && <p className="setup-transfer-hint">请保持 PowerShell 安装窗口开启，CCBox 完成组件安装后会自动关闭。</p>}
       {failed && <>
-        <p className="setup-transfer-error" role="alert"><SafetyMessage message={job.error} /></p>
-        <p className="setup-transfer-hint">可手动继续安装，已保存的下载会尝试续传。</p>
+        <p className="setup-transfer-error" role="alert"><SafetyMessage message={errorText} /></p>
+        <p className="setup-transfer-hint">{tr(booting ? "可在原安装目录继续，无需删除已下载的镜像。" : "可手动继续安装，已保存的下载会尝试续传。")}</p>
       </>}
     </div>
     <div className="setup-transfer-actions">
-      <button className="text-button" type="button" onClick={onDetails}>操作详情</button>
+      <button className="text-button" type="button" onClick={onDetails}>{tr("操作详情")}</button>
       {canContinue
-        ? <button type="button" className="primary" onClick={onRetry} disabled={disconnected}>{waitingForWindows && !failed ? "已进入桌面，继续安装" : "继续安装"}</button>
-        : <button type="button" onClick={onStop} disabled={disconnected}>停止安装</button>}
+        ? <button type="button" className="primary" onClick={onRetry} disabled={disconnected}>{tr(waitingForWindows && !failed ? "已进入桌面，继续安装" : "继续安装")}</button>
+        : <button type="button" onClick={onStop} disabled={disconnected}>{tr("停止安装")}</button>}
     </div>
   </section>;
 }

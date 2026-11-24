@@ -150,7 +150,7 @@ func parseSetupProgress(line string) *SetupProgress {
 	}
 	switch line {
 	case "CAGE_IMAGE_READY":
-		return &SetupProgress{Phase: "image", Label: "正在启动 Linux 基础环境"}
+		return &SetupProgress{Phase: "image", Label: "正在启动 Linux 基础环境", Operation: "boot"}
 	case "CAGE_IMAGE_VERIFY":
 		return &SetupProgress{Phase: "image", Label: "正在校验 Debian 镜像"}
 	case "Installing packages inside VM...", "Installing base packages...":

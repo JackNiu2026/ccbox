@@ -3,6 +3,7 @@ package cage
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -85,6 +86,41 @@ func TestStorageMovePreservesLegacyDiskAndColdBackup(t *testing.T) {
 	if _, _, err := AcquireStorageUse(profile); err == nil {
 		t.Fatal("started with missing volume")
 	}
+}
+
+func TestStorageReplaceMissingDirectoryRetainsOriginalLocation(t *testing.T) {
+	profile, root := newStorageFixture(t)
+	file := filepath.Join("lima", "instance", "disk")
+	payload := []byte("existing guest data")
+	writeStorageFixture(t, filepath.Join(profile, "state", file), payload)
+	original := filepath.Join(root, "original")
+	loc, err := MoveStorage(t.Context(), profile, original, storageExpectation(t, profile), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unavailable := original + "-unavailable"
+	if err := os.Rename(original, unavailable); err != nil {
+		t.Fatal(err)
+	}
+	missing, err := GetStorageLocation(profile)
+	if !errors.Is(err, ErrStorageMissing) || !missing.Missing || missing.Directory != original {
+		t.Fatalf("expected missing storage status, got %+v, %v", missing, err)
+	}
+	target := filepath.Join(root, "replacement")
+	if _, err := MoveStorage(t.Context(), profile, target, loc, nil); err == nil {
+		t.Fatal("accepted a replacement without acknowledging the missing path")
+	}
+	replacement, err := MoveStorage(t.Context(), profile, target, missing, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replacement.Missing || replacement.HasEnvironment || replacement.Backup != original {
+		t.Fatalf("new storage must be empty and the old location retained: %+v", replacement)
+	}
+	if err := os.Rename(unavailable, original); err != nil {
+		t.Fatal(err)
+	}
+	assertStorageFile(t, filepath.Join(original, "state", file), payload)
 }
 
 func TestStorageRefusesBusyAndRollsBackCancelledCopy(t *testing.T) {

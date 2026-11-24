@@ -65,15 +65,22 @@ func TestInterfaceRecoveryRevokesGateAndPreservesManualPause(t *testing.T) {
 	previous := physicalProxyInterface
 	t.Cleanup(func() { physicalProxyInterface = previous })
 	for _, tc := range []struct {
-		name, next   string
-		paused, lost bool
+		name, next              string
+		paused, lost, staleNode bool
 	}{
-		{"Wi-Fi to Ethernet", "en7", false, false},
-		{"Ethernet while paused", "en7", true, false},
-		{"same interface after outage", "en0", false, true},
+		{"Wi-Fi to Ethernet", "en7", false, false, false},
+		{"Ethernet while paused", "en7", true, false, false},
+		{"same interface after outage", "en0", false, true, false},
+		{"same uplink with stale node route", "en0", false, false, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s, gate := interfaceMonitorServer(t)
+			if tc.staleNode {
+				config := "interface-name: en0\nproxies:\n  - {server: 192.0.2.1, interface-name: old-adapter}\n"
+				if err := os.WriteFile(filepath.Join(s.profile, "proxy", "config.yaml"), []byte(config), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
 			s.networkPaused, s.proxyNetworkLost = tc.paused, tc.lost
 			physicalProxyInterface = func(context.Context) (string, error) { return tc.next, nil }
 			// Keep the recovery queued: assert the synchronous revocation before

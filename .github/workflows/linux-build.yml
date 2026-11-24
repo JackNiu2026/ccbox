@@ -89,6 +89,8 @@ jobs:
           npm test --prefix ui
           npm run --prefix ui lint
           node --test internal/cage/browser-clipboard.test.mjs internal/cage/native-input.test.mjs internal/cage/display-density.test.mjs
+          cc -std=c11 -Wall -Wextra -Werror -o /tmp/ccbox-media-plugins-test desktop/linux/media-plugins-test.c
+          (cd /tmp && ./ccbox-media-plugins-test)
       - name: Linux executable tests as an ordinary user
         env:
           UV_CACHE_DIR: /home/cage/.cache/uv

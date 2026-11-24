@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -189,12 +190,12 @@ func (s *Server) attach() error {
 	credentials, manifest, err := parseGuestConnection(b)
 	s.mu.Lock()
 	s.guestManifest = manifest
-	s.guestUpdateRequired = errors.Is(err, errGuestUpdateRequired)
-	s.guestUpdateError = ""
+	message := ""
 	if err != nil {
 		s.ready = false
-		s.guestUpdateError = err.Error()
+		message = err.Error()
 	}
+	s.setGuestUpdateLocked(errors.Is(err, errGuestUpdateRequired), message)
 	s.mu.Unlock()
 	if err != nil {
 		if errors.Is(err, errGuestUpdateRequired) {
@@ -340,6 +341,17 @@ func (s *Server) runCage(args ...string) error {
 	return nil
 }
 func (s *Server) startEnvironment(syncTimezone bool) error {
+	job := s.jobs.snapshot()
+	if !job.Running || (job.Kind != "device-reset" && job.Kind != "device-reset-restore") {
+		if err := s.checkDeviceResetArchives(); err != nil {
+			return err
+		}
+	}
+	if s.localVMStorage() && s.macosGuest == nil && s.windowsGuest == nil {
+		if err := cage.AllowDiskResizeStart(s.instanceDir(), s.jobs.execution().id); err != nil {
+			return err
+		}
+	}
 	s.desktopViews.reset()
 	s.browserViews.reset()
 	s.controlSession.close()
@@ -414,8 +426,8 @@ func (s *Server) startEnvironment(syncTimezone bool) error {
 			_ = s.closeProxyGate(e.Error())
 			return e
 		}
-		bound, _ := managedproxy.BoundInterface(filepath.Join(managedproxy.Dir(s.profile), "config.yaml"))
-		if bound != name || !managedproxy.Running(s.operationContext(), s.profile, p) {
+		bindingsMatch := managedproxy.BindingMatches(filepath.Join(managedproxy.Dir(s.profile), "config.yaml"), name)
+		if !bindingsMatch || !slices.Equal(p.CoreDNS(), cfg.DNSEndpoints()) || !slices.Equal(p.NodeResolvers(), cfg.BootstrapEndpoints()) || !managedproxy.Running(s.operationContext(), s.profile, p) {
 			// Every core start changes the report generation, including recovery.
 			if e = s.activateProxy(p, cfg); e != nil {
 				return e
@@ -428,9 +440,12 @@ func (s *Server) startEnvironment(syncTimezone bool) error {
 	}
 
 	attachErr := s.attach()
+	startCommand := "up"
 	if errors.Is(attachErr, errGuestUpdateRequired) && !containerenv.Configured(s.profile) {
 		info, err := os.Lstat(filepath.Join(s.instanceDir(), cage.LimaInitialProvision))
-		if err != nil || !info.Mode().IsRegular() {
+		if errors.Is(err, os.ErrNotExist) && s.canResumeInterruptedProvision(job.Kind, attachErr) {
+			startCommand = "update-components"
+		} else if err != nil || !info.Mode().IsRegular() {
 			return attachErr
 		}
 	}
@@ -507,7 +522,7 @@ func (s *Server) startEnvironment(syncTimezone bool) error {
 		defer job.setSetupProgress(nil)
 	}
 	s.setMessage("正在启动浏览器、编辑器与共享文件…")
-	if err = s.runCage("up"); err != nil {
+	if err = s.runCage(startCommand); err != nil {
 		if attachErr := s.attach(); errors.Is(attachErr, errGuestUpdateRequired) {
 			return attachErr
 		}
@@ -519,6 +534,13 @@ func (s *Server) startEnvironment(syncTimezone bool) error {
 		}
 		if err = s.attach(); err == nil {
 			return s.checkNetworkIfWanted()
+		} else if startCommand == "up" && s.canResumeInterruptedProvision(job.Kind, err) {
+			// A stopped guest may report the interrupted transaction only
+			// after the first boot. Retry its original provisioning once.
+			startCommand = "update-components"
+			if err = s.runCage(startCommand); err != nil {
+				return err
+			}
 		} else if errors.Is(err, errGuestUpdateRequired) {
 			return err
 		}
@@ -527,6 +549,7 @@ func (s *Server) startEnvironment(syncTimezone bool) error {
 	return errors.New("环境已启动，但浏览器连接尚未就绪。请重试连接或查看操作详情。")
 }
 func (s *Server) stopEnvironment() (returned error) {
+	s.notifications.stopWatcher()
 	s.desktopStatus.invalidate()
 	defer s.desktopStatus.invalidate()
 	explicitStop := s.jobs.snapshot().Kind == "stop"
@@ -556,9 +579,8 @@ func (s *Server) stopEnvironment() (returned error) {
 	s.ready = false
 	s.credentials = guestCredentials{}
 	s.guestManifest = nil
-	s.guestUpdateRequired = false
+	s.setGuestUpdateLocked(false, "")
 	s.macComponentsChecked = false
-	s.guestUpdateError = ""
 	s.safety.Error = ""
 	s.mu.Unlock()
 	s.terminals.closeAll()
@@ -637,7 +659,8 @@ func (s *Server) apply(v savedProfile, validate bool) error {
 		if s.operationContext().Err() != nil {
 			return s.operationContext().Err()
 		}
-		if err = writePrivate(filepath.Join(s.profile, "previous-profile.json"), savedProfile{old, oldPrefs}); err != nil {
+		previous := restorableProfile{savedProfile: savedProfile{old, oldPrefs}, FallbackDNS: old.DNS.FallbackURLs(), BootstrapDNS: old.DNS.BootstrapURLs(), PublicFallback: old.DNS.PublicFallback}
+		if err = writePrivate(filepath.Join(s.profile, "previous-profile.json"), previous); err != nil {
 			return err
 		}
 		if err = s.stopEnvironment(); err != nil {
@@ -659,12 +682,16 @@ func (s *Server) apply(v savedProfile, validate bool) error {
 	if err != nil {
 		return err
 	}
+	if v.Config.DNS != old.DNS {
+		if err = cage.SaveDNSOptions(s.configPath, v.Config.DNS); err != nil {
+			return errors.Join(err, writePrivate(s.configPath, old))
+		}
+	}
 	if browserHomeURL(oldPrefs) != browserHomeURL(v.Preferences) {
 		v.Preferences.BrowserHomePending = true
 	}
 	if err = writePrivate(filepath.Join(s.profile, "workbench.json"), v.Preferences); err != nil {
-		_ = writePrivate(s.configPath, old)
-		return err
+		return errors.Join(err, writePrivate(s.configPath, old), cage.SaveDNSOptions(s.configPath, old.DNS))
 	}
 	s.mu.Lock()
 	s.preferences = v.Preferences
@@ -711,10 +738,10 @@ func (s *Server) monitorNetworkTick() {
 		timing.result = "setup_pending"
 		return
 	}
-	s.monitorProxyInterface()
-	timing.stage("physical_interface")
 	s.checkProxyHealth()
 	timing.stage("proxy_health")
+	s.monitorProxyInterface()
+	timing.stage("physical_interface")
 	s.monitorSafety()
 	timing.stage("safety")
 	s.recoverNetwork()
@@ -724,8 +751,6 @@ func (s *Server) monitorNetworkTick() {
 }
 
 func (s *Server) monitorNetwork(ctx context.Context) {
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
 	skipped := 0
 	for ctx.Err() == nil {
 		if s.op.TryLock() {
@@ -739,10 +764,14 @@ func (s *Server) monitorNetwork(ctx context.Context) {
 			timing.stages = append(timing.stages, fmt.Sprintf("consecutive_lock_skips=%d", skipped))
 			s.recordMonitorTiming("network", timing)
 		}
+		// Space rounds from completion so a slow adapter query does not
+		// immediately take the operation lock again.
+		timer := time.NewTimer(5 * time.Second)
 		select {
 		case <-ctx.Done():
+			timer.Stop()
 			return
-		case <-ticker.C:
+		case <-timer.C:
 		}
 	}
 }

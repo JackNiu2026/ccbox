@@ -1,3 +1,4 @@
+import { translate as tr } from "./message-catalog.mjs";
 import { InlineSelect } from "./inline-select";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -19,6 +20,8 @@ import {
 import { api } from "./api";
 import { SafetyMessage } from "./safety-message";
 import { ProxyYAMLInput } from "./proxy-yaml-input";
+import { useWindowVisibility } from "./window-visibility";
+import { groupNodesByRegion } from "./proxy-region.mjs";
 import "./proxy.css";
 
 const bytes = (v) => {
@@ -97,10 +100,12 @@ function useSourceForm() {
 }
 
 export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializing = false }) {
+  const windowVisible = useWindowVisibility();
   const [proxy, setProxy] = useState(null),
     [tab, setTab] = useState("nodes"),
     [search, setSearch] = useState(""),
     [source, setSource] = useState(""),
+    [region, setRegion] = useState(""),
     [error, setError] = useState(""),
     [pending, setPending] = useState(""),
     [notice, setNotice] = useState(""),
@@ -116,6 +121,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
   const [routeDraft, setRouteDraft] = useState(null);
   const [hostRefresh, setHostRefresh] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [localSources, setLocalSources] = useState(null);
   const hasNodes = Boolean(proxy?.sources.some((item) => item.nodes.length));
   const showInlineImport = tab === "nodes" && (!hasNodes || Boolean(formDraft));
   const form = showInlineImport ? formDraft ?? emptyForm : tab === "sources" ? formDraft : null;
@@ -137,6 +143,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
   const closeImport = () => {
     if (tab === "nodes") pendingFocus.current = "nodes";
     resetForm();
+    setLocalSources(null);
   };
   const alive = useRef(true),
     loading = useRef(false),
@@ -153,6 +160,10 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
   };
   useEffect(() => {
     alive.current = true;
+    return () => { alive.current = false; };
+  }, []);
+  useEffect(() => {
+    if (!windowVisible) return;
     const tick = async () => {
       if (loading.current) return;
       loading.current = true;
@@ -166,13 +177,10 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
     };
     tick();
     const timer = setInterval(tick, 4000);
-    return () => {
-      alive.current = false;
-      clearInterval(timer);
-    };
-  }, []);
+    return () => clearInterval(timer);
+  }, [windowVisible]);
   useEffect(() => {
-    if (tab !== "connections" && tab !== "diagnostics") return;
+    if (!windowVisible || (tab !== "connections" && tab !== "diagnostics")) return;
     let cancelled = false;
     const tick = async () => {
       try {
@@ -212,7 +220,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
       clearInterval(timer);
       latest.current = null;
     };
-  }, [tab]);
+  }, [tab, windowVisible]);
   const busy = Boolean(pending) || Boolean(status.job?.running);
   const mutate = async (action, input = {}) => {
     const sourceFormAction = action === "import" || action === "edit";
@@ -253,6 +261,17 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
       if (alive.current) reportError(e.message);
     } finally {
       if (alive.current) setPending("");
+    }
+  };
+  const scanLocalSources = async () => {
+    setPending("local-sources");
+    setFormError("");
+    try {
+      setLocalSources(await api("/proxy/local-sources"));
+    } catch (error) {
+      setFormError(error.message);
+    } finally {
+      setPending("");
     }
   };
   const applyRoute = async (nodeIDs) => {
@@ -365,7 +384,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
   const updateHop = (index, id) =>
     setRouteDraft(route.map((current, i) => (i === index ? id : current)));
   const routePreview = (
-    <div className="proxy-route-preview" aria-label="待应用链路">
+    <div className="proxy-route-preview" aria-label={tr("待应用链路")}>
       <Route size={16} aria-hidden="true" />
       <span>CCBox</span>
       {route.map((id, index) => (
@@ -375,7 +394,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
         </React.Fragment>
       ))}
       <ArrowRight size={13} aria-hidden="true" />
-      <span>目标网站</span>
+      <span>{tr("目标网站")}</span>
     </div>
   );
   const routeError = proxy.route_error && (
@@ -384,26 +403,24 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
     </p>
   );
   const undoRoute = routeDraft !== null && (!initializing || proxy.active) && (
-    <button type="button" disabled={busy} onClick={() => setRouteDraft(null)}>
-      撤销修改
-    </button>
+    <button type="button" disabled={busy} onClick={() => setRouteDraft(null)}>{tr("撤销修改")}</button>
   );
-  const nodes = allNodes.filter(
-    (n) =>
-      (!source || n.sourceID === source) &&
-      `${n.name} ${n.source} ${n.type}`
-        .toLowerCase()
-        .includes(search.toLowerCase()),
+  const sourceNodes = source ? allNodes.filter((node) => node.sourceID === source) : allNodes;
+  const regions = initializing ? [] : groupNodesByRegion(sourceNodes);
+  const selectedRegion = regions.find((item) => item.code === region);
+  const query = search.toLowerCase();
+  const nodes = (selectedRegion?.nodes ?? sourceNodes).filter((node) =>
+    `${node.name} ${node.source} ${node.type}`.toLowerCase().includes(query),
   );
   return (
     <div className={initializing ? "proxy-manager proxy-initializing" : "proxy-manager"}>
       {!initializing && <div className="section-title">
         <div className="proxy-heading">
-          <h3>内置代理</h3>
+          <h3>{tr("内置代理")}</h3>
           <button
             type="button"
             className="icon-button proxy-help-toggle"
-            aria-label="代理使用说明"
+            aria-label={tr("代理使用说明")}
             title={helpOpen ? "收起代理使用说明" : "查看代理使用说明"}
             aria-expanded={helpOpen}
             aria-controls="proxy-help"
@@ -420,38 +437,33 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           className="proxy-help"
           aria-labelledby="proxy-help-title"
         >
-          <h4 id="proxy-help-title">代理使用说明</h4>
-          <p className="proxy-help-intro">
-            CCBox 自带代理核心，无需另外安装
-            Clash。请先准备你已有的代理订阅或节点信息，CCBox 不提供代理节点。
-          </p>
+          <h4 id="proxy-help-title">{tr("代理使用说明")}</h4>
+          <p className="proxy-help-intro">{tr("CCBox 自带代理核心，无需另外安装 Clash。请先准备你已有的代理订阅或节点信息，CCBox 不提供代理节点。")}</p>
           <ol className="proxy-help-steps">
             <li>
-              <strong>导入你的代理</strong>
+              <strong>{tr("导入你的代理")}</strong>
               <p>在「导入来源」选择一种方式，CCBox 会自动命名：</p>
               <ul>
                 <li>
-                  <strong>订阅链接：</strong>从代理服务商处复制 Clash/Mihomo
+                  <strong>{tr("订阅链接：")}</strong>从代理服务商处复制 Clash/Mihomo
                   格式的 HTTPS
                   订阅地址，粘贴后点击「导入并验证」。未应用代理时使用主机网络下载，已应用时经现有代理下载。
                 </li>
                 <li>
-                  <strong>本地 YAML：</strong>拖入或选择配置文件，或粘贴含节点的
-                  YAML 配置，再点击「导入并验证」。可从已有代理客户端导出配置。
+                  <strong>{tr("本地 YAML：")}</strong>拖入或选择配置文件，也可粘贴 YAML、节点分享链接或 Base64 节点列表，再点击「导入并验证」。
                 </li>
                 <li>
-                  <strong>手动节点：</strong>支持 HTTP CONNECT、SOCKS5 和 SSH。填写节点名称、服务器地址、端口及认证信息；SSH 可选择密码或私钥认证，再点击「导入并验证」。
-                </li>
+                  <strong>{tr("手动节点：")}</strong>{tr("支持 HTTP CONNECT、SOCKS5 和 SSH。填写节点名称、服务器地址、端口及认证信息；SSH 可选择密码或私钥认证，再点击「导入并验证」。")}</li>
               </ul>
             </li>
             <li>
-              <strong>选择节点并启用</strong>
+              <strong>{tr("选择节点并启用")}</strong>
               <p>
                 导入后选择最终出口，直接点击「应用代理」。住宅代理无法从国内连接时，选择「链式代理」，在它前面添加可连接的中转节点；节点可以来自不同订阅。首次启用时若环境正在运行，需要重启；后续切换只重建网络连接。
               </p>
             </li>
             <li>
-              <strong>确认可以联网</strong>
+              <strong>{tr("确认可以联网")}</strong>
               <p>
                 回到工作台启动环境，等待网络检查通过。以工作台的联网状态为准；「测速」只检测节点延迟。CCBox
                 内的浏览器、终端和开发工具会共用所选节点，无需分别配置代理。
@@ -459,17 +471,11 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
             </li>
           </ol>
           <div className="proxy-help-notes">
-            <strong>导入失败或无法联网？</strong>
+            <strong>{tr("导入失败或无法联网？")}</strong>
             <p>
-              确认复制的是订阅地址，而非服务商登录页或管理页。暂不支持单条分享链接、Base64
-              节点列表，以及只引用远程节点列表的配置；请向服务商获取含节点的
-              Clash/Mihomo YAML。
+              订阅地址填写在订阅链接栏。单条分享链接或 Base64 节点列表请粘贴到本地 YAML 的配置栏。
             </p>
-            <p>
-              订阅下载失败时，可检查主机是否能访问订阅地址，或改用本地
-              YAML。节点不可用时，换一个节点并查看「诊断」；更换节点后仍需通过出口
-              IP 和地区检查。
-            </p>
+            <p>{tr("订阅下载失败时，可检查主机是否能访问订阅地址，或改用本地 YAML。节点不可用时，换一个节点并查看「诊断」；更换节点后仍需通过出口 IP 和地区检查。")}</p>
           </div>
         </section>
       )}
@@ -506,16 +512,11 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
         </p>
       )}
       {!proxy.core_available && (
-        <div role="alert" className="error-message">
-          安装包缺少随附代理核心，请重新构建或安装完整 CCBox 应用。
-        </div>
+        <div role="alert" className="error-message">{tr("安装包缺少随附代理核心，请重新构建或安装完整 CCBox 应用。")}</div>
       )}
       {!initializing && <>
-      <p className="field-help">
-        仅允许经节点转发的 IPv4 TCP 和 DNS；公网 UDP、IPv6、ICMP
-        持续阻断。切换会关闭旧网络连接并重新检查出口。
-      </p>
-      <div role="tablist" aria-label="代理管理" className="proxy-tabs">
+      <p className="field-help">{tr("仅允许经节点转发的 IPv4 TCP 和 DNS；公网 UDP、IPv6、ICMP 持续阻断。切换会关闭旧网络连接并重新检查出口。")}</p>
+      <div role="tablist" aria-label={tr("代理管理")} className="proxy-tabs">
         {[
           ["nodes", "节点"],
           ["sources", "订阅"],
@@ -540,12 +541,8 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
               type="checkbox"
               checked={hostRefresh}
               onChange={(e) => setHostRefresh(e.target.checked)}
-            />
-            手动更新订阅时通过主机网络下载
-          </label>
-          <p className="field-help">
-            自动更新始终使用当前配置的代理，不会切换到主机下载。
-          </p>
+            />{tr("手动更新订阅时通过主机网络下载")}</label>
+          <p className="field-help">{tr("自动更新始终使用当前配置的代理，不会切换到主机下载。")}</p>
           <div className="proxy-toolbar">
             <span>
               {proxy.sources.length} 个来源 · {allNodes.length} 个节点
@@ -554,9 +551,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
               disabled={busy}
               onClick={() => resetForm({ ...emptyForm })}
             >
-              <Plus size={14} />
-              添加来源
-            </button>
+              <Plus size={14} />{tr("添加来源")}</button>
           </div>
           {proxy.sources.map((s) => (
             <div className="proxy-source" key={s.id}>
@@ -568,8 +563,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                     ? `每 ${s.interval_hours} 小时更新`
                     : "手动更新"}
                 </small>
-                <small>
-                  更新于 {new Date(s.updated_at).toLocaleString()}
+                <small>{tr("更新于") + " "}{new Date(s.updated_at).toLocaleString()}
                   {usageLabel(s.usage) && ` · ${usageLabel(s.usage)}`}
                 </small>
                 {s.error && (
@@ -577,8 +571,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                 )}
                 {s.skipped?.length > 0 && (
                   <details className="proxy-source-skipped">
-                    <summary>
-                      已导入 {s.nodes.length} 个节点，跳过 {s.skipped.length} 个
+                    <summary>{tr("已导入") + " "}{s.nodes.length} 个节点，跳过 {s.skipped.length} 个
                       · 查看原因
                     </summary>
                     <ul>
@@ -648,14 +641,13 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
         <section className="proxy-import" aria-labelledby="proxy-import-title">
           {initializing ? <div className="proxy-step-heading">
             <h4 id="proxy-import-title" ref={importHeading} tabIndex={-1}>
-              <span aria-hidden="true">1</span>导入节点
-            </h4>
+              <span aria-hidden="true">1</span>{tr("导入节点")}</h4>
             {!form && <button type="button" disabled={busy} onClick={openImport}>
-              <Plus size={14} />继续导入
+              <Plus size={14} />{tr("继续导入")}
             </button>}
           </div> :
           <h4 id="proxy-import-title" ref={tab === "nodes" ? importHeading : undefined} tabIndex={-1}>
-            {tab === "nodes" ? "导入来源" : form.id ? "编辑来源" : "添加节点来源"}
+            {tr(tab === "nodes" ? "导入来源" : form.id ? "编辑来源" : "添加节点来源")}
           </h4>}
           {form && <>
           {!form.id && (
@@ -675,15 +667,13 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                     setForm({ ...form, name: "", content: "", url: "" });
                   }}
                 >
-                  {label}
+                  {tr(label)}
                 </button>
               ))}
             </div>
           )}
           {form.id && (
-            <label>
-              来源名称
-              <input
+            <label>{tr("来源名称")}<input
                 value={form.name}
                 maxLength={100}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -693,7 +683,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           {mode === "url" && (!form.id || form.remote) && (
             <>
               <label>
-                {form.id ? "新订阅链接（留空保留）" : "订阅链接"}
+                {tr(form.id ? "新订阅链接（留空保留）" : "订阅链接")}
                 <input
                   value={form.url}
                   type="url"
@@ -704,10 +694,8 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                   placeholder="https://…"
                 />
               </label>
-              {!initializing && <label>
-                自动更新间隔
-                <InlineSelect
-                  aria-label="自动更新间隔"
+              {!initializing && <label>{tr("自动更新间隔")}<InlineSelect
+                  aria-label={tr("自动更新间隔")}
                   value={form.interval_hours}
                   onValueChange={(next) =>
                     setForm({
@@ -737,6 +725,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
             </>
           )}
           {mode === "file" && !form.id && (
+            <>
             <ProxyYAMLInput
               content={form.content}
               disabled={busy}
@@ -753,24 +742,27 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                 }))
               }
             />
+            <button type="button" disabled={busy} onClick={scanLocalSources}>{tr("查找本机代理配置")}</button>
+            {localSources?.length === 0 && <p className="field-help" role="status">未找到本机代理配置，可继续选择文件或粘贴配置。</p>}
+            {localSources?.map((entry) => <div className="field-row" key={entry.id}>
+              <span>{entry.client} · {entry.name} · {entry.error || `${entry.nodes} 个节点`}</span>
+              <button type="button" disabled={busy || !entry.nodes || Boolean(entry.error)} onClick={() => mutate("import", { local_id: entry.id })}>{tr("导入此配置")}</button>
+            </div>)}
+            </>
           )}
           {mode === "manual" && !form.id && (
             <>
               <div className="field-row">
-                <label>
-                  节点名称
-                  <input
+                <label>{tr("节点名称")}<input
                     value={manual.name}
                     onChange={(e) =>
                       setManual({ ...manual, name: e.target.value })
                     }
                   />
                 </label>
-                <label>
-                  协议
-                  <InlineSelect
+                <label>{tr("协议")}<InlineSelect
                     inline
-                    aria-label="协议"
+                    aria-label={tr("协议")}
                     value={manual.type}
                     onValueChange={(next) =>
                       setManual({
@@ -789,19 +781,15 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                 </label>
               </div>
               <div className="field-row">
-                <label>
-                  服务器
-                  <input
+                <label>{tr("服务器")}<input
                     value={manual.server}
                     onChange={(e) =>
                       setManual({ ...manual, server: e.target.value })
                     }
-                    placeholder="域名或 IP"
+                    placeholder={tr("域名或 IP")}
                   />
                 </label>
-                <label>
-                  端口
-                  <input
+                <label>{tr("端口")}<input
                     type="number"
                     min="1"
                     max="65535"
@@ -813,19 +801,17 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                 </label>
               </div>
               {manualSSH && (
-                <label>
-                  认证方式
-                  <InlineSelect
+                <label>{tr("认证方式")}<InlineSelect
                     inline
-                    aria-label="认证方式"
+                    aria-label={tr("认证方式")}
                     value={manual.sshAuth}
                     onValueChange={(next) => setManual({
                       ...manual, sshAuth: next,
                       ...(next !== manual.sshAuth ? { password: "", privateKey: "", passphrase: "" } : {}),
                     })}
                   >
-                    <option value="password">密码</option>
-                    <option value="private-key">私钥</option>
+                    <option value="password">{tr("密码")}</option>
+                    <option value="private-key">{tr("私钥")}</option>
                   </InlineSelect>
                 </label>
               )}
@@ -854,10 +840,8 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
               </div>
               {manualSSH && <>
                 {manual.sshAuth === "private-key" && <>
-                  <label>
-                    私钥内容（必填）
-                    <textarea
-                      aria-label="私钥内容（必填）"
+                  <label>{tr("私钥内容（必填）")}<textarea
+                      aria-label={tr("私钥内容（必填）")}
                       value={manual.privateKey}
                       rows={7}
                       spellCheck={false}
@@ -867,10 +851,8 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                       placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
                     />
                   </label>
-                  <p className="field-help">粘贴完整 PEM / OpenSSH 私钥内容，不支持填写本机文件路径。</p>
-                  <label>
-                    私钥口令（可选）
-                    <input
+                  <p className="field-help">{tr("粘贴完整 PEM / OpenSSH 私钥内容，不支持填写本机文件路径。")}</p>
+                  <label>{tr("私钥口令（可选）")}<input
                       type="password"
                       value={manual.passphrase}
                       autoComplete="new-password"
@@ -878,10 +860,8 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                     />
                   </label>
                 </>}
-                <label>
-                  服务器公钥（可选，建议填写）
-                  <textarea
-                    aria-label="服务器公钥（可选，建议填写）"
+                <label>{tr("服务器公钥（可选，建议填写）")}<textarea
+                    aria-label={tr("服务器公钥（可选，建议填写）")}
                     value={manual.hostKey}
                     rows={2}
                     spellCheck={false}
@@ -890,7 +870,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                     placeholder="ssh-ed25519 AAAA…"
                   />
                 </label>
-                <p className="field-help">填写可信的服务器公钥以核对服务器身份，每行一条；留空时不校验服务器身份。SSH 仅转发 TCP。</p>
+                <p className="field-help">{tr("填写可信的服务器公钥以核对服务器身份，每行一条；留空时不校验服务器身份。SSH 仅转发 TCP。")}</p>
               </>}
             </>
           )}
@@ -901,7 +881,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           )}
           <div className="proxy-form-actions">
             {(tab === "sources" || hasNodes) && (
-              <button type="button" disabled={busy} onClick={closeImport}>取消</button>
+              <button type="button" disabled={busy} onClick={closeImport}>{tr("取消")}</button>
             )}
             <button
               className="primary"
@@ -917,7 +897,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
               }
               onClick={submit}
             >
-              {form.id ? "保存来源" : "导入并验证"}
+              {tr(form.id ? "保存来源" : "导入并验证")}
             </button>
           </div>
           </>}
@@ -927,13 +907,11 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
         <section className="proxy-node-section" aria-labelledby="proxy-node-select-title">
           <div className="proxy-node-heading">
             <h4 id="proxy-node-select-title" ref={nodeHeading} tabIndex={-1}>
-              {initializing ? <><span aria-hidden="true">2</span>配置代理</> : "选择节点"}
+              {initializing ? <><span aria-hidden="true">2</span>{tr("配置代理")}</> : tr("选择节点")}
             </h4>
             {!initializing && !showInlineImport && (
               <button type="button" disabled={busy} onClick={openImport}>
-                <Plus size={14} />
-                添加来源
-              </button>
+                <Plus size={14} />{tr("添加来源")}</button>
             )}
           </div>
           {!hasNodes && <p className="field-help">导入节点后，在这里选择出口并应用。</p>}
@@ -944,22 +922,20 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           >
             <div className="proxy-route-heading">
               {!initializing && <div>
-                <h4 id="proxy-route-title">配置连接方式</h4>
-                <p>直接使用一个出口，或经中转连接住宅代理。</p>
+                <h4 id="proxy-route-title">{tr("配置连接方式")}</h4>
+                <p>{tr("直接使用一个出口，或经中转连接住宅代理。")}</p>
               </div>}
               <div
                 className="proxy-route-mode"
                 role="group"
-                aria-label="连接方式"
+                aria-label={tr("连接方式")}
               >
                 <button
                   type="button"
                   aria-pressed={route.length === 1}
                   disabled={busy}
                   onClick={() => setRouteDraft([route.at(-1)])}
-                >
-                  单节点
-                </button>
+                >{tr("单节点")}</button>
                 <button
                   type="button"
                   aria-pressed={route.length > 1}
@@ -967,9 +943,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                   onClick={() => {
                     if (route.length === 1) setRouteDraft(["", route[0]]);
                   }}
-                >
-                  链式代理
-                </button>
+                >{tr("链式代理")}</button>
               </div>
             </div>
             <ol className="proxy-route-hops">
@@ -1000,9 +974,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                         </option>
                         {Boolean(id) &&
                           !allNodes.some((n) => n.id === id) && (
-                            <option value={id} disabled>
-                              节点已被移除，请重新选择
-                            </option>
+                            <option value={id} disabled>{tr("节点已被移除，请重新选择")}</option>
                           )}
                         {proxy.sources.map((src) => (
                           <optgroup key={src.id} label={src.name}>
@@ -1020,7 +992,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                           </optgroup>
                         ))}
                       </InlineSelect>
-                      {final && <small>目标网站看到此节点的出口 IP</small>}
+                      {final && <small>{tr("目标网站看到此节点的出口 IP")}</small>}
                     </div>
                     {!final && (
                       <button
@@ -1049,14 +1021,12 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                   setRouteDraft([...route.slice(0, -1), "", route.at(-1)])
                 }
               >
-                <Plus size={14} />
-                添加中转
-              </button>
+                <Plus size={14} />{tr("添加中转")}</button>
             )}
             {(!initializing || route.length > 1) && routePreview}
             <div className="proxy-route-actions">
               <span aria-live="polite">
-                {routeChanged ? "有未应用的代理修改" : proxy.active ? "当前配置已应用" : "选择完成后应用代理"}
+                {tr(routeChanged ? "有未应用的代理修改" : proxy.active ? "当前配置已应用" : "选择完成后应用代理")}
               </span>
               <div>
                 {undoRoute}
@@ -1073,7 +1043,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                   ) : (
                     <Check size={14} />
                   )}
-                  {routeChanged || !proxy.active ? "应用代理" : "重新应用"}
+                  {tr(routeChanged || !proxy.active ? "应用代理" : "重新应用")}
                 </button>
               </div>
             </div>
@@ -1086,37 +1056,41 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
           </section>
           )}
           {!initializing && <>
-          <h4>可用节点</h4>
+          <h4>{tr("可用节点")}</h4>
           <div className="proxy-toolbar">
             <label className="proxy-search">
               <Search size={15} />
               <input
-                aria-label="搜索节点"
+                aria-label={tr("搜索节点")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="搜索节点、来源或协议"
+                placeholder={tr("搜索节点、来源或协议")}
               />
             </label>
             <InlineSelect
-              aria-label="节点来源"
+              aria-label={tr("节点来源")}
               value={source}
-              onValueChange={(next) => setSource(next)}
+              onValueChange={(next) => { setSource(next); setRegion(""); }}
             >
-              <option value="">全部来源</option>
+              <option value="">{tr("全部来源")}</option>
               {proxy.sources.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
                 </option>
               ))}
             </InlineSelect>
+            {regions.length > 1 && <InlineSelect aria-label={tr("节点地区")}
+              value={selectedRegion?.code ?? ""} onValueChange={setRegion}>
+              <option value="">{tr("全部地区")}</option>
+              {regions.map(({ code, label, nodes }) =>
+                <option key={code} value={code}>{label} ({nodes.length})</option>)}
+            </InlineSelect>}
             <button
               disabled={busy || !proxy.running || !nodes.length}
-              title="检测 HTTP 往返延迟，通常不含建连开销，不代表网页首开耗时"
+              title={tr("检测 HTTP 往返延迟，通常不含建连开销，不代表网页首开耗时")}
               onClick={() => measure(nodes.map((n) => n.id))}
             >
-              <Activity size={14} />
-              测速
-            </button>
+              <Activity size={14} />{tr("测速")}</button>
           </div>
           <div className="proxy-node-list proxy-node-results">
             {nodes.map((n) => (
@@ -1162,7 +1136,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                 </div>
                 <button
                   aria-label={`测速 ${n.name}`}
-                  title="检测此节点到 www.gstatic.com 的 HTTP 往返延迟，通常不含建连开销，不代表网页首开耗时"
+                  title={tr("检测此节点到 www.gstatic.com 的 HTTP 往返延迟，通常不含建连开销，不代表网页首开耗时")}
                   disabled={busy || !proxy.running}
                   onClick={() => measure([n.id])}
                 >
@@ -1171,7 +1145,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
               </div>
             ))}
             {!nodes.length && (
-              <p className="field-help">没有符合搜索条件的节点。</p>
+              <p className="field-help">{tr("没有符合搜索条件的节点。")}</p>
             )}
           </div>
           </>}
@@ -1180,19 +1154,14 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
       {tab === "connections" && (
         <>
           <div className="proxy-metrics">
-            <span>
-              上传 <strong>{bytes(rates.up)}/s</strong>
-              <small>累计 {bytes(connections.uploadTotal)}</small>
+            <span>{tr("上传") + " "}<strong>{bytes(rates.up)}/s</strong>
+              <small>{tr("累计") + " "}{bytes(connections.uploadTotal)}</small>
             </span>
-            <span>
-              下载 <strong>{bytes(rates.down)}/s</strong>
-              <small>累计 {bytes(connections.downloadTotal)}</small>
+            <span>{tr("下载") + " "}<strong>{bytes(rates.down)}/s</strong>
+              <small>{tr("累计") + " "}{bytes(connections.downloadTotal)}</small>
             </span>
           </div>
-          <p className="field-help">
-            显示当前核心的连接与流量，包含 CCBox
-            自身检测请求；重启核心后累计值重置。
-          </p>
+          <p className="field-help">{tr("显示当前核心的连接与流量，包含 CCBox 自身检测请求；重启核心后累计值重置。")}</p>
           <div className="proxy-node-list">
             {connections.connections.map((c) => (
               <div className="proxy-connection" key={c.id}>
@@ -1206,7 +1175,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
               </div>
             ))}
             {!connections.connections.length && (
-              <p className="proxy-empty">暂无活动连接</p>
+              <p className="proxy-empty">{tr("暂无活动连接")}</p>
             )}
           </div>
         </>
@@ -1222,9 +1191,7 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
               <div key={i}>{line}</div>
             ))}
           </div>
-          <label>
-            独立代理端口
-            <input
+          <label>{tr("独立代理端口")}<input
               type="number"
               min="1024"
               max="65535"
@@ -1252,21 +1219,14 @@ export function ProxySettings({ status, onApplied, onConfirm, onDirty, initializ
                 mutate("restart", { port: Number(port) });
               }}
             >
-              <RefreshCw size={14} />
-              应用端口并重启核心
-            </button>
+              <RefreshCw size={14} />{tr("应用端口并重启核心")}</button>
             <button
               disabled={busy || !proxy.running}
               onClick={() => mutate("stop")}
             >
-              <Square size={14} />
-              停止核心
-            </button>
+              <Square size={14} />{tr("停止核心")}</button>
           </div>
-          <p className="field-help">
-            CCBox 不设置系统代理或主机 TUN。本机其他代理的 TUN
-            仍可能影响核心出站，需要结合实际路由验证。
-          </p>
+          <p className="field-help">{tr("CCBox 不设置系统代理或主机 TUN。本机其他代理的 TUN 仍可能影响核心出站，需要结合实际路由验证。")}</p>
         </>
       )}
       {pending && (

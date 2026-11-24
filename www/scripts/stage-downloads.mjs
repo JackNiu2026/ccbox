@@ -30,7 +30,7 @@ async function unsignedPlatforms(inputs) {
       throw error;
     }
     if (record.unsigned === true) {
-      if (record.platform !== 'windows' && record.platform !== 'macos') throw new Error(`Unsigned preview is not allowed for ${record.platform}`);
+      if (!['windows', 'macos', 'macos-intel'].includes(record.platform)) throw new Error(`Unsigned preview is not allowed for ${record.platform}`);
       found.add(record.platform);
     }
   }
@@ -57,13 +57,18 @@ export async function stageDownloads({ inputs, notes, siteDirectory = site }) {
     const metadata = { version, releaseURL: base + notesName };
     const installers = {
       downloadURL: `CCBox-${version}-macos-arm64.dmg`,
+      macosIntelDownloadURL: `CCBox-${version}-macos-amd64.dmg`,
       windowsDownloadURL: `CCBox-${version}-windows-amd64-setup.exe`,
       linuxDownloadURL: `CCBox-${version}-linux-amd64.deb`,
       androidDownloadURL: `CCBox-${version}-android-arm64.apk`,
     };
     // Unsigned Windows and macOS packages are listed as labelled previews.
     const unsigned = await unsignedPlatforms(inputs);
-    const previewKeys = { downloadURL: ['macos', 'macosPreview'], windowsDownloadURL: ['windows', 'windowsPreview'] };
+    const previewKeys = {
+      downloadURL: ['macos', 'macosPreview'],
+      macosIntelDownloadURL: ['macos-intel', 'macosIntelPreview'],
+      windowsDownloadURL: ['windows', 'windowsPreview'],
+    };
     const updateAssets = [];
     for (const [key, name] of Object.entries(installers)) {
       if (!result.assets.includes(name)) continue;

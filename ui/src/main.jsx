@@ -1,3 +1,4 @@
+import { translate as tr } from "./message-catalog.mjs";
 import { shortcut, primaryModifier } from "./platform.mjs";
 import logo from "./logo.svg";
 import React, { useEffect, useRef, useState } from "react";
@@ -25,9 +26,11 @@ import { GuestSystemPicker, validGuestChoice } from "./guest-system-picker";
 import { AppearanceProvider } from "./appearance";
 import { EnvironmentShield } from "./environment-shield";
 import { TailscalePanel } from "./tailscale";
+import { restoreInterfaceLanguage, useInterfaceLanguage } from "./interface-language.mjs";
 import { WorkspaceSidebar } from "./workspace-sidebar";
 import { useCLISessions, sessionsChanged } from "./cli-sessions";
 import { TerminalMenu } from "./terminal-menu";
+import { useTerminalNotifications } from "./terminal-notifications";
 import { InitializationGate } from "./initialization";
 import { MacOSLogin } from "./macos-login";
 import { MacOSAppWindow } from "./macos-claude-window";
@@ -50,6 +53,7 @@ import {
   projectName,
   projectGroups,
   tabName,
+  shouldShowBrowserError,
 } from "./workspace-state.mjs";
 import { SafetyPanel } from "./safety";
 import { SafetyChecklistContext, SafetyMessage } from "./safety-message";
@@ -201,6 +205,7 @@ function App() {
   const closeBrowser = () => {
     const previous = viewBeforeBrowser.current;
     browserDismissed.current = true;
+    setBrowserError("");
     const available = id => tabs.some(tab => tab.id === id);
     const restored = previous?.layout;
     const id = [restored?.active, restored?.other].find(available);
@@ -341,7 +346,10 @@ function App() {
     setTailnetLogin(null);
     setManagementPage("");
     const tab = tabs.find((t) => t.id === id);
-    if (tab && tab.kind !== "terminal") browserDismissed.current = false;
+    if (tab && tab.kind !== "terminal") {
+      browserDismissed.current = false;
+      if (browserError || !browserStreamReady.current) refreshStatus.current?.();
+    }
     setDesktopOpen(false);
     setHome(false);
     if (tab?.kind === "browser-settings") setLayout({ active: id });
@@ -352,14 +360,31 @@ function App() {
       try {
         await api("/browser/activate", { id });
         if (activeRef.current === id) {
+          setBrowserError("");
           setBrowser(previous => ({ ...previous, active: id }));
           if (focusContent) remote.current?.focus();
         }
       } catch (e) {
-        notify(e.message);
+        if (!browserDismissed.current) {
+          setBrowserError(e.message);
+          notify(e.message);
+        }
       }
     }
   };
+  useTerminalNotifications({
+    ready: status?.ready,
+    connection: clipboardConnection,
+    guestSystem: account?.guest_system || status?.guest_system || "",
+    active: layout.active,
+    other: layout.other,
+    overlay: settingsOpen || managementPage || desktopOpen || showHome || safetyOpen || dialog,
+    onSelect: (id) => {
+      if (!tabs.some(tab => tab.id === id)) return;
+      if (!settingsOpen) setSafetyOpen(false);
+      void select(id, !settingsOpen);
+    },
+  });
   const destination = (id, x, y) => {
     const box = workspaceBox.current?.getBoundingClientRect();
     if (!box || busy || !running || desktopOpen || tabs.length < 2 ||
@@ -592,7 +617,7 @@ function App() {
   };
   const closeTab = async (tab, anchor) => {
     if (macGuest && tab.native_window) { closeBrowser(); return; }
-    if (tab.cli_session_id) return archiveSession({id:tab.cli_session_id, title:tab.title}, anchor);
+    if (tab.cli_session_id && (!tab.closed || tab.historySession)) return archiveSession({id:tab.cli_session_id, title:tab.title}, anchor);
     if (tab.kind === "terminal") {
       if (
         !tab.closed &&
@@ -604,7 +629,8 @@ function App() {
       )
         return;
       try {
-        await api("/terminals/" + tab.sessionId, undefined, "DELETE");
+        const dismiss = tab.closed ? "?dismiss=1" : "";
+        await api("/terminals/" + tab.sessionId + dismiss, undefined, "DELETE");
       } catch (e) {
         notify(e.message);
         return;
@@ -733,7 +759,7 @@ function App() {
               if (live) setBrowserError("");
               return result;
             }).catch(error => {
-              if (live) setBrowserError(next.guest_system === "macos" ? "请在环境设置中同步 macOS 组件，并确认已登录客机图形账户。" : error.message);
+              if (live && !browserDismissed.current) setBrowserError(next.guest_system === "macos" ? "请在环境设置中同步 macOS 组件，并确认已登录客机图形账户。" : error.message);
               return null;
             }) : null,
             api("/terminals"),
@@ -1334,7 +1360,7 @@ function App() {
     onSettings={openBrowserSettings}
     onReload={() => tab.kind === "browser-settings" ? setBrowserSettingsRevision(value => value + 1) : action("/browser/reload", { id: tab.id })}
     onCloseBrowser={!dualBrowser || tab.id === rightId ? closeBrowser : undefined}
-    downloads={downloads} onStatus={notify}
+    downloads={downloads} onStatus={notify} onConfirm={confirm}
     onEditor={() => openEditor(tab.workspace || workspace)} recoveringEditor={recoveringEditor}
     onRecover={() => recoverEditor(tab)} />;
   const dialogs = (
@@ -1346,7 +1372,7 @@ function App() {
           onClose={dialog.pending ? undefined : () => finishDialog(false)}
           footer={
             <>
-              <button disabled={dialog.pending} onClick={() => finishDialog(false)}>取消</button>
+              <button disabled={dialog.pending} onClick={() => finishDialog(false)}>{tr("取消")}</button>
               {dialog.secondary && (
                 <button disabled={dialog.pending} onClick={() => finishDialog("secondary")}>
                   {dialog.secondary}
@@ -1374,9 +1400,7 @@ function App() {
                 {quitting.error ? "留在 CCBox" : "取消自动退出"}
               </button>
               {quitting.error && (
-                <button className="primary" onClick={stopAndQuit}>
-                  重试停止并退出
-                </button>
+                <button className="primary" onClick={stopAndQuit}>{tr("重试停止并退出")}</button>
               )}
             </>
           }
@@ -1409,19 +1433,16 @@ function App() {
       <>
         <div className="boot-screen">
           <Shield size={36} />
-          <h1>连接 CCBox 工作台</h1>
+          <h1>{tr("连接 CCBox 工作台")}</h1>
           <p>{fatal}</p>
-          <p className="muted">
-            请从 CCBox 应用打开，或在终端运行 <code>cage desktop</code>。
+          <p className="muted">{tr("请从 CCBox 应用打开，或在终端运行") + " "}<code>cage desktop</code>。
           </p>
           <button
             className="primary"
             onClick={() =>
               nativeAvailable() ? native("reconnect") : location.reload()
             }
-          >
-            重新连接
-          </button>
+          >{tr("重新连接")}</button>
         </div>
         {dialogs}
       </>
@@ -1433,9 +1454,7 @@ function App() {
           <img className="brand-mark" src={logo} alt="" />
           <h1>CCBox</h1>
           <p>
-            <LoaderCircle size={16} className="spin" />
-            正在连接工作区…
-          </p>
+            <LoaderCircle size={16} className="spin" />{tr("正在连接工作区…")}</p>
         </div>
         {dialogs}
       </>
@@ -1519,23 +1538,19 @@ function App() {
             <span>{browserAvailable
               ? `Windows 云端：隔离 PowerShell 和浏览器已接通，外网${guestCapability(status, "network") ? "已开放" : "尚未开放"}；桌面和外部项目仍在适配。`
               : "Windows 云端适配中：隔离 PowerShell 已接通，浏览器、桌面和外部项目尚未接通。"}</span>
-            {browserAvailable && <button disabled={!status.ready || busy} onClick={() => openBrowser()}>打开浏览器</button>}
+            {browserAvailable && <button disabled={!status.ready || busy} onClick={() => openBrowser()}>{tr("打开浏览器")}</button>}
             <button disabled={!status.ready || busy} onClick={() => createTerminal(status.workspace || "", "shell").catch(e => notify(e.message))}>打开 PowerShell</button>
           </div>}
-          {browserAvailable && browserError && running && !connectionError && <div className="connection-banner" role="status">
-            <span>客机浏览器暂时无法连接。{browserError}</span>
-            <button onClick={() => refreshStatus.current?.()}>重试</button>
+          {browserAvailable && shouldShowBrowserError({ browserError, browserVisible, managementPage, running, connectionError }) && <div className="connection-banner" role="status">
+            <span>{tr("客机浏览器暂时无法连接。")}{browserError}</span>
+            <button onClick={() => refreshStatus.current?.()}>{tr("重试")}</button>
           </div>}
           {connectionError && (
-            <div className="connection-banner" role="alert">
-              工作台连接中断，后台状态暂时未知。
-              <button
+            <div className="connection-banner" role="alert">{tr("工作台连接中断，后台状态暂时未知。")}<button
                 onClick={() =>
                   nativeAvailable() ? native("reconnect") : location.reload()
                 }
-              >
-                重新连接工作台
-              </button>
+              >{tr("重新连接工作台")}</button>
             </div>
           )}
           {managementPage && (
@@ -1580,7 +1595,7 @@ function App() {
             {status.environment_update_required && !busy && (
               <div className="environment-update-banner" role="status">
                 <span>{status.environment_update_error || "环境组件需要更新。请先保存编辑器中的文件。"}</span>
-                <button onClick={() => openSettings("project")}>查看并更新</button>
+                <button onClick={() => openSettings("project")}>{tr("查看并更新")}</button>
               </div>
             )}
             {!storageRecovery && (status.vm_running || terminal) && (
@@ -1622,11 +1637,11 @@ function App() {
                         tabId={liveBrowser?.id} onStatus={notify}
                         onFallback={(text, message) => setTransfer({ text, message })} />}
                       {!status.ready && <div className="view-overlay">
-                        <RefreshCw /><h3>浏览器连接暂时不可用</h3>
-                        <p>环境和终端仍可运行；恢复浏览器不会停止现有终端。</p>
-                        <button className="primary" disabled={busy} onClick={() => startEnvironment({})}>恢复浏览器</button>
+                        <RefreshCw /><h3>{tr("浏览器连接暂时不可用")}</h3>
+                        <p>{tr("环境和终端仍可运行；恢复浏览器不会停止现有终端。")}</p>
+                        <button className="primary" disabled={busy} onClick={() => startEnvironment({})}>{tr("恢复浏览器")}</button>
                       </div>}
-                      {status.ready && !splitReady && <div className="view-overlay">正在调整浏览器布局…</div>}
+                      {status.ready && !splitReady && <div className="view-overlay">{tr("正在调整浏览器布局…")}</div>}
                     </div>
                   </section>
                 )}
@@ -1660,17 +1675,17 @@ function App() {
                 <div className="welcome-content">
                   <img className="welcome-logo" src={logo} alt="CCBox" />
                   {storageRecovery ? <>
-                    <h1>环境存储需要恢复</h1>
+                    <h1>{tr("环境存储需要恢复")}</h1>
                     <p className="welcome-subtitle"><SafetyMessage message={status.storage_recovery.error} /></p>
-                    <p className="field-help">在设置中恢复环境存储后，再启动浏览器和终端。诊断包可以从同一页面导出。</p>
-                    <button className="primary" onClick={() => openSettings("project")}>恢复环境存储</button>
+                    <p className="field-help">{tr("在设置中恢复环境存储后，再启动浏览器和终端。诊断包可以从同一页面导出。")}</p>
+                    <button className="primary" onClick={() => openSettings("project")}>{tr("恢复环境存储")}</button>
                   </> : setupProgress ? <>
                     <h1>{status.job.error ? "环境安装未完成" : "正在安装 CCBox 环境"}</h1>
                     <SetupProgress job={status.job} onDetails={() => setDetails(true)}
                       onStop={stop} onRetry={() => startEnvironment(status.job.kind === "guest-install" ? { guest_system: status.job.setup_progress.system } : {})} disconnected={Boolean(connectionError)} />
                   </> : <>
                   <h1>
-                    {busy
+                    {tr(busy
                       ? status.job.kind === "stop"
                         ? "正在停止 CCBox 环境"
                         : status.job.kind === "storage"
@@ -1684,7 +1699,7 @@ function App() {
                           : "CCBox 环境已就绪"
                         : setupProxy
                           ? "为 Claude 准备独立工作区"
-                          : "先启动 CCBox 环境"}
+                          : "先启动 CCBox 环境")}
                   </h1>
                   <p className="welcome-subtitle">
                     <SafetyMessage message={busy
@@ -1700,7 +1715,7 @@ function App() {
                           : "准备独立的浏览器和终端，完成网络检查后开始工作。"} />
                   </p>
                   {!running && !nativeGuestLabel && (
-                    <ol className="onboarding-steps" aria-label="开始使用 CCBox">
+                    <ol className="onboarding-steps" aria-label={tr("开始使用 CCBox")}>
                       {["配置代理", "启动环境", "开始工作"].map(
                         (label, index) => (
                           <li
@@ -1712,7 +1727,7 @@ function App() {
                             }
                           >
                             <span>{index + 1}</span>
-                            {label}
+                            {tr(label)}
                           </li>
                         ),
                       )}
@@ -1725,7 +1740,7 @@ function App() {
                         size={24}
                       />
                       <span>
-                        <strong>CCBox 隔离环境</strong>
+                        <strong>{tr("CCBox 隔离环境")}</strong>
                         <small>
                           {running
                             ? runtimeLabel
@@ -1736,7 +1751,7 @@ function App() {
                       </span>
                     </div>
                     {!busy && !running && !account?.guest_system && status.local_vm_storage && !isRemoteClient() && <GuestSystemPicker system={guestSystem} onChange={setGuestSystem} />}
-                    {!running && !nativeGuestLabel && status.local_vm_storage && !isRemoteClient() && <button className="storage-entry text-button" disabled={busy} onClick={() => openSettings("project")}>选择环境存储位置</button>}
+                    {!running && !nativeGuestLabel && status.local_vm_storage && !isRemoteClient() && <button className="storage-entry text-button" disabled={busy} onClick={() => openSettings("project")}>{tr("选择环境存储位置")}</button>}
                     <div className="start-project-footer">
                       <span>
                         <i className={`status-dot ${network.mode}`} />
@@ -1781,7 +1796,7 @@ function App() {
                         ) : (
                           <TerminalSquare size={16} />
                         )}
-                        {busy
+                        {tr(busy
                           ? "正在处理…"
                           : !running
                             ? setupProxy
@@ -1792,7 +1807,7 @@ function App() {
                               ? "恢复浏览器"
                               : !workspace && projectsAvailable
                                 ? "打开项目"
-                                : "新建终端"}
+                                : "新建终端")}
                       </button>
                     </div>
                     {terminalMenuAt("start")}
@@ -1801,17 +1816,13 @@ function App() {
                     <div className="welcome-shortcuts">
                       {macGuest && <MacOSLogin disabled={!status.ready || busy} />}
                       <button onClick={newTerminalHere} data-terminal-location="shortcuts" aria-haspopup="menu" disabled={busy}>
-                        <TerminalSquare size={16} />
-                        新建终端
-                      </button>
+                        <TerminalSquare size={16} />{tr("新建终端")}</button>
                       <button
                         onClick={() => openEditor(contentWorkspace)}
                         disabled={!status.ready || busy || !editorAvailable}
                         title={editorAvailable ? undefined : "当前环境尚未接通文件编辑器，可使用 PowerShell 管理隔离工作目录中的文件"}
                       >
-                        <FileCode2 size={16} />
-                        浏览文件
-                      </button>
+                        <FileCode2 size={16} />{tr("浏览文件")}</button>
                     </div>
                   )}
                   {terminalMenuAt("shortcuts")}
@@ -1824,7 +1835,7 @@ function App() {
                   )}
                   {running && status.ready && (
                     <p className="welcome-hint">
-                      {status.guest_system === "windows-remote" ? "PowerShell 和浏览器无需 Claude 登录。只有使用 Claude 时才需要登录账户。" : <>打开项目后，在终端输入 <code>claude</code>，按提示登录你的账户。</>}
+                      {status.guest_system === "windows-remote" ? "PowerShell 和浏览器无需 Claude 登录。只有使用 Claude 时才需要登录账户。" : <>{tr("打开项目后，在终端输入") + " "}<code>claude</code>{tr("，按提示登录你的账户。")}</>}
                       <br />
                       {status.guest_system === "windows-remote" ? "文件保存在云端隔离工作目录中，不会挂载你的本地文件夹。" : isRemoteClient() ? "打开的项目位于云端，编辑和删除会直接影响云端文件。" : "打开的项目与本机共享，编辑和删除文件会同步。"}
                     </p>
@@ -1832,8 +1843,8 @@ function App() {
                   </>}
                   {status.project_error && (
                     <div className="start-error" role="alert">
-                      <strong>部分项目文件夹尚未连接</strong>
-                      <p>环境和浏览器可继续使用。</p>
+                      <strong>{tr("部分项目文件夹尚未连接")}</strong>
+                      <p>{tr("环境和浏览器可继续使用。")}</p>
                       {status.project_errors?.length ? (
                         <ul className="project-connection-errors">
                           {status.project_errors.map(({ path, message, recovery }) => (
@@ -1857,9 +1868,7 @@ function App() {
                         <button
                           className="text-button"
                           onClick={() => openSettings("project")}
-                        >
-                          查看恢复选项
-                        </button>
+                        >{tr("查看恢复选项")}</button>
                       )}
                     </div>
                   )}
@@ -1867,9 +1876,7 @@ function App() {
                     <button
                       className="text-button details-link"
                       onClick={() => setDetails(true)}
-                    >
-                      查看操作详情
-                    </button>
+                    >{tr("查看操作详情")}</button>
                   )}
                 </div>
               </div>
@@ -1877,7 +1884,7 @@ function App() {
           </main>
           <footer className="status-bar">
             {sidebarCollapsed && <AppUpdateButton updates={appUpdates} />}
-            <button onClick={() => setSafetyOpen(true)} title="网络与隔离检查">
+            <button onClick={() => setSafetyOpen(true)} title={tr("网络与隔离检查")}>
               <EnvironmentShield
                 size={14}
                 healthy={status.ready && network.mode === "open"}
@@ -1926,7 +1933,7 @@ function App() {
                     : "")} />
             </span>
             {status.job?.log && (
-              <button title="操作详情" onClick={() => setDetails(true)}>
+              <button title={tr("操作详情")} onClick={() => setDetails(true)}>
                 <MoreHorizontal size={15} />
               </button>
             )}
@@ -1935,10 +1942,10 @@ function App() {
               disabled={
                 Boolean(startRequest) || (!running && !busy) || (status?.job?.kind === "stop" && busy)
               }
-              title="停止当前环境"
+              title={tr("停止当前环境")}
             >
               <Power size={12} />
-              <span>停止环境</span>
+              <span>{tr("停止环境")}</span>
             </button>
           </footer>
         </div>
@@ -1972,20 +1979,18 @@ function App() {
       )}
       {rename && (
         <Modal
-          title="重命名标签"
+          title={tr("重命名标签")}
           onClose={() => setRename(null)}
           footer={
             <>
-              <span className="save-note">仅修改工作台中显示的名称</span>
-              <button onClick={() => setRename(null)}>取消</button>
+              <span className="save-note">{tr("仅修改工作台中显示的名称")}</span>
+              <button onClick={() => setRename(null)}>{tr("取消")}</button>
               <button
                 className="primary"
                 form="rename-tab"
                 type="submit"
                 disabled={!rename.title.trim()}
-              >
-                保存名称
-              </button>
+              >{tr("保存名称")}</button>
             </>
           }
         >
@@ -2020,7 +2025,7 @@ function App() {
               setRename(null);
             }}
           >
-            <label htmlFor="tab-title">标签名称</label>
+            <label htmlFor="tab-title">{tr("标签名称")}</label>
             <input
               id="tab-title"
               autoFocus
@@ -2035,28 +2040,26 @@ function App() {
       )}
       {transfer && (
         <Modal
-          title="文本传递"
+          title={tr("文本传递")}
           onClose={() => setTransfer(null)}
           footer={
             <>
-              <span className="save-note">仅在你的操作下传递文本</span>
-              <button onClick={() => setTransfer(null)}>关闭</button>
+              <span className="save-note">{tr("仅在你的操作下传递文本")}</span>
+              <button onClick={() => setTransfer(null)}>{tr("关闭")}</button>
               <button
                 className="primary"
                 onClick={() => {
                   remote.current?.pasteText(transfer.text);
                   setTransfer(null);
                 }}
-              >
-                粘贴到 CCBox
-              </button>
+              >{tr("粘贴到 CCBox")}</button>
             </>
           }
         >
           <div className="modal-body">
             <p>{transfer.message}</p>
             <textarea
-              aria-label="待传递文本"
+              aria-label={tr("待传递文本")}
               className="transfer-text"
               value={transfer.text}
               onChange={(e) =>
@@ -2067,7 +2070,7 @@ function App() {
         </Modal>
       )}
       {details && (
-        <Modal title="操作详情" wide onClose={() => setDetails(false)}>
+        <Modal title={tr("操作详情")} wide onClose={() => setDetails(false)}>
           <div className="modal-body">
             <p><SafetyMessage message={status.job.message} /></p>
             {status.job.error && (
@@ -2102,5 +2105,7 @@ function App() {
   );
 }
 export default function Workbench() {
+  useInterfaceLanguage();
+  useEffect(restoreInterfaceLanguage, []);
   return <AccountProvider><AppearanceProvider><AccountGate><InitializationGate><App /></InitializationGate></AccountGate></AppearanceProvider></AccountProvider>;
 }

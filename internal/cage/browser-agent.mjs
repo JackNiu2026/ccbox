@@ -12,7 +12,7 @@ import { PrivateBrowser } from "./browser-private.mjs";
 import { browserCookies } from "./browser-cookies.mjs";
 import { BrowserExtensions, extensionUploadLimit } from "./browser-extensions.mjs";
 import { BrowserClipboard } from "./browser-clipboard.mjs";
-import { BrowserVisibility } from "./browser-visibility.mjs";
+import { BrowserVisibility, rememberOpener, targetAfterClose } from "./browser-visibility.mjs";
 import { BrowserWheel, createActivitySignal, createPointerProbe } from "./browser-wheel.mjs";
 import { nativeInput } from "./native-input.mjs";
 import { createDisplaySettings, displayDensity } from "./display-density.mjs";
@@ -143,7 +143,7 @@ function canHideBrowser() {
   browserVNCViewers = false;
   return true;
 }
-const visibility = new BrowserVisibility(cdp, () => [...targets.keys()], canHideBrowser);
+const visibility = new BrowserVisibility(cdp, () => [...targets.keys()], canHideBrowser, () => activeId);
 let checkingBrowserViewers = false;
 setInterval(() => {
   if (!ready || visibility.visible || checkingBrowserViewers) return;
@@ -151,7 +151,7 @@ setInterval(() => {
   try { canHideBrowser(); } catch { return; }
   if (previous === browserVNCViewers) return;
   checkingBrowserViewers = true;
-  void visibility.set(false).catch(() => {}).finally(() => { checkingBrowserViewers = false; });
+  void visibility.sync().catch(() => {}).finally(() => { checkingBrowserViewers = false; });
 }, 1000).unref();
 const browserClipboard = new BrowserClipboard(cdp, ({ id, text, context }) => {
   if (id !== activeId || !targets.has(id)) return;
@@ -220,7 +220,8 @@ function updateTargetInfo(t) {
   else inspectors.delete(t.targetId);
   if (!isBrowserTab(t)) return;
   const fresh = !targets.has(t.targetId);
-  targets.set(t.targetId, privateBrowser.tab(loginBrowser.tab(t, targets.get(t.targetId))));
+  const previous = targets.get(t.targetId);
+  targets.set(t.targetId, privateBrowser.tab(loginBrowser.tab(rememberOpener(t, previous), previous)));
   if (isNativeNewTab(t.url)) void restoreHomepage(t.targetId).catch(error => console.error("Could not open homepage:", error.message));
   if (fresh) void session(t.targetId).catch(() => {});
   if (t.targetId === activeId) rememberSelection();
@@ -228,8 +229,8 @@ function updateTargetInfo(t) {
   if (!activeId) activeId = t.targetId;
   if (ready && fresh && t.openerId)
     void activate(t.targetId, true).catch(() => {});
-  else if (ready && fresh && !visibility.visible)
-    void visibility.set(false).catch(() => {});
+  else if (ready && fresh)
+    void visibility.sync().catch(() => {});
 }
 
 function restoreHomepage(id) {
@@ -324,7 +325,7 @@ chrome.stdio[4].on("data", (chunk) => {
       }
       closingTargets.get(p.targetId)?.();
       if (!targets.has(p.targetId)) continue;
-      const wasPrivate = targets.get(p.targetId).incognito;
+      const closed = targets.get(p.targetId);
       targets.delete(p.targetId);
       browserClipboard.detachTab(p.targetId);
       favicons.delete(p.targetId);
@@ -335,9 +336,9 @@ chrome.stdio[4].on("data", (chunk) => {
       for (const [sid, tab] of uploadSessions) if (tab === p.targetId) uploadSessions.delete(sid);
       sessions.get(p.targetId)?.then(sid => browserWheel.forget(sid), () => {});
       sessions.delete(p.targetId);
-      if (wasPrivate) void mutate(() => privateBrowser.prune()).catch(() => {});
+      if (closed.incognito) void mutate(() => privateBrowser.prune()).catch(() => {});
       if (activeId === p.targetId) {
-        activeId = [...targets.keys()][0] || "";
+        activeId = targetAfterClose(targets, closed);
         if (activeId) void activate(activeId).catch(() => {});
       }
       broadcastState();
@@ -625,9 +626,11 @@ async function restartEditor(workspace) {
 async function tabState() {
   await Promise.allSettled([...auditCreations]);
   const { targetInfos } = await cdp("Target.getTargets");
-  for (const tab of targetInfos)
-    if (isBrowserTab(tab))
-      targets.set(tab.targetId, privateBrowser.tab(loginBrowser.tab(tab, targets.get(tab.targetId))));
+  for (const tab of targetInfos) {
+    if (!isBrowserTab(tab)) continue;
+    const previous = targets.get(tab.targetId);
+    targets.set(tab.targetId, privateBrowser.tab(loginBrowser.tab(rememberOpener(tab, previous), previous)));
+  }
   await refreshNavigation();
   return publicState();
 }
@@ -883,6 +886,10 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify(downloads.retry(input.id)));
       return;
     }
+    if (req.url === "/download-discard") {
+      res.end(JSON.stringify(downloads.discard(input.id)));
+      return;
+    }
     if (req.url === "/audit") {
       if (typeof input.timezone !== "string" || input.timezone.length > 128) throw new Error("诊断时区无效");
       res.end(JSON.stringify(await auditBrowser(auditCDP, auditExclusions, input.network === true, input.timezone, input.device === true)));
@@ -999,11 +1006,17 @@ const server = http.createServer(async (req, res) => {
           });
           // Keep consecutive close/new commands ordered after target destruction.
           closed.catch(() => {});
+          let retry;
           try {
             await cdp("Target.closeTarget", { targetId: id });
+            // Chromium can accept a close while a new window's first
+            // navigation is starting, then keep the page. Ask again.
+            retry = setInterval(() => {
+              if (targets.has(id)) void cdp("Target.closeTarget", { targetId: id }).catch(() => {});
+            }, 750);
             await closed;
             if (wasPrivate) await privateBrowser.prune();
-          } finally { clearTimeout(timer); closingTargets.delete(id); }
+          } finally { clearTimeout(timer); clearInterval(retry); closingTargets.delete(id); }
           break;
         }
         case "/navigate":

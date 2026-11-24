@@ -28,12 +28,14 @@ async function releaseNames() {
   return {
     version,
     mac: `CCBox-${version}-macos-arm64.dmg`,
+    macIntel: `CCBox-${version}-macos-amd64.dmg`,
     windows: `CCBox-${version}-windows-amd64-setup.exe`,
     linux: `CCBox-${version}-linux-amd64.deb`,
     android: `CCBox-${version}-android-arm64.apk`,
     linuxSource: linuxDependencies.mihomoSource.file,
     macSource: `mihomo-${macCore}-source.tar.gz`,
     macGuestSource: `cage-macos-guest-${version}-source.tar.gz`,
+    macIntelGuestSource: `cage-macos-guest-${version}-amd64-source.tar.gz`,
     windowsSource: `mihomo-${dependencies.mihomo.version}-source.tar.gz`,
     qemuPrefix: `qemu-${dependencies.qemu.version}-windows-full-source.`,
     qemuSource: `${dependencies.qemuSource.file}.gz`,
@@ -122,19 +124,21 @@ export async function prepareReleaseAssets({ inputs, output }) {
     }
     const entries = await readManifest(directory);
     const mac = entries.has(names.mac);
+    const macIntel = entries.has(names.macIntel);
     const windows = entries.has(names.windows);
     const linux = entries.has(names.linux);
     const android = entries.has(names.android);
-    if (!mac && !windows && !linux && !android) throw new Error(`No supported package name for VERSION ${names.version}: ${directory}`);
+    if (!mac && !macIntel && !windows && !linux && !android) throw new Error(`No supported package name for VERSION ${names.version}: ${directory}`);
     if (linux && !entries.has(names.linuxSource)) throw new Error(`Missing Linux Mihomo source in SHA256SUMS: ${directory}`);
-    if (mac && !entries.has(names.macSource)) throw new Error(`Missing macOS Mihomo source in SHA256SUMS: ${directory}`);
+    if ((mac || macIntel) && !entries.has(names.macSource)) throw new Error(`Missing macOS Mihomo source in SHA256SUMS: ${directory}`);
     if (mac && !entries.has(names.macGuestSource)) throw new Error(`Missing macOS guest corresponding source in SHA256SUMS: ${directory}`);
+    if (macIntel && !entries.has(names.macIntelGuestSource)) throw new Error(`Missing Intel macOS guest corresponding source in SHA256SUMS: ${directory}`);
     if (windows && (!entries.has(names.windowsSource) || ![...entries.keys()].some(name => isQemuArchive(name, names)))) {
       throw new Error(`Windows release requires its Mihomo and complete QEMU source archives in the same SHA256SUMS: ${directory}`);
     }
     for (const [name, digest] of entries) {
-      const installer = name === names.mac || name === names.windows || name === names.linux || name === names.android;
-      if (!installer && ![names.macSource, names.macGuestSource, names.windowsSource, names.linuxSource, names.qemuSource, names.qemuKeymap, names.qemuChanges].includes(name) && !isQemuArchive(name, names)) {
+      const installer = [names.mac, names.macIntel, names.windows, names.linux, names.android].includes(name);
+      if (!installer && ![names.macSource, names.macGuestSource, names.macIntelGuestSource, names.windowsSource, names.linuxSource, names.qemuSource, names.qemuKeymap, names.qemuChanges].includes(name) && !isQemuArchive(name, names)) {
         throw new Error(`Unsupported asset or version in SHA256SUMS: ${name}`);
       }
       const existing = all.get(name);

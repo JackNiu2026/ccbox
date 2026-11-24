@@ -1,6 +1,19 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { BrowserVisibility } from "./browser-visibility.mjs";
+import * as browserTargets from "./browser-visibility.mjs";
+
+test("closing a navigated popup returns focus to its original live tab", () => {
+  const previous = { targetId: "popup", openerId: "open", browserContextId: "private" };
+  const popup = browserTargets.rememberOpener({ targetId: "popup", browserContextId: "private" }, previous);
+  const tabs = new Map([
+    ["fallback", { targetId: "fallback" }],
+    ["open", { targetId: "open", browserContextId: "private" }],
+  ]);
+  assert.equal(browserTargets.targetAfterClose(tabs, popup), "open");
+  assert.equal(browserTargets.targetAfterClose(tabs, { ...popup, browserContextId: "other" }), "fallback");
+  assert.equal(browserTargets.rememberOpener({ targetId: "new" }, previous).openerId, undefined);
+});
 
 function fixture() {
   const windows = new Map([[1, { windowState: "fullscreen", left: 0, top: 0, width: 1200, height: 800 }]]);
@@ -32,22 +45,25 @@ test("browser visibility restores fullscreen and processes shared windows once",
   assert.equal(f.calls.filter(call => call.method === "Browser.setWindowBounds").length, 2);
   await f.visibility.set(true);
   assert.equal(f.windows.get(1).windowState, "fullscreen");
-  assert.equal(f.visibility.saved.size, 0);
 });
 
-test("browser visibility preserves geometry, closed windows and legacy viewers", async () => {
+test("browser visibility restores a normal popup fullscreen without affecting closed windows", async () => {
   const f = fixture();
   const bounds = { windowState: "normal", left: 40, top: 80, width: 900, height: 600 };
   f.windows.set(2, { ...bounds }); f.targets.set("popup", 2);
-  f.setLegacyViewer(true);
-  await f.visibility.set(false);
-  assert.equal(f.calls.filter(call => call.method === "Browser.setWindowBounds").length, 0);
-  f.setLegacyViewer(false);
   await f.visibility.set(false);
   f.targets.delete("one"); f.targets.delete("two"); f.windows.delete(1);
   await f.visibility.set(true);
-  assert.deepEqual(f.windows.get(2), bounds);
-  assert.equal(f.visibility.saved.size, 0);
+  assert.equal(f.windows.get(2).windowState, "fullscreen");
+});
+
+test("a legacy viewer keeps a newly visible Chromium window fullscreen", async () => {
+  const f = fixture();
+  f.windows.set(2, { windowState: "normal" }); f.targets.set("popup", 2);
+  f.setLegacyViewer(true);
+  await f.visibility.set(false);
+  assert.equal(f.windows.get(2).windowState, "fullscreen");
+  assert.equal(f.calls.some(call => call.bounds?.windowState === "minimized"), false);
 });
 
 test("a newer browser viewer restores a hide that is already running", async () => {
@@ -69,5 +85,4 @@ test("a newer browser viewer restores a hide that is already running", async () 
   release();
   await Promise.all([hidden, activated, shown]);
   assert.equal(state, "fullscreen");
-  assert.equal(visibility.saved.size, 0);
 });

@@ -20,6 +20,7 @@ export const ExpandPane = ({ onClick }) => <button className="icon-button expand
 
 export function TerminalHeader({ tab, contentWorkspace, project, metadata, terminalDetail, terminalDetailHint,
   onHome, busy, onClose, sidebarButton, exitButton, location, triggerRef, menu }) {
+  const archive = tab?.cli_session_id && !tab.closed;
   return <header className="chrome terminal-chrome">
     <div className="content-heading">
       {sidebarButton}
@@ -47,12 +48,12 @@ export function TerminalHeader({ tab, contentWorkspace, project, metadata, termi
         {tab && (
           <button
             className="icon-button"
-            aria-label={tab.cli_session_id ? "归档当前会话" : "关闭当前标签"}
-            title={shortcut(tab.cli_session_id ? "归档当前会话 ⌘W" : "关闭当前标签 ⌘W")}
+            aria-label={archive ? "归档当前会话" : "关闭当前标签"}
+            title={shortcut(archive ? "归档当前会话 ⌘W" : "关闭当前标签 ⌘W")}
             onClick={onClose}
             disabled={busy}
           >
-            {tab.cli_session_id ? <Archive size={16} /> : <X size={16} />}
+            {archive ? <Archive size={16} /> : <X size={16} />}
           </button>
         )}
         {exitButton}
@@ -81,7 +82,7 @@ export function BrowserTabRail({ tabs, metadata, active, ready, busy, splitDrag,
 
 export function BrowserHeader({ tab, tabs, metadata, ready, busy, focused, compact, triggerRef, vertical,
   sidebarButton, exitButton, splitDrag, onSelect, onClose, onRename, onPin, onReorder, onNew,
-  location, menu, back, forward, action, onNavigate, onOpen, onNewPrivate, onNewRegular, onCloseBrowser, onSettings, onReload, downloads, onStatus, onEditor, onRecover, recoveringEditor }) {
+  location, menu, back, forward, action, onNavigate, onOpen, onNewPrivate, onNewRegular, onCloseBrowser, onSettings, onReload, downloads, onStatus, onConfirm, onEditor, onRecover, recoveringEditor }) {
   const [address, setAddress] = useState("");
   const [toolsOpen, setToolsOpen] = useState(false);
   const [cookiesOpen, setCookiesOpen] = useState(false);
@@ -206,7 +207,7 @@ export function BrowserHeader({ tab, tabs, metadata, ready, busy, focused, compa
         </button>
       </form>
       <BrowserFavorites current={tab} shortcuts={focused} ready={ready && !busy} onOpen={onOpen} />
-      <BrowserDownloads downloads={downloads} ready={ready && !busy} onStatus={onStatus} />
+      <BrowserDownloads downloads={downloads} ready={ready && !busy} onStatus={onStatus} onConfirm={onConfirm} />
       <button className="icon-button browser-more-trigger" aria-label="浏览器菜单" title="浏览器菜单"
         ref={toolsTrigger} aria-haspopup="menu"
         aria-expanded={toolsOpen} aria-controls={`browser-menu-${tab.id}`}
@@ -230,7 +231,7 @@ export function BrowserHeader({ tab, tabs, metadata, ready, busy, focused, compa
         {tab.incognito && <button className="browser-menu-item" role="menuitem" disabled={!ready || busy} onClick={onNewRegular}><Globe2 size={16} />新建普通标签</button>}
         {!tab.login && tab.kind !== "browser-settings" && <button className="browser-menu-item" role="menuitem" disabled={!ready || busy} onClick={() => setCookiesOpen(true)}><Cookie size={16} />管理 Cookie</button>}
         <button className="browser-menu-item" role="menuitem" disabled={!ready || busy} onClick={() => onSettings('extensions')}><Puzzle size={16} />扩展</button>
-        <BrowserDownloads menu anchorRef={toolsTrigger} downloads={downloads} ready={ready && !busy} onStatus={onStatus} />
+        <BrowserDownloads menu anchorRef={toolsTrigger} downloads={downloads} ready={ready && !busy} onStatus={onStatus} onConfirm={onConfirm} />
         {tab.kind === "editor" && <button className="browser-menu-item" role="menuitem" aria-label="恢复编辑器" title="单独重启编辑器"
           disabled={!ready || busy || recoveringEditor} onClick={onRecover}>
           <RefreshCw size={16} className={recoveringEditor ? "spin" : ""} /><span>恢复编辑器</span>

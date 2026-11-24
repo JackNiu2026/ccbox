@@ -11,7 +11,7 @@ on:
         type: choice
         required: true
         default: all
-        options: [all, desktop, windows, macos, linux, android]
+        options: [all, desktop, windows, macos, macos-intel, linux, android]
       unsigned_preview:
         description: Build Windows and macOS without signing and publish them only as labelled previews
         type: boolean
@@ -91,6 +91,17 @@ jobs:
       release: true
       unsigned_preview: ${{ inputs.unsigned_preview }}
       artifact_name: release-macos
+  macos-intel:
+    needs: validate
+    if: inputs.platform == 'all' || inputs.platform == 'desktop' || inputs.platform == 'macos-intel'
+    uses: ./.github/workflows/macos-build.yml
+    secrets: inherit
+    with:
+      ref: ${{ inputs.ref }}
+      release: true
+      unsigned_preview: ${{ inputs.unsigned_preview }}
+      artifact_name: release-macos-intel
+      architecture: amd64
   android:
     needs: validate
     if: inputs.platform == 'all' || inputs.platform == 'android'

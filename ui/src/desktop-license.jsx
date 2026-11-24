@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { api } from "./api";
+import { translate as tr } from "./message-catalog.mjs";
 import "./desktop-license.css";
 
 const labels = {
@@ -60,32 +61,32 @@ export function DesktopLicenseForm({ license, onActivated }) {
 
   return <form className="desktop-license-form" onSubmit={activate}>
     <div className="desktop-license-state">
-      <strong>{labels[license.state]}</strong>
-      {expiry && <p>有效期至 {expiry}</p>}
+      <strong>{tr(labels[license.state])}</strong>
+      {expiry && <p>{tr("有效期至 {0}", expiry)}</p>}
       <p>{license.account
-        ? `激活码兑换到线上账户 ${license.account}，${active ? "在当前到期时间后增加 30 天" : "开通 30 天"}；该账户登录的其他电脑同样可用。`
-        : active ? "提前续期会在当前到期时间后增加 30 天。" : "输入激活码，为此设备开通 30 天。"}</p>
+        ? tr("激活码兑换到线上账户 {0}，{1}；该账户登录的其他电脑同样可用。", license.account, tr(active ? "在当前到期时间后增加 30 天" : "开通 30 天"))
+        : tr(active ? "提前续期会在当前到期时间后增加 30 天。" : "输入激活码，为此设备开通 30 天。")}</p>
     </div>
-    <label htmlFor="desktop-license-code">激活码</label>
+    <label htmlFor="desktop-license-code">{tr("激活码")}</label>
     <input id="desktop-license-code" type="text" value={code} maxLength={64} spellCheck={false}
       autoComplete="off" autoCapitalize="characters" disabled={pending}
       onChange={event => setCode(event.target.value)} />
     {error && <p role="alert">{error}</p>}
-    {success && <p role="status">{success}</p>}
+    {success && <p role="status">{tr(success)}</p>}
     <button className="primary" type="submit" disabled={pending || !code.trim()}>
-      {pending ? "正在验证…" : active ? "续期 30 天" : "激活此设备"}
+      {tr(pending ? "正在验证…" : active ? "续期 30 天" : "激活此设备")}
     </button>
-    <details><summary>换机所需的设备编号</summary><code>{license.device}</code></details>
+    <details><summary>{tr("换机所需的设备编号")}</summary><code>{license.device}</code></details>
   </form>;
 }
 
 export function DesktopLicenseSettings() {
   const { license, error, retry, setLicense } = useDesktopLicense();
-  return <section aria-label="授权">
-    <h3>授权</h3>
-    {error ? <><p role="alert">{error}</p><button onClick={retry}>重试</button></>
-      : !license ? <p role="status">正在读取授权状态…</p>
-      : license.state === "disabled" ? <p>当前构建无需激活。</p>
+  return <section aria-label={tr("授权")}>
+    <h3>{tr("授权")}</h3>
+    {error ? <><p role="alert">{error}</p><button onClick={retry}>{tr("重试")}</button></>
+      : !license ? <p role="status">{tr("正在读取授权状态…")}</p>
+      : license.state === "disabled" ? <p>{tr("当前构建无需激活。")}</p>
       : <DesktopLicenseForm license={license} onActivated={setLicense} />}
   </section>;
 }

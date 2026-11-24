@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"net/http"
@@ -26,8 +27,12 @@ func TestGuestManifestIsPublishedOnlyAfterSuccessfulServiceStart(t *testing.T) {
 			// Observe privileged actions without touching the host's /etc or running services.
 			sudo := `#!/bin/sh
 case "$1" in
- rm) rm -f "$AUDIT_MARKER";;
- python3) cat >/dev/null; printf published > "$AUDIT_MARKER";;
+ python3)
+  script=$(cat)
+  case "$script" in
+   *tempfile.mkstemp*) printf published > "$AUDIT_MARKER"; rm -f "$AUDIT_MARKER.updating";;
+   *) touch "$AUDIT_MARKER.updating";;
+  esac;;
  *) exit 91;;
 esac
 `
@@ -45,8 +50,10 @@ esac
 				if err != nil || readErr != nil || string(data) != "published" {
 					t.Fatal("successful startup did not publish manifest", err, readErr)
 				}
-			} else if err == nil || !os.IsNotExist(readErr) {
-				t.Fatal("failed startup retained or published a manifest", err, readErr)
+			} else if err == nil || readErr != nil || string(data) != "old" {
+				t.Fatal("failed startup lost the last complete manifest", err, readErr)
+			} else if _, markerErr := os.Stat(marker + ".updating"); markerErr != nil {
+				t.Fatal("failed startup did not retain the recovery marker", markerErr)
 			}
 		})
 	}
@@ -539,5 +546,233 @@ printf 206
 	}
 	if _, err := os.Stat(filepath.Join(dir, "package.part")); !os.IsNotExist(err) {
 		t.Fatal("partial left after success")
+	}
+}
+
+func TestGuestManifestInterruptedStartThenRetryPublishesManifest(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the start script runs in the Linux guest")
+	}
+	if _, err := exec.LookPath("python3"); err != nil {
+		t.Skip("python3 unavailable")
+	}
+	dir := t.TempDir()
+	etcDir := filepath.Join(dir, "etc")
+	if err := os.MkdirAll(etcDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	manifestPath := filepath.Join(etcDir, "components.json")
+	if err := os.WriteFile(manifestPath, []byte(`{"protocol":1,"revision":"stale"}`), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "sudo"), []byte("#!/bin/sh\nexec \"$@\"\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	started := filepath.Join(dir, "body-started")
+	interrupted := strings.ReplaceAll(markGuestStart("touch \"$STARTED_FLAG\"; sleep 30"), "/etc/claude-cage/components.json", manifestPath)
+	cmd := exec.Command("bash", "-c", interrupted)
+	cmd.Env = append(os.Environ(), "PATH="+dir+":"+os.Getenv("PATH"), "STARTED_FLAG="+started)
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if _, err := os.Stat(started); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			_ = cmd.Process.Kill()
+			t.Fatal("guest start body did not begin")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if err := cmd.Process.Kill(); err != nil {
+		t.Fatal(err)
+	}
+	_ = cmd.Wait()
+	if data, err := os.ReadFile(manifestPath); err != nil || string(data) != `{"protocol":1,"revision":"stale"}` {
+		t.Fatalf("SIGKILL lost the old manifest: %s %v", data, err)
+	}
+	if _, err := os.Stat(filepath.Join(etcDir, "components.updating")); err != nil {
+		t.Fatalf("SIGKILL lost the recovery marker: %v", err)
+	}
+	retry := strings.ReplaceAll(markGuestStart("printf recovered"), "/etc/claude-cage/components.json", manifestPath)
+	retryCmd := exec.Command("bash", "-c", retry)
+	retryCmd.Env = append(os.Environ(), "PATH="+dir+":"+os.Getenv("PATH"))
+	if out, err := retryCmd.CombinedOutput(); err != nil {
+		t.Fatalf("retry after SIGKILL failed: %v %s", err, out)
+	}
+	raw, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got GuestManifest
+	if err := json.Unmarshal(raw, &got); err != nil || !got.Current() {
+		t.Fatalf("republished manifest invalid: %q %v", raw, err)
+	}
+	entries, err := os.ReadDir(etcDir)
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("unexpected temp files left in manifest dir: %v %v", entries, err)
+	}
+}
+
+func TestGuestStartRecoversFromTruncatedGuestFiles(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the start script runs in the Linux guest")
+	}
+	if _, err := exec.LookPath("python3"); err != nil {
+		t.Skip("python3 unavailable")
+	}
+	// 1. code-server.yaml and browser-password guard against empty/truncated files.
+	guardStart := strings.Index(guestStart, `mkdir -p "$HOME/.config/claude-cage"`)
+	guardEnd := strings.Index(guestStart, `sudo install -d -o cage-browser`)
+	if guardStart < 0 || guardEnd <= guardStart {
+		t.Fatal("credential guard section not found in guest-start.sh")
+	}
+	guardScript := "set -euo pipefail\n" + guestStart[guardStart:guardEnd]
+	for name, badYAML := range map[string]string{"empty": "", "truncated": "auth: password\n"} {
+		t.Run("credentials-"+name, func(t *testing.T) {
+			home := t.TempDir()
+			cfgDir := filepath.Join(home, ".config", "claude-cage")
+			if err := os.MkdirAll(cfgDir, 0700); err != nil {
+				t.Fatal(err)
+			}
+			yamlPath := filepath.Join(cfgDir, "code-server.yaml")
+			passPath := filepath.Join(cfgDir, "browser-password")
+			if err := os.WriteFile(yamlPath, []byte(badYAML), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(passPath, nil, 0600); err != nil {
+				t.Fatal(err)
+			}
+			cmd := exec.Command("bash", "-c", guardScript)
+			cmd.Env = append(os.Environ(), "HOME="+home)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("%v %s", err, out)
+			}
+			yamlBytes, err := os.ReadFile(yamlPath)
+			if err != nil || !strings.Contains(string(yamlBytes), "password: ") {
+				t.Fatalf("code-server.yaml not recovered: %q %v", yamlBytes, err)
+			}
+			passBytes, err := os.ReadFile(passPath)
+			if err != nil || len(strings.TrimSpace(string(passBytes))) != 8 {
+				t.Fatalf("browser-password not recovered: %q %v", passBytes, err)
+			}
+			// Re-entry preserves valid credentials.
+			cmd2 := exec.Command("bash", "-c", guardScript)
+			cmd2.Env = append(os.Environ(), "HOME="+home)
+			if out, err := cmd2.CombinedOutput(); err != nil {
+				t.Fatalf("re-entry: %v %s", err, out)
+			}
+			if again, _ := os.ReadFile(yamlPath); string(again) != string(yamlBytes) {
+				t.Fatal("re-entry overwrote valid code-server.yaml")
+			}
+			if entries, _ := os.ReadDir(cfgDir); len(entries) != 2 {
+				t.Fatalf("temp files left behind: %v", entries)
+			}
+		})
+	}
+
+	// 2. PYCONTROL recovers truncated/corrupt browser-control.json and preserves valid token.
+	ctrlStart := strings.Index(guestStart, "import json, os, secrets, grp, tempfile")
+	ctrlEnd := strings.Index(guestStart[ctrlStart:], "\nPYCONTROL")
+	if ctrlStart < 0 || ctrlEnd < 0 {
+		t.Fatal("PYCONTROL block not found")
+	}
+	ctrlScript := guestStart[ctrlStart : ctrlStart+ctrlEnd]
+	ctrlScript = strings.ReplaceAll(ctrlScript, `Path('/etc/claude-cage/browser-control.json')`, `Path(os.environ["CTRL_PATH"])`)
+	ctrlScript = strings.ReplaceAll(ctrlScript, `Path('/etc/claude-cage/display-scale')`, `Path(os.environ["SCALE_PATH"])`)
+	ctrlScript = strings.ReplaceAll(ctrlScript, "grp.getgrnam('cage-browser').gr_gid", "None")
+	for _, tc := range []struct {
+		name      string
+		existing  string
+		wantToken string
+	}{
+		{"empty", "", ""},
+		{"truncated", `{"token":"abc`, ""},
+		{"wrong-type", `[]`, ""},
+		{"valid-preserved", `{"token":"keep-existing-token"}`, "keep-existing-token"},
+	} {
+		t.Run("browser-control-"+tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			home := filepath.Join(dir, "home")
+			etcDir := filepath.Join(dir, "etc")
+			if err := os.MkdirAll(filepath.Join(home, ".config", "claude-cage"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.MkdirAll(etcDir, 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(home, ".config", "claude-cage", "code-server.yaml"), []byte("auth: password\npassword: editor-secret\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			ctrlPath := filepath.Join(etcDir, "browser-control.json")
+			scalePath := filepath.Join(etcDir, "display-scale")
+			if err := os.WriteFile(ctrlPath, []byte(tc.existing), 0600); err != nil {
+				t.Fatal(err)
+			}
+			cmd := exec.Command("python3", "-c", ctrlScript)
+			cmd.Env = append(os.Environ(),
+				"CAGE_DISPLAY_SCALE=2",
+				"CAGE_WORKSPACE=/work",
+				"CAGE_USER_HOME="+home,
+				"CTRL_PATH="+ctrlPath,
+				"SCALE_PATH="+scalePath,
+			)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("%v %s", err, out)
+			}
+			raw, err := os.ReadFile(ctrlPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got struct {
+				Token          string `json:"token"`
+				Workspace      string `json:"workspace"`
+				EditorPassword string `json:"editorPassword"`
+			}
+			if err := json.Unmarshal(raw, &got); err != nil {
+				t.Fatalf("invalid browser-control.json: %q %v", raw, err)
+			}
+			if got.Token == "" || got.Workspace != "/work" || got.EditorPassword != "editor-secret" {
+				t.Fatalf("unexpected browser-control.json: %+v", got)
+			}
+			if tc.wantToken != "" && got.Token != tc.wantToken {
+				t.Fatalf("valid token replaced: got %q want %q", got.Token, tc.wantToken)
+			}
+			if entries, _ := os.ReadDir(etcDir); len(entries) != 2 {
+				t.Fatalf("temp files left in etcDir: %v", entries)
+			}
+		})
+	}
+
+	// 3. PYCODE recovers truncated/corrupt Chromium Preferences atomically.
+	prefStart := strings.Index(guestStart, "import json, os\nfrom pathlib import Path\np = Path.home()")
+	prefEnd := strings.Index(guestStart[prefStart:], "\nPYCODE")
+	prefScript := strings.Replace(guestStart[prefStart:prefStart+prefEnd], "Path.home()", `Path(os.environ["FIXTURE"])`, 1)
+	for name, corrupt := range map[string]string{"empty": "", "truncated": `{"intl":`, "wrong-type": `"bad"`} {
+		t.Run("preferences-"+name, func(t *testing.T) {
+			dir := t.TempDir()
+			prof := filepath.Join(dir, "profile", "Default")
+			if err := os.MkdirAll(prof, 0700); err != nil {
+				t.Fatal(err)
+			}
+			prefs := filepath.Join(prof, "Preferences")
+			if err := os.WriteFile(prefs, []byte(corrupt), 0600); err != nil {
+				t.Fatal(err)
+			}
+			cmd := exec.Command("python3", "-c", prefScript)
+			cmd.Env = append(os.Environ(), "FIXTURE="+dir, "CAGE_LANGUAGE=en-US")
+			if out, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("%v %s", err, out)
+			}
+			raw, err := os.ReadFile(prefs)
+			if err != nil || !json.Valid(raw) {
+				t.Fatalf("preferences not recovered: %q %v", raw, err)
+			}
+			if entries, _ := os.ReadDir(prof); len(entries) != 1 {
+				t.Fatalf("temp files left in profile dir: %v", entries)
+			}
+		})
 	}
 }

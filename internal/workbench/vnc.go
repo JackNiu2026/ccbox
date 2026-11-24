@@ -2,7 +2,6 @@ package workbench
 
 import (
 	"context"
-	"github.com/gorilla/websocket"
 	"io"
 	"net"
 	"net/http"
@@ -10,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/sylvinus/agent-vm/internal/containerenv"
 	"github.com/sylvinus/agent-vm/internal/diagnostics"
 )
@@ -32,7 +32,7 @@ func (s *Server) vnc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer release()
-	address := "127.0.0.1:15900"
+	var remote net.Conn
 	if containerenv.Configured(s.profile) {
 		environment, err := containerenv.Load(s.profile)
 		if err != nil {
@@ -44,10 +44,11 @@ func (s *Server) vnc(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "容器画面连接尚未就绪", 409)
 			return
 		}
-		address = state.VNCAddress
+		remote, err = (&net.Dialer{Timeout: 3 * time.Second}).DialContext(r.Context(), "tcp", state.VNCAddress)
+	} else {
+		remote, err = s.dialGuestLoopback(r.Context(), r.Context(), "127.0.0.1:15900")
 	}
-	remote, e := (&net.Dialer{Timeout: 3 * time.Second}).DialContext(r.Context(), "tcp", address)
-	if e != nil {
+	if err != nil {
 		http.Error(w, "画面连接暂时不可用", 502)
 		return
 	}

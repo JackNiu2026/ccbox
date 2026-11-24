@@ -34,7 +34,7 @@ func TestFailedSubscriptionRefreshKeepsWorkingNodesAndSecretsPrivate(t *testing.
 	if err = writePrivate(s.configPath, cfg); err != nil {
 		t.Fatal(err)
 	}
-	if err = p.Import("source", "https://example.com/sub?token=private-subscription", []byte(`proxies: [{name: qa, type: socks5, server: 127.0.0.1, port: 1080, password: private-node-password}]`), "source", 24, ""); err != nil {
+	if err = p.Import("source", "https://example.com/sub?token=private-subscription", []byte(`proxies: [{name: qa, type: socks5, server: 192.0.2.1, port: 1080, password: private-node-password}]`), "source", 24, ""); err != nil {
 		t.Fatal(err)
 	}
 	p.Selected = p.Sources[0].Nodes[0].ID

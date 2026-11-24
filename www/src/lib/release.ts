@@ -7,8 +7,8 @@ type UpdateAsset = {
 };
 export type ReleaseMetadata = PlatformRelease & {
   updateAssets?: UpdateAsset[];
-  windowsDownloadURL?: string; linuxDownloadURL?: string; androidDownloadURL?: string;
-  macosPreview?: PlatformRelease; windowsPreview?: PlatformRelease; linuxPreview?: PlatformRelease; androidPreview?: PlatformRelease;
+  macosIntelDownloadURL?: string; windowsDownloadURL?: string; linuxDownloadURL?: string; androidDownloadURL?: string;
+  macosPreview?: PlatformRelease; macosIntelPreview?: PlatformRelease; windowsPreview?: PlatformRelease; linuxPreview?: PlatformRelease; androidPreview?: PlatformRelease;
 };
 export type Platform = {
   name: string; icon: string; requirements: string; guideURL: string;
@@ -18,8 +18,8 @@ export type Platform = {
 const staged = import.meta.glob<ReleaseMetadata>('../data/local-release.json', { eager: true, import: 'default' });
 export const published: ReleaseMetadata = staged['../data/local-release.json'] ?? releaseData;
 
-const previews = [published.macosPreview, published.windowsPreview, published.linuxPreview, published.androidPreview];
-for (const url of [published.releaseURL, published.downloadURL, published.windowsDownloadURL, published.linuxDownloadURL, published.androidDownloadURL, ...previews.flatMap(preview => [preview?.downloadURL, preview?.releaseURL])]) {
+const previews = [published.macosPreview, published.macosIntelPreview, published.windowsPreview, published.linuxPreview, published.androidPreview];
+for (const url of [published.releaseURL, published.downloadURL, published.macosIntelDownloadURL, published.windowsDownloadURL, published.linuxDownloadURL, published.androidDownloadURL, ...previews.flatMap(preview => [preview?.downloadURL, preview?.releaseURL])]) {
   if (url && (!/^\/downloads\/[\w./-]+$/.test(url) || url.split('/').some(part => part === '.' || part === '..'))) {
     throw new Error('CCBox release links must point to local downloads.');
   }
@@ -40,8 +40,10 @@ export function platformsFor(locale: CageLocale, unsignedLabel: string, base: st
   const [notarized, preview, debug] = previewLabels(locale);
   const install = `${base}docs/installation/`;
   const mobile = `${base}docs/mobile/`;
+  const intel = platformRelease(published.macosIntelDownloadURL, published.macosIntelPreview, notarized);
   return [
     { name: 'macOS', icon: 'apple', requirements: 'Apple Silicon · macOS 14+', format: '.dmg', ...platformRelease(published.downloadURL, published.macosPreview, notarized), guideURL: install },
+    ...(intel.url ? [{ name: 'macOS Intel', icon: 'apple', requirements: 'Intel · macOS 14+', format: '.dmg', ...intel, guideURL: install }] : []),
     { name: 'Windows', icon: 'windows', requirements: 'Windows 10 22H2 / 11 · x64', format: '.exe', ...platformRelease(published.windowsDownloadURL, published.windowsPreview, unsignedLabel), guideURL: install },
     { name: 'Linux', icon: 'linux', requirements: 'Debian 12 / Ubuntu 22.04 / 24.04 · x86_64', format: '.deb', ...platformRelease(published.linuxDownloadURL, published.linuxPreview, preview), guideURL: install },
     { name: 'Android', icon: 'android', requirements: 'Android 8.0+ · arm64', format: '.apk', ...platformRelease(published.androidDownloadURL, published.androidPreview, debug), guideURL: mobile },

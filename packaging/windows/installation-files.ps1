@@ -1,7 +1,7 @@
 ﻿#requires -Version 5.1
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][ValidateSet('prepare', 'move', 'restore', 'cleanup', 'complete', 'uninstall', 'detach', 'attach')][string]$Operation,
+    [Parameter(Mandatory)][ValidateSet('prepare', 'move', 'restore', 'cleanup', 'complete', 'abandon', 'uninstall', 'detach', 'attach')][string]$Operation,
     [Parameter(Mandatory)][string]$Target,
     [string]$Source,
     [string]$Receipt,
@@ -9,7 +9,8 @@ param(
     [string]$Backup,
     [string]$Diagnostics,
     [switch]$LegacyTarget,
-    [switch]$KeepApplicationData
+    [switch]$KeepApplicationData,
+    [switch]$RequireEmptyDestination
 )
 $ErrorActionPreference = 'Stop'
 $diagnosticStep = 'initializing'
@@ -100,8 +101,60 @@ function Stream-Hash([IO.Stream]$Stream) {
     finally { $algorithm.Dispose(); $Stream.Position = 0 }
 }
 
+function Test-AnsiPath([string]$Path) {
+    $ansi = [Text.Encoding]::Default
+    return $ansi.GetString($ansi.GetBytes($Path)) -ceq $Path
+}
+
+function Compiler-TemporaryFolder {
+    $temporary = [IO.Path]::GetTempPath()
+    if ($PSVersionTable.PSEdition -ne 'Desktop' -or (Test-AnsiPath $temporary)) { return $null }
+    if ($env:SystemRoot) {
+        $private = Join-Path $env:SystemRoot ('Temp\ccbox-' + [guid]::NewGuid().ToString('N'))
+        try {
+            [IO.Directory]::CreateDirectory($private) | Out-Null
+            return @{ path = $private; created = $true }
+        } catch { }
+    }
+    try {
+        $short = (New-Object -ComObject Scripting.FileSystemObject).GetFolder($temporary).ShortPath
+        if ($short -and (Test-AnsiPath $short) -and $short -notmatch '[?*]' -and [IO.Directory]::Exists($short)) {
+            return @{ path = $short; created = $false }
+        }
+    } catch { }
+    return $null
+}
+
 function Initialize-VerifiedDeletion {
-    if (!('CageVerifiedFile' -as [type])) { Add-Type -Path (Join-Path $PSScriptRoot 'verified-file-deletion.cs') }
+    if ('CageVerifiedFile' -as [type]) { return }
+    # Windows PowerShell 5.1 uses csc.exe, which fails for source or temp paths
+    # outside the ANSI code page. Keep assembly lookup away from NSIS DLLs too.
+    $code = [IO.File]::ReadAllText((Join-Path $PSScriptRoot 'verified-file-deletion.cs'), [Text.Encoding]::UTF8)
+    $folder = Compiler-TemporaryFolder
+    $workDir = if ($env:SystemRoot -and [IO.Directory]::Exists($env:SystemRoot)) { $env:SystemRoot } elseif ($folder) { $folder.path }
+    if (!$workDir -and !$folder) { Add-Type -TypeDefinition $code; return }
+    $saved = $env:TMP, $env:TEMP
+    $savedDirectory = [Environment]::CurrentDirectory
+    $pushed = $false
+    try {
+        if ($folder) { $env:TMP = $env:TEMP = $folder.path }
+        if ($workDir) {
+            Push-Location -LiteralPath $workDir
+            $pushed = $true
+            [Environment]::CurrentDirectory = $workDir
+        }
+        Add-Type -TypeDefinition $code
+    } finally {
+        if ($pushed) { Pop-Location }
+        [Environment]::CurrentDirectory = $savedDirectory
+        $env:TMP, $env:TEMP = $saved
+        if ($folder -and $folder.created) {
+            try {
+                foreach ($file in [IO.Directory]::GetFiles($folder.path)) { [IO.File]::Delete($file) }
+                [IO.Directory]::Delete($folder.path)
+            } catch { }
+        }
+    }
 }
 
 function Remove-MatchingFile([string]$Root, [string]$Relative, [string]$Hash) {
@@ -190,6 +243,15 @@ function Save-Transfer($Transfer) {
     } finally { if (Test-Path -LiteralPath $temporary) { [IO.File]::Delete($temporary) } }
 }
 
+function Test-HasExistingContent([string]$Path) {
+    try { $item = Get-Item -LiteralPath $Path -Force -ErrorAction Stop }
+    catch [Management.Automation.ItemNotFoundException], [IO.FileNotFoundException], [IO.DirectoryNotFoundException] { return $false }
+    catch { return $true }
+    if (!$item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { return $true }
+    try { return @(Get-ChildItem -LiteralPath $Path -Force -ErrorAction Stop).Count -gt 0 }
+    catch { return $true }
+}
+
 function Complete-Transfer {
     $transfer = Get-Content -LiteralPath $Receipt -Raw -Encoding UTF8 | ConvertFrom-Json
     if ($transfer.kind -ne 'ccbox-installation' -or !(Test-Path -LiteralPath (Join-Path $Target $identityName))) { throw '安装目录尚未恢复，事务回执已保留。' }
@@ -216,6 +278,12 @@ foreach ($rootPath in @($Target, $Source)) {
 if ($Operation -eq 'prepare') {
     $diagnosticStep = 'reading_new_manifest'
     if (Test-Path -LiteralPath $Receipt) { throw ('仍有未完成的安装事务，请保留并检查回执：' + $Receipt) }
+    if ($env:OS -eq 'Windows_NT') {
+        # Ensure verified deletion can complete the receipt before mutating files.
+        $diagnosticStep = 'loading_verified_deletion'
+        Initialize-VerifiedDeletion
+        $diagnosticStep = 'reading_new_manifest'
+    }
     $current = Read-FileManifest (Join-Path $Target $manifestName)
     $legacySnapshot = !$current.Count -and $LegacyTarget
     if ($legacySnapshot) {
@@ -374,6 +442,7 @@ if ($Operation -eq 'prepare') {
     # application during a rollback. Target is the installation folder.
     $diagnosticStep = 'attaching_application'
     if (!$Source) { throw '缺少待发布的程序目录。' }
+    if ($RequireEmptyDestination -and (Test-HasExistingContent $Target)) { throw '首次安装目录已有文件，原文件已保留。' }
     $Source = [IO.Path]::GetFullPath($Source).TrimEnd([IO.Path]::DirectorySeparatorChar)
     Move-TopLevel $Source $Target @()
     if (@(Get-ChildItem -LiteralPath $Source -Force).Count) { throw '程序目录仍有未发布的文件，已保留待核对。' }
@@ -381,6 +450,22 @@ if ($Operation -eq 'prepare') {
 } elseif ($Operation -eq 'complete') {
     $diagnosticStep = 'completing_transaction_receipt'
     Complete-Transfer
+} elseif ($Operation -eq 'abandon') {
+    $diagnosticStep = 'abandoning_first_installation'
+    $receiptStream = Open-ReadLocked $Receipt
+    $reader = [IO.StreamReader]::new($receiptStream)
+    try {
+        $hash = Stream-Hash $receiptStream
+        $transfer = $reader.ReadToEnd() | ConvertFrom-Json
+    } finally { $reader.Dispose() }
+    if ($transfer.kind -ne 'ccbox-installation' -or $transfer.version -ne 1 -or !$transfer.installPath -or
+        [IO.Path]::GetFullPath($transfer.installPath).TrimEnd([IO.Path]::DirectorySeparatorChar) -ne $Target -or
+        $transfer.backupPath -or @($transfer.moves).Count -or @($transfer.files).Count -or @($transfer.directories).Count -or
+        (Test-HasExistingContent $Target)) {
+        throw '安装事务涉及已有文件或其他安装目录，回执已保留待核对。'
+    }
+    Remove-MatchingFile (Split-Path $Receipt -Parent) (Split-Path $Receipt -Leaf) $hash
+    if (Test-Path -LiteralPath $Receipt) { throw '安装回执在取消期间发生变化，已保留待核对。' }
 } else {
     # The payload list comes from this uninstaller's embedded build manifest.
     $diagnosticStep = 'reading_uninstall_manifest'

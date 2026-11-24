@@ -41,6 +41,41 @@ func TestGuestConnectionRequiresSuccessfulMatchingManifest(t *testing.T) {
 	}
 }
 
+func TestGuestConnectionRejectsInterruptedMaintenanceEvenWithCurrentManifest(t *testing.T) {
+	manifest, err := json.Marshal(cage.RequiredGuestManifest())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, body := range []string{`{"updating":true}`, string(manifest) + "\nupdating"} {
+		_, got, err := parseGuestConnection([]byte("{\"token\":\"test\"}\npassword\n" + body))
+		if !errors.Is(err, errGuestUpdateRequired) || !strings.Contains(err.Error(), "更新中断") || got == nil || got.Current() {
+			t.Fatalf("maintenance snapshot %q bypassed repair: current=%+v error=%v", body, got, err)
+		}
+	}
+}
+
+func TestVersionQueryPreservesNewerMaintenanceDecision(t *testing.T) {
+	s := testServer(t)
+	s.noteGuestUpdateRequired(0, errGuestMaintenanceInterrupted.Error())
+	if !s.guestUpdateRequired || s.guestUpdateError != errGuestMaintenanceInterrupted.Error() {
+		t.Fatal("guest maintenance requirement did not reach status")
+	}
+	s.mu.Lock()
+	s.setGuestUpdateLocked(false, "")
+	generation := s.guestUpdateGeneration
+	s.mu.Unlock()
+
+	s.noteGuestUpdateRequired(0, errGuestUpdateRequired.Error())
+	if s.guestUpdateRequired {
+		t.Fatal("old version query overrode a newer attach")
+	}
+	s.setJobForTest(Job{ID: "update", Kind: "environment-update", Running: true})
+	s.noteGuestUpdateRequired(generation, errGuestUpdateRequired.Error())
+	if s.guestUpdateRequired {
+		t.Fatal("version query overrode ongoing maintenance")
+	}
+}
+
 func grantedToolUpdateServer(t *testing.T) (*Server, *cage.EgressGate) {
 	t.Helper()
 	s, gate := interfaceMonitorServer(t)

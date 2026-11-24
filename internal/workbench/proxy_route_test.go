@@ -17,7 +17,7 @@ func TestProxyRouteAPIIsAtomicAndSurvivesRefresh(t *testing.T) {
 	s := testServer(t)
 	p, _ := managedproxy.Load(s.profile)
 	entry := p.Selected
-	if err := p.Import("home", "https://example.com/home?token=private-token", []byte(`proxies: [{name: home, type: http, server: 127.0.0.1, port: 1080, password: private-password}]`), "home", 0, ""); err != nil {
+	if err := p.Import("home", "https://example.com/home?token=private-token", []byte(`proxies: [{name: home, type: http, server: 192.0.2.2, port: 1080, password: private-password}]`), "home", 0, ""); err != nil {
 		t.Fatal(err)
 	}
 	exit := p.Sources[1].Nodes[0].ID
@@ -94,7 +94,7 @@ func TestProxyRouteAPIIsAtomicAndSurvivesRefresh(t *testing.T) {
 		t.Fatal("active transit source removed")
 	}
 	fetchProxySource = func(context.Context, *http.Client, string) ([]byte, string, error) {
-		return []byte(`proxies: [{name: home, type: http, server: 127.0.0.1, port: 2080, password: updated}]`), "", nil
+		return []byte(`proxies: [{name: home, type: http, server: 192.0.2.2, port: 2080, password: updated}]`), "", nil
 	}
 	if err := s.changeProxy("refresh", proxyInput{ID: "home", HostDownload: true}, nil); err != nil {
 		t.Fatal(err)
@@ -104,7 +104,7 @@ func TestProxyRouteAPIIsAtomicAndSurvivesRefresh(t *testing.T) {
 		t.Fatal("subscription refresh lost the chain")
 	}
 	fetchProxySource = func(context.Context, *http.Client, string) ([]byte, string, error) {
-		return []byte(`proxies: [{name: replacement, type: http, server: 127.0.0.1, port: 3080}]`), "", nil
+		return []byte(`proxies: [{name: replacement, type: http, server: 192.0.2.2, port: 3080}]`), "", nil
 	}
 	if err := s.changeProxy("refresh", proxyInput{ID: "home", HostDownload: true}, nil); err == nil {
 		t.Fatal("missing exit silently replaced")
@@ -131,7 +131,7 @@ func TestProxySelectReplacesExistingChain(t *testing.T) {
 	s := testServer(t)
 	p, _ := managedproxy.Load(s.profile)
 	a := p.Selected
-	if err := p.Import("home", "", []byte(`proxies: [{name: home, type: http, server: 127.0.0.1, port: 1080}]`), "home", 0, ""); err != nil {
+	if err := p.Import("home", "", []byte(`proxies: [{name: home, type: http, server: 192.0.2.2, port: 1080}]`), "home", 0, ""); err != nil {
 		t.Fatal(err)
 	}
 	b := p.Sources[1].Nodes[0].ID

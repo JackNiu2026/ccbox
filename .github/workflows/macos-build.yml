@@ -1,4 +1,4 @@
-name: Build CCBox for Apple Silicon
+name: Build CCBox for macOS
 on:
   workflow_call:
     inputs:
@@ -19,14 +19,21 @@ on:
         description: Name of the resulting workflow artifact
         required: true
         type: string
+      architecture:
+        description: Native package architecture (arm64 or amd64)
+        required: false
+        type: string
+        default: arm64
 permissions:
   contents: read
 
 jobs:
   checks:
-    # GitHub's macos-15 image is arm64. Nested VMs are not available here.
-    runs-on: macos-15
-    timeout-minutes: 45
+    # Both builders compile natively. Hosted runners cannot boot nested VMs.
+    runs-on: ${{ inputs.architecture == 'amd64' && 'macos-15-intel' || 'macos-15' }}
+    timeout-minutes: 90
+    env:
+      CCBOX_MACOS_ARCH: ${{ inputs.architecture }}
     defaults:
       run:
         shell: bash
@@ -35,14 +42,15 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           persist-credentials: false
-      - name: Verify the exact source and Apple Silicon runner
+      - name: Verify the exact source and native runner
         env:
           BUILD_REF: ${{ inputs.ref }}
           RELEASE_BUILD: ${{ inputs.release }}
         run: |
           [[ "$BUILD_REF" =~ ^[0-9a-f]{40}$ ]] || { echo 'Pass an exact commit SHA.' >&2; exit 1; }
           [[ "$(git rev-parse HEAD)" == "$BUILD_REF" ]]
-          [[ "$(uname -s)" == Darwin && "$(uname -m)" == arm64 ]]
+          case "$CCBOX_MACOS_ARCH" in arm64) machine=arm64 ;; amd64) machine=x86_64 ;; *) exit 1 ;; esac
+          [[ "$(uname -s)" == Darwin && "$(uname -m)" == "$machine" ]]
           if [[ "$RELEASE_BUILD" == true && "$GITHUB_EVENT_NAME" != workflow_dispatch ]]; then
             echo 'Release candidates require an explicit release dispatch.' >&2
             exit 1
@@ -56,6 +64,10 @@ jobs:
           cache: npm
           cache-dependency-path: ui/package-lock.json
       - uses: astral-sh/setup-uv@v10.3.3
+      - uses: actions/setup-python@v6
+        if: inputs.architecture == 'amd64'
+        with:
+          python-version: '3.13'
       - name: Application version consistency
         run: |
           node scripts/check-version.mjs
@@ -63,6 +75,7 @@ jobs:
       - name: Install SSHFS build dependencies
         run: |
           brew install glib gettext pcre2
+          if [[ "$CCBOX_MACOS_ARCH" == amd64 ]]; then brew install libffi pixman pkgconf meson ninja; fi
           brew upgrade glib gettext pcre2
       - name: Build the macOS application without release credentials
         env:
@@ -99,13 +112,22 @@ jobs:
           codesign --verify --deep --strict _output/ccBox.app
           _output/ccBox.app/Contents/Resources/cage --help
           _output/ccBox.app/Contents/Resources/mihomo -v
-          [[ "$(lipo -archs _output/ccBox.app/Contents/MacOS/Cage)" == arm64 ]]
+          case "$CCBOX_MACOS_ARCH" in arm64) machine=arm64 ;; amd64) machine=x86_64 ;; esac
+          [[ "$(lipo -archs _output/ccBox.app/Contents/MacOS/Cage)" == "$machine" ]]
+          if [[ "$CCBOX_MACOS_ARCH" == amd64 ]]; then
+            runtime=_output/ccBox.app/Contents/Resources/intel-macos/runtime
+            for executable in qemu-system-x86_64 qemu-img; do
+              [[ "$(lipo -archs "$runtime/bin/$executable")" == x86_64 ]]
+              "$runtime/bin/$executable" --version
+            done
+            "$runtime/bin/qemu-system-x86_64" -accel help | grep -Fx hvf
+          fi
       - name: Archive a complete development App with executable permissions
         if: ${{ !inputs.release }}
         run: |
           version=$(tr -d '\r\n' < VERSION)
           mkdir -p _output/ci-macos-test
-          archive="$PWD/_output/ci-macos-test/CCBox-$version-macos-arm64-test.tar.gz"
+          archive="$PWD/_output/ci-macos-test/CCBox-$version-macos-$CCBOX_MACOS_ARCH-test.tar.gz"
           tar -czf "$archive" -C _output ccBox.app
           check=$(mktemp -d "$RUNNER_TEMP/cage-app-archive.XXXXXX")
           trap 'rm -rf "$check"' EXIT
@@ -128,9 +150,11 @@ jobs:
   release:
     if: ${{ inputs.release && github.event_name == 'workflow_dispatch' }}
     needs: checks
-    runs-on: macos-15
+    runs-on: ${{ inputs.architecture == 'amd64' && 'macos-15-intel' || 'macos-15' }}
     environment: cage-release
-    timeout-minutes: 75
+    timeout-minutes: 90
+    env:
+      CCBOX_MACOS_ARCH: ${{ inputs.architecture }}
     defaults:
       run:
         shell: bash
@@ -139,13 +163,14 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
           persist-credentials: false
-      - name: Verify the exact source and Apple Silicon runner
+      - name: Verify the exact source and native runner
         env:
           BUILD_REF: ${{ inputs.ref }}
         run: |
           [[ "$BUILD_REF" =~ ^[0-9a-f]{40}$ ]]
           [[ "$(git rev-parse HEAD)" == "$BUILD_REF" ]]
-          [[ "$(uname -s)" == Darwin && "$(uname -m)" == arm64 ]]
+          case "$CCBOX_MACOS_ARCH" in arm64) machine=arm64 ;; amd64) machine=x86_64 ;; *) exit 1 ;; esac
+          [[ "$(uname -s)" == Darwin && "$(uname -m)" == "$machine" ]]
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -155,8 +180,14 @@ jobs:
           cache: npm
           cache-dependency-path: ui/package-lock.json
       - name: Install SSHFS build dependencies
-        run: brew install glib gettext pcre2
+        run: |
+          brew install glib gettext pcre2
+          if [[ "$CCBOX_MACOS_ARCH" == amd64 ]]; then brew install libffi pixman pkgconf meson ninja; fi
       - uses: astral-sh/setup-uv@v10.3.3
+      - uses: actions/setup-python@v6
+        if: inputs.architecture == 'amd64'
+        with:
+          python-version: '3.13'
       - name: Build, sign, notarize and verify using a temporary keychain
         if: ${{ !inputs.unsigned_preview }}
         env:
@@ -187,9 +218,15 @@ jobs:
           version=$(tr -d '\r\n' < VERSION)
           source_version=$(sed -n 's/^version=//p' scripts/fetch-proxy-core.sh)
           release="$PWD/_output/releases/$version"
-          node scripts/release-version.mjs metadata macos "$release/build-metadata.json"
+          platform=macos
+          guest_source="cage-macos-guest-$version-source.tar.gz"
+          if [[ "$CCBOX_MACOS_ARCH" == amd64 ]]; then
+            platform=macos-intel
+            guest_source="cage-macos-guest-$version-amd64-source.tar.gz"
+          fi
+          node scripts/release-version.mjs metadata "$platform" "$release/build-metadata.json"
           mkdir -p _output/ci-macos-release
-          cp "$release/CCBox-$version-macos-arm64.dmg" "$release/mihomo-$source_version-source.tar.gz" "$release/cage-macos-guest-$version-source.tar.gz" "$release/SHA256SUMS" "$release/build-metadata.json" _output/ci-macos-release/
+          cp "$release/CCBox-$version-macos-$CCBOX_MACOS_ARCH.dmg" "$release/mihomo-$source_version-source.tar.gz" "$release/$guest_source" "$release/SHA256SUMS" "$release/build-metadata.json" _output/ci-macos-release/
           (cd _output/ci-macos-release && shasum -a 256 --check SHA256SUMS)
       - uses: actions/upload-artifact@v4
         with:

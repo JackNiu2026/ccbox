@@ -5,6 +5,7 @@ from pathlib import Path
 import plistlib
 import re
 import shutil
+import ssl
 import subprocess
 import sys
 import urllib.request
@@ -113,14 +114,28 @@ run(oc / "Utilities/ocvalidate/ocvalidate", efi / "OC/config.plist")
 provenance = {"qemu": "11.1.3", "opencore": "1.0.8", "lilu": "1.7.2", "virtual_smc": "1.3.8", "dependencies": [], "sources": []}
 
 
+def https_context():
+    context = ssl.create_default_context()
+    # Some Python installers do not configure their own trust store by default.
+    system_ca = Path("/etc/ssl/cert.pem")
+    if context.cert_store_stats()["x509_ca"] == 0 and system_ca.is_file():
+        context.load_verify_locations(system_ca)
+    return context
+
+
 def source_archive(name, url, digest=None):
     target = licenses / "sources" / name
     cached = cache / "downloads" / name
     if not cached.exists():
         if not url.startswith("https://"):
             raise RuntimeError("Source archive requires HTTPS")
-        with urllib.request.urlopen(url, timeout=60) as response, cached.open("xb") as output:
-            shutil.copyfileobj(response, output)
+        temporary = cached.with_name(cached.name + ".part")
+        try:
+            with urllib.request.urlopen(url, timeout=60, context=https_context()) as response, temporary.open("xb") as output:
+                shutil.copyfileobj(response, output)
+            temporary.replace(cached)
+        finally:
+            temporary.unlink(missing_ok=True)
     with cached.open("rb") as stream:
         actual = hashlib.file_digest(stream, "sha256").hexdigest()
     if digest and actual != digest:

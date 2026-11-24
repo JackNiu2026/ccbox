@@ -65,6 +65,7 @@ const version = fs.readFileSync(path.join(root, 'VERSION'), 'utf8').trim();
 assert.equal(published.version, version, 'Website release version must match VERSION');
 const downloadNames = {
   downloadURL: `CCBox-${version}-macos-arm64.dmg`,
+  macosIntelDownloadURL: `CCBox-${version}-macos-amd64.dmg`,
   windowsDownloadURL: `CCBox-${version}-windows-amd64-setup.exe`,
   linuxDownloadURL: `CCBox-${version}-linux-amd64.deb`,
   androidDownloadURL: `CCBox-${version}-android-arm64.apk`,
@@ -75,12 +76,14 @@ for (const [field, name] of Object.entries(downloadNames)) {
 const expectedDownloads = Object.entries(downloadNames).filter(([field]) => published[field]).map(([, name]) => name);
 const legacyPreviewNames = {
   macosPreview: `CCBox-${version}-macos-arm64-test.dmg`,
+  macosIntelPreview: `CCBox-${version}-macos-amd64-test.dmg`,
   windowsPreview: `CCBox-${version}-windows-amd64-setup-unsigned.exe`,
   linuxPreview: `CCBox-${version}-linux-amd64.deb`,
   androidPreview: `CCBox-${version}-android-arm64-debug.apk`,
 };
 const previewReleaseFields = {
   macosPreview: 'downloadURL',
+  macosIntelPreview: 'macosIntelDownloadURL',
   windowsPreview: 'windowsDownloadURL',
   linuxPreview: 'linuxDownloadURL',
   androidPreview: 'androidDownloadURL',
@@ -93,7 +96,7 @@ for (const [field, legacyName] of previewLinks) {
   const legacy = preview.releaseURL === releaseBase + 'preview-notes.txt';
   assert.equal(preview.version, version);
   assert.ok(!published[releaseField], `${field}: preview and official installer are both listed`);
-  assert.ok(legacy || field === 'macosPreview' || field === 'windowsPreview', `${field}: unsupported release preview`);
+  assert.ok(legacy || ['macosPreview', 'macosIntelPreview', 'windowsPreview'].includes(field), `${field}: unsupported release preview`);
   const name = legacy ? legacyName : downloadNames[releaseField];
   const notesName = legacy ? 'preview-notes.txt' : 'release-notes.txt';
   assert.equal(preview.downloadURL, releaseBase + name);

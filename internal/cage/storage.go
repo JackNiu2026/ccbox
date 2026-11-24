@@ -23,7 +23,10 @@ type StorageLocation struct {
 	Custom         bool   `json:"custom"`
 	HasEnvironment bool   `json:"has_environment"`
 	Backup         string `json:"backup,omitempty"`
+	Missing        bool   `json:"missing,omitempty"`
 }
+
+var ErrStorageMissing = errors.New("环境存储目录已不存在")
 
 type storageRecord struct {
 	Directory string   `json:"directory"`
@@ -54,7 +57,7 @@ func readStorageRecord(profile string) (storageRecord, error) {
 		return r, err
 	}
 	if err = json.Unmarshal(b, &r); err != nil || !filepath.IsAbs(r.Directory) || !validStorageID(r.ID) {
-		return storageRecord{}, errors.New("Cage 环境存储配置损坏，请先恢复配置")
+		return storageRecord{}, errors.New("CCBox 环境存储配置损坏，请先恢复配置")
 	}
 	return r, nil
 }
@@ -187,12 +190,19 @@ func getStorageLocation(profile string) (StorageLocation, error) {
 	}
 	anchor := storageAnchor(profile)
 	loc := StorageLocation{Directory: anchor, Custom: r.Directory != ""}
+	if len(r.Backups) > 0 {
+		loc.Backup = r.Backups[len(r.Backups)-1]
+	}
 	if loc.Custom {
 		loc.Directory = r.Directory
 		real, err := paths.Resolve(anchor)
 		target, te := paths.Resolve(filepath.Join(r.Directory, "state"))
 		marker, me := os.ReadFile(filepath.Join(r.Directory, storageMarker))
 		if err != nil || te != nil || me != nil || string(marker) != r.ID || !sameStoragePath(real, target) {
+			if storageDirectoryMissing(anchor, r.Directory) {
+				loc.Missing = true
+				return loc, fmt.Errorf("%w：%s。如果目录位于其他磁盘或已被移动，请先恢复原路径。", ErrStorageMissing, r.Directory)
+			}
 			return loc, fmt.Errorf("环境存储不可用，请重新连接原磁盘：%s", r.Directory)
 		}
 		if err = localStorageVolume(target); err != nil {
@@ -218,9 +228,6 @@ func getStorageLocation(profile string) (StorageLocation, error) {
 	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return loc, err
 	}
-	if len(r.Backups) > 0 {
-		loc.Backup = r.Backups[len(r.Backups)-1]
-	}
 	entries, err := os.ReadDir(filepath.Join(anchor, "lima"))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return loc, err
@@ -237,6 +244,23 @@ func getStorageLocation(profile string) (StorageLocation, error) {
 		return loc, err
 	}
 	return loc, nil
+}
+
+// A missing parent may be a disconnected volume. A real anchor may contain
+// data even if the custom location is gone. Preserve the original binding in
+// either case.
+func storageDirectoryMissing(anchor, directory string) bool {
+	if _, err := os.Lstat(directory); !errors.Is(err, os.ErrNotExist) {
+		return false
+	}
+	if parent, err := os.Stat(filepath.Dir(directory)); err != nil || !parent.IsDir() {
+		return false
+	}
+	if target, err := os.Readlink(anchor); err == nil {
+		return sameStoragePath(target, filepath.Join(directory, "state"))
+	}
+	_, err := os.Lstat(anchor)
+	return errors.Is(err, os.ErrNotExist)
 }
 
 func GetStorageLocation(profile string) (StorageLocation, error) {
@@ -320,7 +344,7 @@ func validateStorageTarget(profile, directory, app, platform string) error {
 			return err
 		}
 		if r.Directory == "" {
-			return errors.New("当前环境使用手动配置的目录链接。请先恢复原目录，再使用 Cage 迁移")
+			return errors.New("当前环境使用手动配置的目录链接。请先恢复原目录，再使用 CCBox 迁移")
 		}
 	}
 	if !filepath.IsAbs(directory) || filepath.Clean(directory) == filepath.VolumeName(directory)+string(os.PathSeparator) {
@@ -454,10 +478,19 @@ func MoveStorageWithRuntime(ctx context.Context, profile, directory string, expe
 		return loc, bindingErr
 	}
 	loc, err = getStorageLocation(profile)
-	if err != nil {
+	missing := expected.Missing && loc.Missing && errors.Is(err, ErrStorageMissing)
+	if err != nil && !missing {
 		return loc, err
 	}
-	if !sameStoragePath(expected.Directory, loc.Directory) || expected.HasEnvironment != loc.HasEnvironment {
+	if missing {
+		if runtime != nil {
+			return loc, err
+		}
+		if _, bindingErr := os.Lstat(filepath.Join(profile, "macos-guest.json")); !errors.Is(bindingErr, os.ErrNotExist) {
+			return loc, errors.New("请恢复原路径后再迁移 macOS 客机")
+		}
+	}
+	if !sameStoragePath(expected.Directory, loc.Directory) || expected.HasEnvironment != loc.HasEnvironment || expected.Missing != loc.Missing {
 		return loc, errors.New("环境或存储位置已改变，请重新选择")
 	}
 	if err = ValidateStorageTarget(profile, directory); err != nil {
@@ -487,7 +520,9 @@ func MoveStorageWithRuntime(ctx context.Context, profile, directory string, expe
 	if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
 		return loc, statErr
 	}
-	if statErr == nil {
+	if missing {
+		next.Backups = append(next.Backups, loc.Directory)
+	} else if statErr == nil {
 		backup := anchorBackup
 		if loc.Custom {
 			backup = loc.Directory
@@ -565,7 +600,7 @@ func MoveStorageWithRuntime(ctx context.Context, profile, directory string, expe
 			return loc, err
 		}
 	}
-	if info != nil {
+	if info != nil && !missing {
 		if err = copyStorageExcluding(ctx, src, destState, excluded, report); err != nil {
 			return loc, err
 		}
@@ -587,6 +622,9 @@ func MoveStorageWithRuntime(ctx context.Context, profile, directory string, expe
 	}
 	if err = ctx.Err(); err != nil {
 		return loc, err
+	}
+	if missing && !storageDirectoryMissing(anchor, loc.Directory) {
+		return loc, errors.New("原环境目录已经恢复或发生变化，请重新打开设置")
 	}
 	if info != nil {
 		if err = renameStorage(anchor, anchorBackup); err != nil {

@@ -634,7 +634,11 @@ func run() int {
 		if resourceErr != nil {
 			return fail(resourceErr)
 		}
-		args = append([]string{"setup", "--memory", fmt.Sprint(memory), "--cpus", fmt.Sprint(cpus), "--disk", "24", "--preinstall=node,python,chromium,gh,claude,code-server"}, args[1:]...)
+		disk, resourceErr := cage.ConfiguredDiskLimit(path)
+		if resourceErr != nil {
+			return fail(resourceErr)
+		}
+		args = append([]string{"setup", "--memory", fmt.Sprint(memory), "--cpus", fmt.Sprint(cpus), "--disk", fmt.Sprint(disk), "--preinstall=node,python,chromium,gh,claude,code-server"}, args[1:]...)
 	}
 	if args[0] == "up" || args[0] == "login" || args[0] == "update-components" {
 		explicitMaintenance := args[0] == "update-components"

@@ -40,6 +40,7 @@ type Candidate struct {
 
 var packageSuffixes = map[string]string{
 	"darwin/arm64":  "macos-arm64.dmg",
+	"darwin/amd64":  "macos-amd64.dmg",
 	"windows/amd64": "windows-amd64-setup.exe",
 	"linux/amd64":   "linux-amd64.deb",
 	"android/arm64": "android-arm64.apk",

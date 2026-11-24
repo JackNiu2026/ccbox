@@ -71,3 +71,6 @@ export function splitTab(layout, tabs, id, side) {
     .find(candidate => candidate !== id && tabs.some(tab => tab.id === candidate));
   return other ? { active: id, other, side } : layout;
 }
+export function shouldShowBrowserError({ browserError, browserVisible, managementPage, running, connectionError }) {
+  return Boolean(browserError && browserVisible && !managementPage && running && !connectionError);
+}

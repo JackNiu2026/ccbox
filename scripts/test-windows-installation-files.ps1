@@ -101,7 +101,7 @@ function Test-InstallerTransaction {
     & (Get-Command makensis.exe -ErrorAction Stop).Source /V2 /INPUTCHARSET UTF8 "/DAPP_DIR=$app" "/DVERSION=$version" "/DVERSION_NUMERIC=$(($version -split '-')[0]).0" "/DFILE_MANIFEST=$app\Cage.install-files.json" "/DOUTPUT_FILE=$setup" (Join-Path $PSScriptRoot '../packaging/windows/Cage.nsi')
     if ($LASTEXITCODE -ne 0) { throw 'The production NSIS fixture did not compile.' }
     function Run-Fixture([string]$Executable, [string[]]$Arguments, [int]$ExpectedExit = 0) {
-        $process = Start-Process -FilePath $Executable -ArgumentList $Arguments -PassThru
+        $process = Start-Process -FilePath $Executable -ArgumentList $Arguments -WorkingDirectory $scenario -PassThru
         $diagnose = {
             foreach ($path in @($report, "$report.helper.json", "$report.foreign.json", "$report.foreign.json.helper.json", "$report.uninstall.json", "$report.uninstall.json.helper.json")) {
                 if ((Test-Path -LiteralPath $path) -and (Get-Item -LiteralPath $path).Length -le 8192) { Write-Output ('Quick NSIS diagnostic: ' + (Get-Content -LiteralPath $path -Raw)) }
@@ -127,7 +127,11 @@ function Test-InstallerTransaction {
         Check ((Get-Content (Join-Path $foreign 'program.txt') -Raw) -eq 'foreign application') 'NSIS changed a foreign installation.'
         Check (!(Test-Path -LiteralPath $key)) 'NSIS registered a foreign installation as CCBox.'
         [IO.Directory]::CreateDirectory($target) | Out-Null
-        Run-Fixture $setup @('/S','/DESKTOPSHORTCUT=0','/STARTMENUSHORTCUT=0',"/DIAGNOSTICS=`"$report`"","/D=$target")
+        $savedDirectory = [Environment]::CurrentDirectory
+        try {
+            [Environment]::CurrentDirectory = $target
+            Run-Fixture $setup @('/S','/DESKTOPSHORTCUT=0','/STARTMENUSHORTCUT=0',"/DIAGNOSTICS=`"$report`"","/D=$target")
+        } finally { [Environment]::CurrentDirectory = $savedDirectory }
         Check ((Get-Content (Join-Path $target 'program.txt') -Raw) -eq 'fixture') 'NSIS did not publish its text payload.'
         Check (!(Test-Path -LiteralPath ($target + '.ccbox-installation.json'))) 'NSIS left the first-install receipt unfinished.'
         Check ((Get-ItemProperty $key).InstallLocation -eq $target) 'NSIS registered a different fixture target.'
@@ -161,6 +165,31 @@ function Test-InstallerTransaction {
 }
 try {
     if ($InstallerSmoke) { Test-InstallerTransaction }
+    # A pre-created first-install folder can stay in place when held open.
+    $scenario = Join-Path $root 'kept-empty-install-directory'
+    $old = Join-Path $scenario 'empty-destination'; $stage = Join-Path $scenario 'staged'; $receipt = Join-Path $scenario 'receipt.json'
+    [IO.Directory]::CreateDirectory($old) | Out-Null
+    App $stage 'fresh-attached'
+    Invoke-Helper @('-Operation','prepare','-Source',$old,'-Target',$stage,'-Receipt',$receipt)
+    Invoke-Helper @('-Operation','attach','-Source',$stage,'-Target',$old,'-RequireEmptyDestination')
+    Invoke-Helper @('-Operation','complete','-Target',$old,'-Receipt',$receipt) -WithoutFileHash
+    Check ((Get-Content (Join-Path $old 'program.txt') -Raw) -eq 'fresh-attached') 'First-install attach could not fill a kept empty directory.'
+    Check (!(Test-Path -LiteralPath $stage) -and !(Test-Path -LiteralPath $receipt)) 'First-install attach did not complete its transaction.'
+
+    $scenario = Join-Path $root 'retryable-first-install'
+    $old = Join-Path $scenario 'destination'; $stage = Join-Path $scenario 'staged'; $receipt = Join-Path $scenario 'receipt.json'
+    [IO.Directory]::CreateDirectory($old) | Out-Null
+    App $stage 'fresh'
+    Invoke-Helper @('-Operation','prepare','-Source',$old,'-Target',$stage,'-Receipt',$receipt)
+    $personal = Join-Path $old '.keep'
+    Write-File $personal 'personal file'
+    Invoke-Helper @('-Operation','attach','-Source',$stage,'-Target',$old,'-RequireEmptyDestination') 1
+    Invoke-Helper @('-Operation','abandon','-Target',$old,'-Receipt',$receipt) 1
+    Check ((Get-Content -LiteralPath $personal -Raw) -eq 'personal file' -and (Test-Path -LiteralPath $receipt)) 'A failed install discarded destination contents or its receipt.'
+    [IO.File]::Delete($personal)
+    Invoke-Helper @('-Operation','abandon','-Target',$old,'-Receipt',$receipt) -WithoutFileHash
+    Check ((Test-Path -LiteralPath $old -PathType Container) -and !(Test-Path -LiteralPath $receipt)) 'A failed first install could not be retried in its original empty folder.'
+
     # A new install has no backup path or existing ownership manifest.
     $scenario = Join-Path $root 'first-install'
     $old = Join-Path $scenario 'empty-destination'; $stage = Join-Path $scenario 'staged'; $receipt = Join-Path $scenario 'receipt.json'
@@ -441,6 +470,32 @@ try {
     $previousCopies = @(Get-ChildItem (Join-Path $old 'Cage-preserved-files') -File -Recurse)
     Check (@($previousCopies | Where-Object { (Get-Content $_.FullName -Raw) -eq 'before attempted update' }).Count -eq 1) 'Legacy recovery deleted the previous project version.'
     Check (@($previousCopies | Where-Object { (Get-Content $_.FullName -Raw) -eq 'old personal file' }).Count -eq 1) 'Legacy recovery deleted the previous personal-file version.'
+    if ($windows -and (& $HelperShell -NoProfile -Command '$PSVersionTable.PSEdition') -eq 'Desktop') {
+        $scenario = Join-Path $root 'non-ansi-temp'
+        $stage = Join-Path $scenario 'installed'
+        $receipt = Join-Path $scenario 'receipt.json'
+        $temporary = Join-Path $scenario ('temp-' + [char]::ConvertFromUtf32(0x1F600))
+        $plugins = Join-Path $temporary 'plugins'
+        App $stage 'new'
+        [IO.Directory]::CreateDirectory($plugins) | Out-Null
+        Copy-Item -LiteralPath $helper -Destination (Join-Path $plugins 'installation-files.ps1')
+        Copy-Item -LiteralPath (Join-Path (Split-Path $helper -Parent) 'verified-file-deletion.cs') -Destination $plugins
+        $savedTemporary = $env:TMP, $env:TEMP
+        $savedDirectory = [Environment]::CurrentDirectory
+        $savedHelper = $helper
+        try {
+            $env:TMP = $env:TEMP = $temporary
+            [Environment]::CurrentDirectory = $temporary
+            $helper = Join-Path $plugins 'installation-files.ps1'
+            Invoke-Helper @('-Operation','prepare','-Target',$stage,'-Receipt',$receipt)
+            Invoke-Helper @('-Operation','complete','-Target',$stage,'-Receipt',$receipt)
+        } finally {
+            $helper = $savedHelper
+            [Environment]::CurrentDirectory = $savedDirectory
+            $env:TMP, $env:TEMP = $savedTemporary
+        }
+        Check (!(Test-Path -LiteralPath $receipt)) 'A temporary folder outside the ANSI code page kept the receipt.'
+    }
     if ($windows) {
         & $HelperShell -NoProfile -File (Join-Path $PSScriptRoot 'test-windows-verified-file-deletion.ps1')
         if ($LASTEXITCODE -ne 0) { throw 'Verified-handle deletion regression failed.' }

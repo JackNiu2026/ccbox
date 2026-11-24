@@ -52,6 +52,33 @@ class ChannelTests(unittest.TestCase):
         self.assertEqual(channel.channel_message('<channel source="session" request_id="' + request + '">\n' + body + '\n</channel>'), (request, body))
         self.assertEqual(channel.clip_text("你好abc", 4), "你")
 
+    def test_automatic_title_ignores_command_records(self):
+        command = "<command-name>/clear</command-name>\n<command-args></command-args>"
+        prompt = "Fix the redirect <command-name>when needed</command-name>"
+        messages = [
+            {"type": "user", "message": {"content": command}},
+            {"type": "user", "isCompactSummary": True, "message": {"content": "Internal summary"}},
+            {"type": "user", "message": {"content": prompt}},
+        ]
+        config = self.home / ".claude"
+        path = self.history(self.session, self.project, messages)
+        self.assertEqual(channel.history_summary(path), (self.project, prompt[:40]))
+        opened = channel.view(config, self.session)
+        self.assertEqual(opened["title"], prompt[:40])
+        self.assertEqual([turn["prompt"] for turn in opened["turns"]], [command, prompt])
+        with patch.object(channel, "running_sessions", return_value=[]):
+            self.assertEqual(channel.discover({"accounts": ["default"], "workspaces": {self.project: self.project}})[0]["title"], prompt[:40])
+
+        messages.append({"type": "custom-title", "customTitle": command})
+        self.history(self.session, self.project, messages)
+        self.assertEqual(channel.view(config, self.session)["title"], command)
+
+    def test_automatic_title_falls_back_for_command_only_history(self):
+        self.history(self.session, self.project, [
+            {"type": "user", "message": {"content": "<local-command-stdout></local-command-stdout>"}},
+        ])
+        self.assertEqual(channel.view(self.home / ".claude", self.session)["title"], "Claude Code")
+
     def test_account_switch_preserves_tools_and_receipt(self):
         tool = {"type":"tool_use","id":"tool-completed","name":"Bash","input":{"command":"already completed"}}
         path = self.history(self.session,self.project,[
@@ -104,6 +131,22 @@ class ChannelTests(unittest.TestCase):
         self.assertNotIn("private upstream",json.dumps(state))
         with patch.object(channel.sys,"stdin",io.StringIO(json.dumps({**payload,"hook_event_name":"UserPromptSubmit"}))):channel.hook(self.session)
         self.assertNotIn("account_failure",channel.read_json(self.root/self.session/"state.json"))
+
+    def test_turn_notification_counter_counts_successful_completion_once(self):
+        def hook(event):
+            payload = {"hook_event_name": event, "session_id": self.session}
+            with patch.object(channel.sys, "stdin", io.StringIO(json.dumps(payload))):
+                channel.hook(self.session)
+            return channel.read_json(self.root / self.session / "state.json")
+
+        hook("UserPromptSubmit")
+        self.assertEqual(hook("Stop").get("turn_done"), 1)
+        self.assertEqual(hook("Stop").get("turn_done"), 1)
+        hook("UserPromptSubmit")
+        hook("StopFailure")
+        self.assertEqual(hook("Stop").get("turn_done"), 1)
+        hook("UserPromptSubmit")
+        self.assertEqual(hook("Stop").get("turn_done"), 2)
 
     def test_first_display_delta_after_launch(self):
         with channel.state_file(self.session) as state:

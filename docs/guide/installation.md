@@ -11,7 +11,7 @@ keywords: 下载 安装 客机 macOS Windows Debian Apple Silicon Hyper-V WHPX K
 
 | 平台 | 要求与安装方式 |
 | --- | --- |
-| macOS | Apple Silicon、macOS 14+。打开 `.dmg`，将 CCBox 拖入“应用程序”，再从那里启动。Intel Mac 暂不支持。 |
+| macOS | macOS 14+。在下载页选择与芯片匹配的 `.dmg`，Apple Silicon 选 `macos-arm64.dmg`，Intel 选 `macos-amd64.dmg`（需 VT-x，以上架情况为准）。打开后将 CCBox 拖入“应用程序”，再从那里启动。 |
 | Windows | Windows 10 22H2 / 11、x64。运行 `.exe` 安装器，按所选客机准备 Hyper-V 或 Windows 虚拟机监控程序平台，并在系统要求时重启。未签名预览包会明确标注。 |
 | Linux | Debian 12 / Ubuntu 22.04 / 24.04、x86_64。需要 KVM 与当前用户的访问权限。执行 `sudo apt install ./CCBox-<版本>-linux-amd64.deb` 补齐应用依赖，再从应用菜单打开。 |
 
@@ -39,7 +39,7 @@ Windows ARM64 和 Linux ARM64 暂不支持。
 | 主机 | 原位升级 |
 | --- | --- |
 | Windows | 运行新版 `.exe`，使用安装器识别的原安装目录。该目录下的 `BoxData` 和旧版 `CageData` 留在原位。 |
-| macOS | 打开新版 `.dmg`，将应用拖到原来安装的位置，选择「替换」。 |
+| macOS | 打开与当前 Mac 架构匹配的新版 `.dmg`，将应用拖到原来安装的位置，选择「替换」。 |
 | Linux | 在宿主机运行 `sudo apt install ./CCBox-<版本>-linux-amd64.deb`，升级原有的 `ccbox` 软件包。 |
 
 升级完成后打开原环境，确认项目、浏览器资料和客机内客户端仍然可用。若意外出现首次设置、重新下载系统镜像或创建虚拟机的提示，请停在该页面，先确认原数据盘已连接、原配置和存储目录可访问。

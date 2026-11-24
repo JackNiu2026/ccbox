@@ -68,3 +68,44 @@ func TestRunCageExplainsCommonFailure(t *testing.T) {
 		})
 	}
 }
+
+func TestRunCageDistinguishesBaseBootFromImageDownload(t *testing.T) {
+	if output := os.Getenv("CAGE_TEST_BASE_BOOT_FAILURE"); output != "" {
+		fmt.Fprintln(os.Stderr, "CAGE_IMAGE_READY")
+		fmt.Fprintln(os.Stderr, output)
+		os.Exit(1)
+	}
+	for _, output := range []string{
+		"Error: failed to start: host agent process has exited: exit status 1",
+		"Error: exiting, status={Running:false Degraded:false Exiting:true Errors:[] SSHLocalPort:0 CloudInitProgress:<nil> PortForward:<nil> Vsock:<nil>} (hint: see [home path])",
+	} {
+		t.Run(output, func(t *testing.T) {
+			assertBaseBootFailure(t, output)
+		})
+	}
+}
+
+func assertBaseBootFailure(t *testing.T, output string) {
+	t.Helper()
+	t.Setenv("CAGE_TEST_BASE_BOOT_FAILURE", output)
+	s := testServer(t)
+	if err := writePrivate(s.profile+string(os.PathSeparator)+"environment.json", map[string]string{"directory": t.TempDir()}); err != nil {
+		t.Fatal(err)
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.exe = exe
+	if _, err := s.submitJob("setup", func() error {
+		s.jobs.execution().setSetupProgress(&SetupProgress{Phase: "image", Label: "正在准备 Debian 13 镜像"})
+		return s.runCage("-test.run=^TestRunCageDistinguishesBaseBootFromImageDownload$")
+	}); err != nil {
+		t.Fatal(err)
+	}
+	job := awaitJobIdle(t, &s.jobs)
+	if job.SetupProgress == nil || job.SetupProgress.Operation != "boot" ||
+		!strings.Contains(job.Error, "虚拟机后台在环境就绪前退出") || strings.Contains(job.Error, "未返回可识别的原因") {
+		t.Fatalf("base VM startup failure was not distinguished: %+v", job)
+	}
+}

@@ -213,7 +213,7 @@ function DetectedProfile({ profile, usageEnvironment, busy, join, perform, chang
   </article>;
 }
 
-function ProfileCard({ profile, environment, usageEnvironment, busy, active, defaultActive, perform, change, login, cancelDraft }) {
+function ProfileCard({ profile, environment, usageEnvironment, busy, active, defaultActive, perform, change, login, cancelDraft, remove }) {
   const [renaming, setRenaming] = useState(false);
   const [label, setLabel] = useState("");
   const [group, setGroup] = useState(profile.handoff_group || "");
@@ -275,6 +275,8 @@ function ProfileCard({ profile, environment, usageEnvironment, busy, active, def
         <RefreshCw size={14} />检查状态</button>
       {!fromTerminal && !profile.email && !active && ["pending", "signed_out", "duplicate"].includes(profile.status) &&
         <button className="text-button" disabled={busy} onClick={() => perform(() => cancelDraft(profile))}>撤销添加</button>}
+      {profile.email && <button className="text-button" type="button" disabled={busy || active > 0 || usage.state === "checking"}
+        onClick={() => perform(() => remove(profile))}>移除账号</button>}
       <UsageNote profile={profile} state={usage.state} />
     </div>
   </article>;
@@ -346,6 +348,13 @@ export function ClaudeAccountsPanel({ store, running, environmentBusy, tabs, log
       throw e;
     }
   };
+  const remove = async (profile) => {
+    if (await onConfirm({ title: `移除「${profile.label || profile.email}」？`,
+      body: "此账号将从 CCBox 调度列表移除。客机中的登录资料、历史会话和项目文件会保留。",
+      confirm: "移除账号" })) {
+      await load({ action: "delete", id: profile.id });
+    }
+  };
   return <section className="claude-profiles" aria-label="Claude 账号管理">
     <div className="section-title">
       <p>将普通终端已登录的订阅加入调度，或单独登录一个新账号。新建 Claude 终端时自动分配。</p>
@@ -395,7 +404,7 @@ export function ClaudeAccountsPanel({ store, running, environmentBusy, tabs, log
           perform={perform} change={load}
           join={() => perform(joinDetected)} />}
         {accounts?.map((profile) => <ProfileCard key={profile.id} profile={profile} environment={environment} usageEnvironment={usageEnvironment}
-          busy={busy || environmentBusy} perform={perform} change={load} login={login} cancelDraft={cancelDraft}
+          busy={busy || environmentBusy} perform={perform} change={load} login={login} cancelDraft={cancelDraft} remove={remove}
           active={activeCounts.get(profile.id)?.all || 0} defaultActive={activeCounts.get(profile.id)?.fromDefault || 0} />)}
       </QuotaClock>
     </div>

@@ -25,9 +25,20 @@ type rateLimiter struct {
 	events map[string][]time.Time
 }
 
+type rateBudget struct {
+	key    string
+	limit  int
+	window time.Duration
+}
+
 // allow records one event for key and reports whether it stays within limit
 // events per window.
 func (l *rateLimiter) allow(key string, limit int, window time.Duration, now time.Time) bool {
+	return l.reserve(now, rateBudget{key, limit, window}) == 0
+}
+
+// reserve consumes every budget together or leaves them all unspent.
+func (l *rateLimiter) reserve(now time.Time, budgets ...rateBudget) time.Duration {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.events == nil {
@@ -40,13 +51,26 @@ func (l *rateLimiter) allow(key string, limit int, window time.Duration, now tim
 			}
 		}
 	}
-	recent := slices.DeleteFunc(l.events[key], func(at time.Time) bool { return now.Sub(at) > window })
-	if len(recent) >= limit {
-		l.events[key] = recent
-		return false
+	var retry time.Duration
+	for _, budget := range budgets {
+		recent := slices.DeleteFunc(l.events[budget.key], func(at time.Time) bool { return now.Sub(at) >= budget.window })
+		if len(recent) == 0 {
+			delete(l.events, budget.key)
+		} else {
+			l.events[budget.key] = recent
+		}
+		if len(recent) >= budget.limit {
+			oldest := slices.MinFunc(recent, time.Time.Compare)
+			retry = max(retry, oldest.Add(budget.window).Sub(now))
+		}
 	}
-	l.events[key] = append(recent, now)
-	return true
+	if retry > 0 {
+		return retry
+	}
+	for _, budget := range budgets {
+		l.events[budget.key] = append(l.events[budget.key], now)
+	}
+	return 0
 }
 
 // count reports events for key within window without recording one.
@@ -55,7 +79,7 @@ func (l *rateLimiter) count(key string, window time.Duration, now time.Time) int
 	defer l.mu.Unlock()
 	n := 0
 	for _, at := range l.events[key] {
-		if now.Sub(at) <= window {
+		if now.Sub(at) < window {
 			n++
 		}
 	}
@@ -63,9 +87,10 @@ func (l *rateLimiter) count(key string, window time.Duration, now time.Time) int
 }
 
 type accountAPI struct {
-	store   *license.Store
-	limiter rateLimiter
-	now     func() time.Time
+	store             *license.Store
+	limiter           rateLimiter
+	now               func() time.Time
+	registrationSlots chan struct{}
 }
 
 type accountRequest struct {
@@ -80,7 +105,7 @@ type accountRequest struct {
 }
 
 func registerAccountAPI(mux *http.ServeMux, store *license.Store) {
-	a := &accountAPI{store: store, now: time.Now}
+	a := newAccountAPI(store, time.Now)
 	mux.HandleFunc("POST /v1/auth/register", a.handle(false, a.register))
 	mux.HandleFunc("POST /v1/auth/login", a.handle(false, a.login))
 	mux.HandleFunc("POST /v1/auth/logout", a.handle(false, a.logout))
@@ -92,16 +117,21 @@ func registerAccountAPI(mux *http.ServeMux, store *license.Store) {
 	mux.HandleFunc("POST /v1/account/password", a.handle(true, a.password))
 }
 
+func newAccountAPI(store *license.Store, now func() time.Time) *accountAPI {
+	return &accountAPI{store: store, now: now, registrationSlots: make(chan struct{}, 4)}
+}
+
 type publicError struct {
-	status int
-	code   string
-	err    error
+	status     int
+	code       string
+	err        error
+	retryAfter int
 }
 
 func (e publicError) Error() string { return e.err.Error() }
 
 func reject(status int, code, message string) error {
-	return publicError{status, code, errors.New(message)}
+	return publicError{status: status, code: code, err: errors.New(message)}
 }
 
 func (a *accountAPI) handle(signedIn bool, handler func(*http.Request, accountRequest, string) (any, error)) http.HandlerFunc {
@@ -151,6 +181,9 @@ func writePublicError(w http.ResponseWriter, err error) {
 	}
 	var public publicError
 	if errors.As(err, &public) {
+		if public.retryAfter > 0 {
+			w.Header().Set("Retry-After", strconv.Itoa(public.retryAfter))
+		}
 		writeJSON(w, public.status, map[string]string{"error": public.Error(), "code": public.code})
 		return
 	}
@@ -181,13 +214,49 @@ func validCredentials(input accountRequest) error {
 	return nil
 }
 
+const (
+	registrationWindow      = 10 * time.Minute
+	registrationsPerDevice  = 6
+	registrationsPerNetwork = 60
+)
+
+func registrationCooldown(wait time.Duration) error {
+	seconds := int((wait + time.Second - 1) / time.Second)
+	duration := strconv.Itoa(seconds) + " 秒"
+	if seconds >= 60 {
+		duration = strconv.Itoa((seconds+59)/60) + " 分钟"
+	}
+	return publicError{
+		status:     http.StatusTooManyRequests,
+		code:       "rate_limited",
+		err:        errors.New("注册请求过于频繁，请在 " + duration + "后重试。已有账户可直接登录。"),
+		retryAfter: seconds,
+	}
+}
+
 func (a *accountAPI) register(r *http.Request, input accountRequest, _ string) (any, error) {
 	if err := validCredentials(input); err != nil {
 		return nil, err
 	}
+	timer := time.NewTimer(2 * time.Second)
+	defer timer.Stop()
+	select {
+	case a.registrationSlots <- struct{}{}:
+		defer func() { <-a.registrationSlots }()
+	case <-r.Context().Done():
+		return nil, r.Context().Err()
+	case <-timer.C:
+		return nil, publicError{
+			status: http.StatusServiceUnavailable, code: "unavailable",
+			err: errors.New("注册服务繁忙，请在 2 秒后重试。"), retryAfter: 2,
+		}
+	}
 	now := a.now()
-	if !a.limiter.allow("register:"+clientAddress(r), 5, time.Hour, now) {
-		return nil, tooMany()
+	if wait := a.limiter.reserve(now,
+		rateBudget{"register-device:" + input.Device, registrationsPerDevice, registrationWindow},
+		rateBudget{"register-network:" + clientAddress(r), registrationsPerNetwork, registrationWindow},
+	); wait > 0 {
+		return nil, registrationCooldown(wait)
 	}
 	token, info, err := a.store.Register(input.Username, input.Password, input.Device, license.DeviceMeta{Name: input.DeviceName, Platform: input.Platform}, now)
 	if err != nil {
@@ -259,7 +328,7 @@ func (a *accountAPI) account(_ *http.Request, input accountRequest, token string
 func (a *accountAPI) grant(_ *http.Request, input accountRequest, token string) (any, error) {
 	signed, info, err := a.store.AccountGrant(token, input.Device, a.now())
 	if errors.Is(err, license.ErrNoEntitlement) {
-		return nil, publicError{http.StatusForbidden, "no_entitlement", err}
+		return nil, publicError{status: http.StatusForbidden, code: "no_entitlement", err: err}
 	}
 	if err != nil {
 		return nil, err

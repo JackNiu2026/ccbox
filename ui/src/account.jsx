@@ -1,3 +1,5 @@
+import { translate as tr } from "./message-catalog.mjs";
+import { InterfaceLanguageControl } from "./interface-language-control";
 import React, {
   createContext,
   useContext,
@@ -166,7 +168,7 @@ export function MacOSAccountGate({ children }) {
     <h1>设置 CCBox 与 macOS 共用账密</h1>
     <p className="account-entry-intro">{account.trusted_local ? "先设置 CCBox 用户名和密码，再继续客机安装。已有账户、文件和登录状态会保留。" : "输入当前 CCBox 密码，确认用于 macOS 客机。已有客机保留用户名和用户目录。"}</p>
     <form onSubmit={submit}><fieldset disabled={busy}>
-      <label className="account-field">用户名<input required value={name} onChange={event => setName(event.target.value)} maxLength={31} pattern="[a-z][a-z0-9_]{0,30}" readOnly={Boolean(account.macos_guest_user)} autoComplete="username" /></label>
+      <label className="account-field">{tr("用户名")}<input required value={name} onChange={event => setName(event.target.value)} maxLength={31} pattern="[a-z][a-z0-9_]{0,30}" readOnly={Boolean(account.macos_guest_user)} autoComplete="username" /></label>
       <p className="field-help">小写字母开头，1–31 个小写字母、数字或下划线。密码使用 8–256 个英文键盘可输入的字符。</p>
       <PasswordField label={account.trusted_local ? "设置密码" : "当前 CCBox 密码"} value={password} onChange={setPassword} autoComplete={account.trusted_local ? "new-password" : "current-password"} />
       <PasswordField label="确认密码" value={confirmation} onChange={setConfirmation} autoComplete={account.trusted_local ? "new-password" : "current-password"} />
@@ -313,10 +315,11 @@ export function AccountGate({ children }) {
       <div className="account-brand">
         <img src={logo} alt="" />
         CCBox
+        <InterfaceLanguageControl />
       </div>
       <section
         className="account-entry"
-        aria-label={resetting ? "重置线上账户密码" : creating ? isRemoteClient() ? "创建云端账户" : "创建本地账户" : "解锁 CCBox"}
+        aria-label={tr(resetting ? "重置线上账户密码" : creating ? isRemoteClient() ? "创建云端账户" : "创建本地账户" : "解锁 CCBox")}
       >
         {creating ? (
           <img className="account-welcome-logo" src={logo} alt="" />
@@ -324,14 +327,14 @@ export function AccountGate({ children }) {
           account && <AccountAvatar account={account} large />
         )}
         <h1>
-          {resetting ? "重置线上账户密码" : creating
-            ? signingIn ? "登录 CCBox 账户" : "注册 CCBox 账户"
+          {resetting ? tr("重置线上账户密码") : creating
+            ? tr(signingIn ? "登录 CCBox 账户" : "注册 CCBox 账户")
             : account
-              ? `欢迎回来，${account.username}`
-              : "正在连接 CCBox"}
+              ? tr("欢迎回来，{0}", account.username)
+              : tr("正在连接 CCBox")}
         </h1>
         <p className="account-entry-intro">
-          {resetting
+          {tr(resetting
             ? creating ? "输入客服提供的重置码，为线上账户设置新密码。" : "输入客服提供的重置码。本机加密资料仍需使用原密码解锁。"
             : creating
             ? signingIn ? "使用已注册的 CCBox 账户登录这台电脑，密码同时用于解锁这台电脑上的数据。"
@@ -339,13 +342,11 @@ export function AccountGate({ children }) {
               : isRemoteClient() ? "在云端创建账户，保护这台主机上的工作与登录状态。" : "先注册用户名和密码，再选择客机系统并安装环境。macOS 客机会使用同一套账密。"
             : account
               ? account.trusted_local ? "本机工作区" : "输入密码，继续你的工作。"
-              : isRemoteClient() ? "正在读取云端账户…" : "正在读取本机账户…"}
+              : isRemoteClient() ? "正在读取云端账户…" : "正在读取本机账户…")}
         </p>
         {account?.background_running && (
           <div className="account-background">
-            <i />
-            后台环境仍在运行，任务没有停止
-          </div>
+            <i />{tr("后台环境仍在运行，任务没有停止")}</div>
         )}
         {account?.trusted_local && <div className="account-trust-choice">
           <p>{localDesktop() ? "使用当前系统用户的本机信任凭据进入工作区。" : "请回到受信任的桌面设置账户密码，再从此处登录。"}</p>
@@ -356,9 +357,7 @@ export function AccountGate({ children }) {
           <form onSubmit={submit}>
             <fieldset disabled={busy}>
               {needsUsername && (
-                <><label className="account-field">
-                  用户名
-                  <input
+                <><label className="account-field">{tr("用户名")}<input
                     autoFocus
                     autoComplete="username"
                     maxLength={account.macos_account_host && !signingIn && !resetting ? 31 : online ? 32 : 40}
@@ -366,27 +365,27 @@ export function AccountGate({ children }) {
                     required
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder={account.macos_account_host ? "例如：shihao" : "你希望怎样被称呼"}
+                    placeholder={tr(account.macos_account_host ? "例如：shihao" : "你希望怎样被称呼")}
                   />
                 </label>
                 {account.macos_account_host && !signingIn && !resetting && <p className="field-help">与 macOS 客机共用：小写字母开头，1–31 个小写字母、数字或下划线。</p>}
-                {online && !account.macos_account_host && mode === "register" && <p className="field-help">3–32 个字母、数字、下划线、连字符或点。</p>}</>
+                {online && !account.macos_account_host && mode === "register" && <p className="field-help">{tr("3–32 个字母、数字、下划线、连字符或点。")}</p>}</>
               )}
               {resetting && (
                 <label className="account-field">
-                  重置码
+                  {tr("重置码")}
                   <input autoComplete="one-time-code" required maxLength={20} value={resetCode} onChange={(e) => setResetCode(e.target.value)} placeholder="XXXX-XXXX-XXXX" />
                 </label>
               )}
               <PasswordField
-                label={signingIn ? "账户密码" : resetting ? "新密码" : creating ? "设置密码" : "账户密码"}
+                label={tr(signingIn ? "账户密码" : resetting ? "新密码" : creating ? "设置密码" : "账户密码")}
                 value={password}
                 onChange={setPassword}
                 autoComplete={needsPasswordConfirmation ? "new-password" : "current-password"}
               />
               {needsPasswordConfirmation && (
                 <PasswordField
-                  label="确认密码"
+                  label={tr("确认密码")}
                   value={confirmation}
                   onChange={setConfirmation}
                   autoComplete="new-password"
@@ -400,18 +399,18 @@ export function AccountGate({ children }) {
               )}
               {notice && <p className="field-help" role="status">{notice}</p>}
               {!creating && Object.values(deviceSupport?.device_status || {}).includes("missing") && (
-                <p className="field-help" role="status">当前目录的快捷登录凭据缺失或已失效。请用密码解锁，再到「设置 → 账户 → 登录与解锁」重新开启。</p>
+                <p className="field-help" role="status">{tr("当前目录的快捷登录凭据缺失或已失效。请用密码解锁，再到「设置 → 账户 → 登录与解锁」重新开启。")}</p>
               )}
               {!creating && Object.values(deviceSupport?.device_status || {}).includes("unavailable") && (
-                <p className="field-help" role="status">暂时无法检查系统钥匙串，请先用密码解锁。快捷登录授权记录已保留。</p>
+                <p className="field-help" role="status">{tr("暂时无法检查系统钥匙串，请先用密码解锁。快捷登录授权记录已保留。")}</p>
               )}
               {deviceSupport?.supported && !deviceSupport.device_status && (
-                <p className="field-help" role="status">当前应用启动器需要更新，暂时无法检查快捷登录状态。请先用密码进入，并重新安装完整的 CCBox 应用。</p>
+                <p className="field-help" role="status">{tr("当前应用启动器需要更新，暂时无法检查快捷登录状态。请先用密码进入，并重新安装完整的 CCBox 应用。")}</p>
               )}
               {!resetting && (localDesktop() || (creating && deviceSupport?.supported && deviceSupport.device_status)) && (
                 <label className="account-device-option check-line">
                   <input type="checkbox" checked={rememberThisDevice} onChange={(e) => setRememberLogin(e.target.checked)} />
-                  <span><strong>{localDesktop() ? "记住我" : "记住登录"}</strong><small>{localDesktop() ? "信任此电脑，下次用当前系统用户打开时直接进入。" : "下次打开直接进入。"}</small></span>
+                  <span><strong>{tr(localDesktop() ? "记住我" : "记住登录")}</strong><small>{tr(localDesktop() ? "信任此电脑，下次用当前系统用户打开时直接进入。" : "下次打开直接进入。")}</small></span>
                 </label>
               )}
               {!creating && deviceSupport?.supported && credentialPresent(deviceSupport.device_status?.biometric) && account.devices?.biometric && (
@@ -422,24 +421,23 @@ export function AccountGate({ children }) {
                     catch (e) { setError(e.message); }
                     finally { setBusy(false); }
                   }}>
-                  <Fingerprint size={18} />使用 Touch ID 解锁
-                </button>
+                  <Fingerprint size={18} />{tr("使用 Touch ID 解锁")}</button>
               )}
               <button
                 className="primary account-submit"
                 disabled={busy || !password || (resetting && !resetCode.trim()) || (needsUsername && !username.trim()) ||
                   (creating && !resetting && !localDesktop() && nativeAvailable() && deviceSupport === null)}
               >
-                {busy ? creating ? "正在处理…" : "正在解锁…"
-                  : signingIn ? "登录" : resetting ? "重置密码" : online ? "注册" : creating ? isRemoteClient() ? "创建云端账户" : "创建本地账户" : "解锁 CCBox"}
+                {tr(busy ? creating ? "正在处理…" : "正在解锁…"
+                  : signingIn ? "登录" : resetting ? "重置密码" : online ? "注册" : creating ? isRemoteClient() ? "创建云端账户" : "创建本地账户" : "解锁 CCBox")}
               </button>
               {online && <div className="account-mode-links">
-                {mode === "register" && <button type="button" className="text-button" onClick={() => switchMode("login")}>已有 CCBox 账户？登录</button>}
-                {mode === "login" && <><button type="button" className="text-button" onClick={() => switchMode("register")}>没有账户？注册</button>
-                  <button type="button" className="text-button" onClick={openOnlineReset}>忘记密码？</button></>}
+                {mode === "register" && <button type="button" className="text-button" onClick={() => switchMode("login")}>{tr("已有 CCBox 账户？登录")}</button>}
+                {mode === "login" && <><button type="button" className="text-button" onClick={() => switchMode("register")}>{tr("没有账户？注册")}</button>
+                  <button type="button" className="text-button" onClick={openOnlineReset}>{tr("忘记密码？")}</button></>}
               </div>}
-              {resetting && <button type="button" className="text-button" onClick={() => switchMode("login")}>返回登录</button>}
-              {!creating && account.online_enabled && !resetting && <button type="button" className="text-button" onClick={openOnlineReset}>忘记密码？</button>}
+              {resetting && <button type="button" className="text-button" onClick={() => switchMode("login")}>{tr("返回登录")}</button>}
+              {!creating && account.online_enabled && !resetting && <button type="button" className="text-button" onClick={openOnlineReset}>{tr("忘记密码？")}</button>}
             </fieldset>
           </form>
         )}
@@ -448,12 +446,12 @@ export function AccountGate({ children }) {
             <p role="alert" className="account-error">
               {connectionError}
             </p>
-            <button onClick={() => refresh().catch(() => {})}>重新连接</button>
+            <button onClick={() => refresh().catch(() => {})}>{tr("重新连接")}</button>
           </>
         )}
         <p className="account-local-note">
           <LockKeyhole size={14} />
-          {isRemoteClient() ? "账户资料保存在当前云端主机" : online || account?.online_username ? "本机数据只保存在这台设备上，CCBox 服务器只保存账户与授权" : "账户资料仅保存在这台设备上"}
+          {tr(isRemoteClient() ? "账户资料保存在当前云端主机" : online || account?.online_username ? "本机数据只保存在这台设备上，CCBox 服务器只保存账户与授权" : "账户资料仅保存在这台设备上")}
         </p>
         {nativeAvailable() && (
           <button
@@ -461,7 +459,7 @@ export function AccountGate({ children }) {
             className="text-button account-exit-app"
             onClick={() => native("quitNow").catch((e) => setError(e.message))}
           >
-            {account?.background_running ? "退出应用，后台继续运行" : "退出 CCBox"}
+            {tr(account?.background_running ? "退出应用，后台继续运行" : "退出 CCBox")}
           </button>
         )}
       </section>
@@ -587,7 +585,7 @@ export function AccountSettings({ busy: environmentBusy, onDirty, onConfirm }) {
   return (
     <div className="account-settings">
       <div className="section-title">
-        <h3>账户</h3>
+        <h3>{tr("账户")}</h3>
         <p>给工作空间一点你的样子。</p>
       </div>
       <form onSubmit={(event) => save(event)}>
@@ -600,17 +598,13 @@ export function AccountSettings({ busy: environmentBusy, onDirty, onConfirm }) {
                 className="quiet-button"
                 onClick={() => file.current.click()}
               >
-                <Camera size={16} />
-                更换头像
-              </button>
+                <Camera size={16} />{tr("更换头像")}</button>
               {avatar && (
                 <button
                   type="button"
                   className="text-button"
                   onClick={() => setAvatar("")}
-                >
-                  恢复默认
-                </button>
+                >{tr("恢复默认")}</button>
               )}
               <p className="field-help">
                 PNG 或 JPEG，最多 2 MB，自动居中裁切。
@@ -623,11 +617,9 @@ export function AccountSettings({ busy: environmentBusy, onDirty, onConfirm }) {
             accept="image/png,image/jpeg"
             hidden
             onChange={upload}
-            aria-label="选择头像图片"
+            aria-label={tr("选择头像图片")}
           />
-          <label className="account-field">
-            用户名
-            <input
+          <label className="account-field">{tr("用户名")}<input
               value={name}
               maxLength={40}
               autoComplete="username"
@@ -641,16 +633,14 @@ export function AccountSettings({ busy: environmentBusy, onDirty, onConfirm }) {
             className="primary"
             disabled={!changed || !name.trim() || busy}
           >
-            <Check size={16} />
-            保存资料
-          </button>
+            <Check size={16} />{tr("保存资料")}</button>
         </fieldset>
       </form>
       {feedbackTarget === "profile" && feedback}
       <div className="account-section-divider" />
       <form onSubmit={(event) => save(event, true)}>
         <fieldset disabled={busy || environmentBusy}>
-          <h4>账户密码</h4>
+          <h4>{tr("账户密码")}</h4>
           <p className="field-help">
             修改密码不会清除 Claude 的登录状态。{account.macos_credentials_ready && "CCBox 与 macOS 客机共用密码，客机关闭时会在下次启动后同步。"}
           </p>
@@ -696,7 +686,7 @@ export function AccountSettings({ busy: environmentBusy, onDirty, onConfirm }) {
           try { await act("logout"); }
           catch (error) { setError(error.message); }
           finally { setBusy(false); }
-        }}><LogOut size={16} />退出账户</button>
+        }}><LogOut size={16} />{tr("退出账户")}</button>
         {feedbackTarget === "logout" && feedback}
       </>}
       <p className="account-settings-note">
@@ -725,7 +715,7 @@ function TrustedDeviceSettings() {
   };
   return <form onSubmit={update}>
     <fieldset disabled={busy}>
-      <h4>记住我</h4>
+      <h4>{tr("记住我")}</h4>
       <p className="field-help">{enabled ? "已信任此电脑，下次用当前系统用户打开时自动进入。退出账户会撤销信任。" : "验证一次账户密码，信任此电脑，下次用当前系统用户打开时自动进入。"}</p>
       {!enabled && <PasswordField label="验证账户密码" value={password} onChange={setPassword} autoComplete="current-password" />}
       <button className="quiet-button" disabled={!enabled && !password}>{enabled ? "关闭记住我" : "信任此电脑"}</button>
@@ -740,9 +730,9 @@ function AccountDeviceSettings() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   if (!deviceSupport?.supported) return null;
-  if (!deviceSupport.device_status) return <section className="account-device-settings" aria-label="登录与解锁">
-    <h4>登录与解锁</h4>
-    <p className="field-help" role="status">当前应用启动器需要更新，无法检查快捷登录状态。请重新安装完整的 CCBox 应用后再设置；现有授权已保留。</p>
+  if (!deviceSupport.device_status) return <section className="account-device-settings" aria-label={tr("登录与解锁")}>
+    <h4>{tr("登录与解锁")}</h4>
+    <p className="field-help" role="status">{tr("当前应用启动器需要更新，无法检查快捷登录状态。请重新安装完整的 CCBox 应用后再设置；现有授权已保留。")}</p>
   </section>;
   const states = deviceSupport.device_status || {};
   const description = (kind, fallback) => states[kind] === "missing"
@@ -760,20 +750,20 @@ function AccountDeviceSettings() {
     } catch (e) { setError(e.message); }
     finally { setBusy(false); }
   };
-  return <section className="account-device-settings" aria-label="登录与解锁">
-    <h4>登录与解锁</h4>
+  return <section className="account-device-settings" aria-label={tr("登录与解锁")}>
+    <h4>{tr("登录与解锁")}</h4>
     {!localDesktop() && <label className="account-device-option check-line">
       <input type="checkbox" checked={Boolean(account.devices?.automatic) && states.automatic === "available"} disabled={busy || states.automatic === "unavailable"}
         onChange={(event) => change("automatic", event.target.checked)} />
-      <span><strong>记住登录</strong><small>{description("automatic", "重新打开时可自动进入。")}</small></span>
+      <span><strong>{tr("记住登录")}</strong><small>{description("automatic", "重新打开时可自动进入。")}</small></span>
     </label>}
     <label className="account-device-option check-line">
       <input type="checkbox" checked={Boolean(account.devices?.biometric) && credentialPresent(states.biometric)} disabled={busy || states.biometric === "unavailable" || (!deviceSupport.biometric_available && !credentialPresent(states.biometric))}
         onChange={(event) => change("biometric", event.target.checked)} />
-      <span><strong>使用 Touch ID 解锁</strong><small>{description("biometric", deviceSupport.biometric_available ? "需要验证账户时，可用系统指纹进入。" : "请先在 macOS 系统设置中设置 Touch ID。")}</small></span>
+      <span><strong>{tr("使用 Touch ID 解锁")}</strong><small>{description("biometric", deviceSupport.biometric_available ? "需要验证账户时，可用系统指纹进入。" : "请先在 macOS 系统设置中设置 Touch ID。")}</small></span>
     </label>
-    {Object.values(states).includes("unavailable") && <button type="button" className="quiet-button" disabled={busy} onClick={recheckDevices}>重新检查快捷登录</button>}
-    <p className="field-help">退出账户会撤销本机快捷登录授权。密码始终可以用于解锁。</p>
+    {Object.values(states).includes("unavailable") && <button type="button" className="quiet-button" disabled={busy} onClick={recheckDevices}>{tr("重新检查快捷登录")}</button>}
+    <p className="field-help">{tr("退出账户会撤销本机快捷登录授权。密码始终可以用于解锁。")}</p>
     {error && <p className="account-error" role="alert">{error}</p>}
     {message && <p className="account-saved" role="status">{message}</p>}
   </section>;
@@ -788,7 +778,7 @@ function AccountShowcase({ online }) {
       <h2>为 Claude 准备的<br /><span>独立工作区</span></h2>
       <ul>
         <li><ShieldCheck size={17} aria-hidden="true" /><span><strong>隔离环境</strong>浏览器、终端和编辑器运行在独立的客户机系统里。</span></li>
-        <li><Globe2 size={17} aria-hidden="true" /><span><strong>内置代理</strong>导入自己的订阅或节点即可联网，无需额外的代理软件。</span></li>
+        <li><Globe2 size={17} aria-hidden="true" /><span><strong>{tr("内置代理")}</strong>导入自己的订阅或节点即可联网，无需额外的代理软件。</span></li>
         {online
           ? <li><LockKeyhole size={17} aria-hidden="true" /><span><strong>一个账户，多台电脑</strong>授权跟随账户；本机数据与凭据只保存在这台设备上。</span></li>
           : <li><LockKeyhole size={17} aria-hidden="true" /><span><strong>本机账户</strong>账户资料与凭据只保存在这台设备上。</span></li>}
@@ -830,13 +820,12 @@ function OnlineAccountSettings() {
     }, mode === "register" ? "已注册并登录线上账户" : "已登录线上账户");
   };
   if (!view) return <section className="account-online-settings" aria-label="线上账户"><h4>CCBox 线上账户</h4>
-    {error ? <p className="account-error" role="alert">{error}</p> : <p className="field-help" role="status">正在读取…</p>}</section>;
+    {error ? <p className="account-error" role="alert">{error}</p> : <p className="field-help" role="status">{tr("正在读取…")}</p>}</section>;
   const info = view.account;
   return <section className="account-online-settings" aria-label="线上账户">
     <h4>CCBox 线上账户</h4>
     {view.linked ? <>
-      <p className="field-help">
-        已登录 <strong>{view.username}</strong>。
+      <p className="field-help">{tr("已登录") + " "}<strong>{view.username}</strong>。
         {info ? info.active ? `授权有效至 ${onlineDate(info.expires)}。` : "账户暂无有效授权，请在「设置 → 授权」兑换激活码。" : view.error || ""}
       </p>
       {info?.devices?.length > 0 && <ul className="account-online-devices">
@@ -844,7 +833,7 @@ function OnlineAccountSettings() {
           <span><strong>{device.name || "未命名设备"}{device.current ? "（当前设备）" : ""}</strong>
             <small>{[device.platform, device.seen ? `最近使用 ${onlineDate(device.seen)}` : ""].filter(Boolean).join(" · ")}</small></span>
           {!device.current && <button type="button" className="quiet-button" disabled={busy}
-            onClick={() => run(() => load({ action: "remove-device", target: device.id }), "已移除该设备")}>移除</button>}
+            onClick={() => run(() => load({ action: "remove-device", target: device.id }), "已移除该设备")}>{tr("移除")}</button>}
         </li>)}
       </ul>}
       {info && <p className="field-help">每个账户最多同时登录 {info.max_devices} 台设备。</p>}
@@ -855,9 +844,7 @@ function OnlineAccountSettings() {
     </> : <form onSubmit={link}>
       <fieldset disabled={busy}>
         <p className="field-help">{view.error ? `${view.error}。` : ""}登录或注册 CCBox 账户后，授权跟随账户，可在其他电脑登录使用。本机解锁密码保持不变。</p>
-        <label className="account-field">
-          用户名
-          <input autoComplete="username" maxLength={32} required value={username} onChange={(e) => setUsername(e.target.value)} />
+        <label className="account-field">{tr("用户名")}<input autoComplete="username" maxLength={32} required value={username} onChange={(e) => setUsername(e.target.value)} />
         </label>
         <PasswordField label={mode === "register" ? "设置账户密码" : "账户密码"} value={password} onChange={setPassword} autoComplete={mode === "register" ? "new-password" : "current-password"} />
         {mode === "register" && <PasswordField label="确认账户密码" value={confirmation} onChange={setConfirmation} autoComplete="new-password" />}

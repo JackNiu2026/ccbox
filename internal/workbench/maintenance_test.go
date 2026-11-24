@@ -13,14 +13,46 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"al.essio.dev/pkg/shellescape"
 	"github.com/sylvinus/agent-vm/internal/cage"
 )
+
+func TestGuestComponentManifestProbeRejectsInterruptedInstall(t *testing.T) {
+	shell, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash unavailable")
+	}
+	dir := t.TempDir()
+	probe := strings.ReplaceAll(guestComponentManifestProbe, "/etc/claude-cage", shellescape.Quote(filepath.ToSlash(dir)))
+	run := func(want string) {
+		t.Helper()
+		out, err := exec.Command(shell, "-c", probe).CombinedOutput()
+		if err != nil || string(out) != want {
+			t.Fatalf("manifest probe returned %q, %v, want %q", out, err, want)
+		}
+	}
+	run("")
+	if err := os.WriteFile(filepath.Join(dir, "components.json"), []byte("{}"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	run("installed")
+	marker := filepath.Join(dir, "components.updating")
+	if err := os.WriteFile(marker, nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	run("")
+	if err := os.Remove(marker); err != nil {
+		t.Fatal(err)
+	}
+	run("installed")
+}
 
 func TestMaintenanceRequiresAuthenticationAndSoftwareSource(t *testing.T) {
 	var calls atomic.Int32

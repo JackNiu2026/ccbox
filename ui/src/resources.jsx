@@ -3,7 +3,12 @@ import { api } from "./api";
 import { SafetyMessage } from "./safety-message";
 
 const gib = (bytes) => `${(bytes / 1073741824).toFixed(1)} GiB`;
-const allocationFrom = (data) => ({ automatic: data.automatic, memory_gib: data.memory_gib, cpus: data.cpus });
+const allocationFrom = (data) => ({
+  automatic: data.automatic,
+  memory_gib: data.memory_gib,
+  cpus: data.cpus,
+  ...(data.saved_disk_gib ? { disk_gib: data.saved_disk_gib } : {}),
+});
 
 export function ResourceSettings({ status, onConfirm, onDirtyChange }) {
   const [data, setData] = useState(null);
@@ -53,6 +58,27 @@ export function ResourceSettings({ status, onConfirm, onDirtyChange }) {
     catch (e) { setError(e.message); }
     finally { setStarting(false); }
   };
+  const applyDisk = async (restore = false) => {
+    const shrinking = data.disk_gib * 1073741824 < data.configured_disk_bytes;
+    const confirmed = await onConfirm(restore ? {
+      title: "恢复调整前的虚拟硬盘？",
+      body: "环境会停止并恢复调整前的备份。备份之后在客机内新建或修改的文件不会包含在该备份中。",
+      confirm: "恢复备份",
+    } : {
+      title: shrinking ? "缩小虚拟硬盘？" : "扩大虚拟硬盘？",
+      body: `硬盘上限将从 ${gib(data.configured_disk_bytes)} 调整为 ${data.disk_gib} GiB。请先保存工作。操作会重启环境，在核验新容量前保留调整前的磁盘备份。`,
+      confirm: shrinking ? "备份并缩小" : "备份并扩大",
+    });
+    if (!confirmed) return;
+    setStarting(true);
+    try {
+      await api("/environment/resources", restore
+        ? { disk_action: "restore" }
+        : { disk_action: "apply", disk_gib: data.disk_gib });
+      setError("");
+    } catch (e) { setError(e.message); }
+    finally { setStarting(false); }
+  };
   const observation = data?.observation;
   const guest = observation?.guest;
   const macOS = data?.runtime === "vz-macos" || data?.runtime === "qemu-macos";
@@ -60,7 +86,9 @@ export function ResourceSettings({ status, onConfirm, onDirtyChange }) {
   const resourceError = error || readError || data?.resource_error;
   const resourcesVerified = data?.resources_verified === true && !resourceError;
   const busy = starting || status.job?.running;
-  const dirty = draft && data && (draft.automatic !== data.automatic || (!draft.automatic && (draft.memory_gib !== data.memory_gib || draft.cpus !== data.cpus)));
+  const dirty = draft && data && (draft.automatic !== data.automatic ||
+    (!draft.automatic && (draft.memory_gib !== data.memory_gib || draft.cpus !== data.cpus ||
+      (draft.disk_gib || 0) !== (data.saved_disk_gib || 0))));
   useEffect(() => {
     onDirtyChange?.(Boolean(dirty));
     return () => onDirtyChange?.(false);
@@ -98,6 +126,10 @@ export function ResourceSettings({ status, onConfirm, onDirtyChange }) {
           <span className="resource-input"><input aria-label="CPU 逻辑核心数" aria-describedby="resource-cpu-help" type="number" min={data.min_cpus || 1} max={data.max_cpus} step="1" required value={draft.cpus} onChange={(e) => edit("cpus", e.target.value)} /><span aria-hidden="true">逻辑核心</span></span>
           <small id="resource-cpu-help">默认 {data.recommended_cpus} 个 · 可调 {data.min_cpus || 1}–{data.max_cpus} 个</small>
         </label>
+        {data.disk_supported && <label><span>硬盘上限</span>
+          <span className="resource-input"><input aria-label="硬盘上限（GiB）" aria-describedby="resource-disk-help" type="number" min={data.min_disk_gib} max={data.max_disk_gib} step="1" required value={draft.disk_gib ?? data.disk_gib} disabled={data.disk_recovery_required} onChange={(e) => edit("disk_gib", e.target.value)} /><span aria-hidden="true">GiB</span></span>
+          <small id="resource-disk-help">可调 {data.min_disk_gib}–{data.max_disk_gib} GiB。已有环境的硬盘需要单独确认调整。</small>
+        </label>}
       </fieldset>
       <div className="resource-actions">
         <span className="resource-mode">{draft.automatic ? "默认配置" : "自定义配置"}{dirty ? " · 未保存" : ""}</span>
@@ -105,12 +137,23 @@ export function ResourceSettings({ status, onConfirm, onDirtyChange }) {
         <button type="submit" disabled={busy || !dirty}>{starting ? "正在保存…" : "保存资源配置"}</button>
       </div>
       <p role={saved ? "status" : undefined} className="field-help resource-save-note">{saved ? "已保存，" : "保存后，"}{data.running ? "重启环境后生效。" : "下次启动环境时生效。"}</p>
+      {data.disk_recovery_required ? <div className="resource-actions">
+        <span className="field-help">上次硬盘调整未完成。</span>
+        <button type="button" disabled={busy} onClick={() => applyDisk(true)}>恢复调整前的磁盘</button>
+      </div> : data.disk_change_pending && !dirty && <div className="resource-actions">
+        <button type="button" disabled={busy} onClick={() => applyDisk()}>应用已保存的硬盘上限</button>
+      </div>}
     </form> : !resourceError && <p role="status" className="field-help">正在读取资源配置…</p>}
+    {data?.disk_error && <p role="alert" className="error-message"><SafetyMessage message={data.disk_error} /></p>}
+    {!data?.running && data?.configured_disk_bytes > 0 && <div className="setting-summary-row"><span>当前虚拟硬盘上限</span><strong>{gib(data.configured_disk_bytes)}</strong></div>}
     {macOS && data.minimum_requirements?.source === "existing-configuration" && <p className="field-help resource-minimum-note">当前最低值沿用已有启动配置。尚未从原恢复镜像读回 Apple 的最低要求。</p>}
     {data?.running && <div className="resource-runtime">
       <div className="resource-runtime-heading"><h5>当前运行</h5>{data.restart_required && <button className="text-button" disabled={busy} onClick={apply}>重启并应用已保存配置</button>}</div>
       <div className="setting-summary-row"><span>本次启动的内存上限</span><strong>{gib(data.configured_memory_bytes)}</strong></div>
       <div className="setting-summary-row"><span>本次启动的 CPU 上限</span><strong>{data.configured_cpus} 个逻辑核心</strong></div>
+      {data.configured_disk_bytes > 0 && <div className="setting-summary-row"><span>本次启动的硬盘上限</span><strong>{gib(data.configured_disk_bytes)}</strong></div>}
+      {data.configured_disk_bytes > 0 && <div className="setting-summary-row"><span>环境硬盘用量</span><strong>{fresh && guest?.disk_total_bytes ? `${gib(guest.disk_used_bytes)} / ${gib(guest.disk_total_bytes)}` : "等待采样"}</strong></div>}
+      {data.host_disk_allocated_bytes > 0 && <div className="setting-summary-row"><span>主机硬盘实际占用</span><strong>{gib(data.host_disk_allocated_bytes)}</strong></div>}
       <div className="setting-summary-row"><span>{macOS ? "环境内存用量（估算）" : "环境内存用量"}</span><strong>{fresh && guest ? gib(guest.total_bytes - guest.available_bytes) : "等待采样"}</strong></div>
       <div className="setting-summary-row"><span>{macOS ? "客机物理内存容量" : "环境当前可用内存总量"}</span><strong>{fresh && guest ? gib(guest.total_bytes) : "—"}</strong></div>
       <div className="setting-summary-row"><span>CPU 使用率</span><strong>{fresh && Number.isFinite(observation.cpu_percent) ? `${observation.cpu_percent.toFixed(0)}% / ${observation.cpus} 个核心` : "等待采样"}</strong></div>

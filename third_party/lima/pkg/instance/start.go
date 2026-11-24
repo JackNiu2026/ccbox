@@ -252,7 +252,7 @@ func StartWithPaths(ctx context.Context, inst *limatype.Instance, launchHostAgen
 	haStderrPath := filepath.Join(inst.Dir, filenames.HostAgentStderrLog)
 
 	begin := time.Now() // used for logrus propagation
-	var haCmd *exec.Cmd
+	var processExit <-chan error
 	if isRegisteredToAutoStart, err := autostart.IsRegistered(ctx, inst); err != nil && !errors.Is(err, autostart.ErrNotSupported) {
 		return fmt.Errorf("failed to check autostart registration: %w", err)
 	} else if !isRegisteredToAutoStart || launchHostAgentForeground {
@@ -266,12 +266,12 @@ func StartWithPaths(ctx context.Context, inst *limatype.Instance, launchHostAgen
 		if err != nil {
 			return err
 		}
-		// no defer haStdoutW.Close()
+		defer haStdoutW.Close()
 		haStderrW, err := os.Create(haStderrPath)
 		if err != nil {
 			return err
 		}
-		// no defer haStderrW.Close()
+		defer haStderrW.Close()
 
 		var args []string
 		if logrus.GetLevel() >= logrus.DebugLevel {
@@ -296,7 +296,7 @@ func StartWithPaths(ctx context.Context, inst *limatype.Instance, launchHostAgen
 		args = append(args, inst.Name)
 		// Not exec.CommandContext: the hostagent outlives this call, and os/exec
 		// would kill it whenever ctx ends, even after Start returned.
-		haCmd = exec.Command(limactl, args...)
+		haCmd := exec.Command(limactl, args...)
 
 		haCmd.SysProcAttr = executil.BackgroundSysProcAttr
 
@@ -311,43 +311,40 @@ func StartWithPaths(ctx context.Context, inst *limatype.Instance, launchHostAgen
 			if err := execHostAgentForeground(limactl, haCmd); err != nil {
 				return err
 			}
-		} else if err := haCmd.Start(); err != nil {
-			return err
+		} else {
+			if err := haCmd.Start(); err != nil {
+				return err
+			}
+			// Reap a directly started hostagent even if it exits before writing its PID.
+			waitErrCh := make(chan error, 1)
+			processExit = waitErrCh
+			go func() { waitErrCh <- haCmd.Wait() }()
 		}
 	} else if err = autostart.RequestStart(ctx, inst); err != nil {
 		return fmt.Errorf("failed to request start via autostart manager: %w", err)
 	}
 
-	if err := waitHostAgentStart(ctx, haPIDPath, haStderrPath); err != nil {
+	if err := waitHostAgentStart(ctx, haPIDPath, haStderrPath, processExit); err != nil {
 		return err
 	}
 
+	watchCtx, cancelWatch := context.WithCancel(ctx)
+	defer cancelWatch()
 	// Buffered: the goroutine that loses the race below must not block on its
 	// send for as long as the program lives (it would, once StartWithPaths
 	// has returned).
 	watchErrCh := make(chan error, 1)
 	go func() {
-		watchErrCh <- watchHostAgentEvents(ctx, inst, haStdoutPath, haStderrPath, begin, showProgress)
+		watchErrCh <- watchHostAgentEvents(watchCtx, inst, haStdoutPath, haStderrPath, begin, showProgress)
 		close(watchErrCh)
 	}()
-	waitErrCh := make(chan error, 1)
-	if haCmd != nil {
-		go func() {
-			waitErrCh <- haCmd.Wait()
-			close(waitErrCh)
-		}()
-	} else {
-		defer close(waitErrCh)
-	}
-
 	select {
 	case watchErr := <-watchErrCh:
 		// watchErr can be nil
 		return watchErr
 		// leave the hostagent process running
-	case waitErr := <-waitErrCh:
-		// waitErr should not be nil
-		return fmt.Errorf("host agent process has exited: %w", waitErr)
+	case waitErr := <-processExit:
+		return hostAgentExitError(waitErr)
 	}
 }
 
@@ -355,23 +352,50 @@ func Start(ctx context.Context, inst *limatype.Instance, launchHostAgentForegrou
 	return StartWithPaths(ctx, inst, launchHostAgentForeground, showProgress, "", "")
 }
 
-func waitHostAgentStart(_ context.Context, haPIDPath, haStderrPath string) error {
-	begin := time.Now()
-	deadlineDuration := 5 * time.Second
-	deadline := begin.Add(deadlineDuration)
+func waitHostAgentStart(ctx context.Context, haPIDPath, haStderrPath string, processExit <-chan error) error {
+	const startupTimeout = 5 * time.Second
+	deadline := time.NewTimer(startupTimeout)
+	defer deadline.Stop()
+	poll := time.NewTicker(50 * time.Millisecond)
+	defer poll.Stop()
 	for {
-		if _, err := os.Stat(haPIDPath); !errors.Is(err, os.ErrNotExist) {
-			return nil
+		if err := ctx.Err(); err != nil {
+			return err
 		}
-		if time.Now().After(deadline) {
-			return fmt.Errorf("hostagent (%#q) did not start up in %v (hint: see %#q)", haPIDPath, deadlineDuration, haStderrPath)
+		if _, err := os.Stat(haPIDPath); err == nil {
+			return nil
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("failed to read hostagent startup marker: %w", err)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case err := <-processExit:
+			return hostAgentExitError(err)
+		case <-deadline.C:
+			return fmt.Errorf("hostagent (%#q) did not start up in %v (hint: see %#q)", haPIDPath, startupTimeout, haStderrPath)
+		case <-poll.C:
 		}
 	}
+}
+
+func hostAgentExitError(err error) error {
+	if err == nil {
+		return errors.New("host agent process has exited without reporting readiness")
+	}
+	return fmt.Errorf("host agent process has exited: %w", err)
 }
 
 func watchHostAgentEvents(ctx context.Context, inst *limatype.Instance, haStdoutPath, haStderrPath string, begin time.Time, showProgress bool) error {
 	ctx, cancel := context.WithTimeout(ctx, watchHostAgentTimeout(ctx))
 	defer cancel()
+	// With an idle timeout, boot progress (including each cloud-init output
+	// line in progress mode) postpones the deadline: a boot that keeps making
+	// progress is not cut off, a stalled one still fails. Periodic events, such
+	// as port forwarding, repeat the last status and are not progress.
+	ctx, touch, idleExpired := withIdleDeadline(ctx, watchHostAgentIdleTimeout(ctx))
+	defer touch(false)
+	var lastProgress string
 
 	var (
 		printedSSHLocalPort  bool
@@ -381,6 +405,10 @@ func watchHostAgentEvents(ctx context.Context, inst *limatype.Instance, haStdout
 	)
 
 	onEvent := func(ev hostagentevents.Event) bool {
+		if progress := bootProgress(ev.Status); progress != lastProgress {
+			lastProgress = progress
+			touch(true)
+		}
 		if !printedSSHLocalPort && ev.Status.SSHLocalPort != 0 {
 			logrus.Infof("SSH Local Port: %d", ev.Status.SSHLocalPort)
 			printedSSHLocalPort = true
@@ -450,10 +478,65 @@ func watchHostAgentEvents(ctx context.Context, inst *limatype.Instance, haStdout
 	}
 
 	if !receivedRunningEvent {
+		if idleExpired() {
+			return fmt.Errorf("did not receive an event with the `running` status: no boot progress for %v", watchHostAgentIdleTimeout(ctx))
+		}
 		return errors.New("did not receive an event with the `running` status")
+	}
+	// Watch also returns when a deadline ends the wait for cloud-init. The VM
+	// runs, but its provisioning is not known to be complete.
+	if showProgress && !cloudInitCompleted {
+		if idleExpired() {
+			return fmt.Errorf("cloud-init did not report completion: no boot progress for %v (hint: see %#q)", watchHostAgentIdleTimeout(ctx), haStderrPath)
+		}
+		return fmt.Errorf("cloud-init did not report completion (hint: see %#q)", haStderrPath)
 	}
 
 	return nil
+}
+
+// bootProgress identifies the boot state an event reports. Each status event
+// carries the latest cloud-init line and state, so an event that differs only
+// in port forwarding or vsock repeats the previous progress.
+func bootProgress(status hostagentevents.Status) string {
+	return fmt.Sprintf("%v|%v|%v|%q|%d|%+v", status.Running, status.Degraded, status.Exiting, status.Errors, status.SSHLocalPort, status.CloudInitProgress)
+}
+
+// withIdleDeadline cancels ctx after idle passes without touch(true).
+// touch(false) stops the timer. An idle of zero disables the deadline.
+func withIdleDeadline(ctx context.Context, idle time.Duration) (context.Context, func(bool), func() bool) {
+	if idle <= 0 {
+		return ctx, func(bool) {}, func() bool { return false }
+	}
+	ctx, cancel := context.WithCancelCause(ctx)
+	errIdle := errors.New("no hostagent progress")
+	timer := time.AfterFunc(idle, func() { cancel(errIdle) })
+	touch := func(alive bool) {
+		if alive {
+			timer.Reset(idle)
+			return
+		}
+		timer.Stop()
+		cancel(nil)
+	}
+	return ctx, touch, func() bool { return errors.Is(context.Cause(ctx), errIdle) }
+}
+
+// A defined type, not an alias of struct{}: watchHostAgentEventsTimeoutKey
+// and launchingShellKey are aliases of struct{}, and an alias here would make
+// the idle timeout replace the overall one stored under the same key.
+type watchHostAgentIdleTimeoutKey struct{}
+
+// WithWatchHostAgentIdleTimeout makes watchHostAgentEvents fail only after
+// idle passes without any hostagent event, within the overall timeout set by
+// WithWatchHostAgentTimeout.
+func WithWatchHostAgentIdleTimeout(ctx context.Context, idle time.Duration) context.Context {
+	return context.WithValue(ctx, watchHostAgentIdleTimeoutKey{}, idle)
+}
+
+func watchHostAgentIdleTimeout(ctx context.Context) time.Duration {
+	idle, _ := ctx.Value(watchHostAgentIdleTimeoutKey{}).(time.Duration)
+	return idle
 }
 
 type watchHostAgentEventsTimeoutKey = struct{}

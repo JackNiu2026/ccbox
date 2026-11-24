@@ -41,6 +41,62 @@ func TestTailnetBoundaries(t *testing.T) {
 	}
 }
 
+func TestTailnetCustomControlUsesExplicitOrigin(t *testing.T) {
+	s := testServer(t)
+	s.ready = true
+	s.credentials.Token = "test-tailnet-token"
+	var control string
+	guest := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var input struct {
+			Action     string  `json:"action"`
+			ControlURL *string `json:"control_url"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			t.Error(err)
+		}
+		switch input.Action {
+		case "set-control-url":
+			if input.ControlURL == nil {
+				t.Error("no control server supplied")
+				return
+			}
+			control = *input.ControlURL
+			if control == "https://missing.example" {
+				control = "https://headscale.example:8443"
+				_ = json.NewEncoder(w).Encode(map[string]any{"installed": false})
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"installed": true, "backend": "Stopped", "control_url": control})
+		case "connect":
+			if input.ControlURL == nil || *input.ControlURL != control {
+				t.Errorf("incorrect server used for connect: %+v", input.ControlURL)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"installed": true, "backend": "NeedsLogin", "control_url": control, "auth_url": control + "/register/test"})
+		case "status":
+			_ = json.NewEncoder(w).Encode(map[string]any{"installed": true, "control_url": control, "auth_url": "https://untrusted.example/register/test"})
+		default:
+			t.Errorf("unexpected guest operation %q", input.Action)
+		}
+	}))
+	defer guest.Close()
+	s.browserControl = localBrowserClient(t, s.lifetimeContext(), guest)
+	if w := request(s, "POST", "/api/tailscale/control-server", s.origin, `{"control_url":"http://headscale.example"}`, true); w.Code != 400 {
+		t.Fatalf("unsafe configuration: %d %s", w.Code, w.Body.String())
+	}
+	if w := request(s, "POST", "/api/tailscale/control-server", s.origin, `{"control_url":"https://HEADSCALE.EXAMPLE:8443/"}`, true); w.Code != 200 || !strings.Contains(w.Body.String(), "https://headscale.example:8443") {
+		t.Fatalf("configure: %d %s", w.Code, w.Body.String())
+	}
+	if w := request(s, "POST", "/api/tailscale/control-server", s.origin, `{"control_url":"https://missing.example"}`, true); w.Code != 409 {
+		t.Fatalf("old guest accepted the change: %d %s", w.Code, w.Body.String())
+	}
+	if w := request(s, "POST", "/api/tailscale/connect", s.origin, "{}", true); w.Code != 200 || !strings.Contains(w.Body.String(), "/register/test") {
+		t.Fatalf("connect: %d %s", w.Code, w.Body.String())
+	}
+	if w := request(s, "GET", "/api/tailscale", "", "", true); w.Code != 502 || strings.Contains(w.Body.String(), "untrusted.example") {
+		t.Fatalf("foreign auth URL was returned: %d %s", w.Code, w.Body.String())
+	}
+}
+
 func TestTailnetGuestContract(t *testing.T) {
 	s := testServer(t)
 	s.ready = true

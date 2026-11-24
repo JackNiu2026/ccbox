@@ -382,16 +382,16 @@ func (l *Lima) Create(ctx context.Context, name, template string, s Settings, lo
 // All three locations must supply the exact release pinned by the embedded
 // template. In particular, never accept an unpinned daily image on fallback.
 func cageDebianImages(images []limatype.Image) ([]byte, error) {
-	const upstream = "https://cloud.debian.org/images/cloud/"
+	upstream := debianImageMirrors[0].base
 	var candidates []limatype.Image
 	for _, img := range images {
 		suffix, ok := strings.CutPrefix(img.Location, upstream)
 		if !ok || img.Variant != "genericcloud" || img.Digest.Validate() != nil || img.Digest.Algorithm() != "sha512" {
 			continue
 		}
-		for _, base := range []string{upstream, "https://mirrors.nju.edu.cn/debian-cdimage/cloud/", "https://mirrors.ustc.edu.cn/debian-cdimage/cloud/"} {
+		for _, mirror := range debianImageMirrors {
 			candidate := img
-			candidate.Location = base + suffix
+			candidate.Location = mirror.base + suffix
 			candidates = append(candidates, candidate)
 		}
 	}
@@ -431,6 +431,104 @@ func (l *Lima) Clone(ctx context.Context, from, to string) error {
 	}
 	_, err = instance.CloneWithIdentity(ctx, inst, to, identity)
 	return err
+}
+
+// IdentityInfo describes the current persisted hardware/machine identity of a
+// Lima instance without starting it.
+type IdentityInfo struct {
+	VMType          string
+	Identity        *guestidentity.Identity
+	HasVZIdentifier bool
+}
+
+// CurrentIdentity reads the saved guest identity and hypervisor type for name.
+func (l *Lima) CurrentIdentity(ctx context.Context, name string) (IdentityInfo, error) {
+	inst, err := l.inspect(ctx, name)
+	if err != nil {
+		return IdentityInfo{}, err
+	}
+	info := IdentityInfo{
+		VMType:   inst.VMType,
+		Identity: inst.Config.GuestIdentity,
+	}
+	if _, statErr := os.Stat(filepath.Join(inst.Dir, filenames.VzIdentifier)); statErr == nil {
+		info.HasVZIdentifier = true
+	}
+	return info, nil
+}
+
+// RotateIdentity replaces the persisted guestIdentity of a stopped Lima VM,
+// removes any saved Apple Virtualization machine identifier so a fresh one is
+// created on next boot, and clears any stale cidata.iso.
+func (l *Lima) RotateIdentity(ctx context.Context, name string, next *guestidentity.Identity) (previous *guestidentity.Identity, vzReset bool, err error) {
+	if err := next.Validate(); err != nil {
+		return nil, false, err
+	}
+	inst, err := l.inspect(ctx, name)
+	if err != nil {
+		return nil, false, err
+	}
+	if inst.Status == limatype.StatusRunning {
+		return nil, false, fmt.Errorf("cannot rotate identity of the running VM %s", name)
+	}
+	previous = inst.Config.GuestIdentity
+	path := filepath.Join(inst.Dir, filenames.LimaYAML)
+	old, err := os.ReadFile(path)
+	if err != nil {
+		return nil, false, err
+	}
+	encoded, err := json.Marshal(next)
+	if err != nil {
+		return nil, false, err
+	}
+	updated, err := yqutil.EvaluateExpression(ctx, ".guestIdentity = "+string(encoded), old)
+	if err != nil {
+		return nil, false, err
+	}
+	cfg, err := limayaml.LoadWithWarnings(ctx, updated, path)
+	if err != nil {
+		return nil, false, err
+	}
+	if err := driverutil.ResolveVMType(cfg); err != nil {
+		return nil, false, err
+	}
+	if err := limayaml.Validate(cfg, false); err != nil {
+		return nil, false, err
+	}
+	f, err := os.CreateTemp(inst.Dir, filenames.LimaYAML+".*.tmp")
+	if err != nil {
+		return nil, false, err
+	}
+	tempPath := f.Name()
+	cleanup := true
+	defer func() {
+		if cleanup {
+			_ = os.Remove(tempPath)
+		}
+	}()
+	if _, err = f.Write(updated); err != nil {
+		_ = f.Close()
+		return nil, false, err
+	}
+	if err = f.Sync(); err != nil {
+		_ = f.Close()
+		return nil, false, err
+	}
+	if err = f.Close(); err != nil {
+		return nil, false, err
+	}
+	if err = os.Rename(tempPath, path); err != nil {
+		return nil, false, err
+	}
+	cleanup = false
+	vzPath := filepath.Join(inst.Dir, filenames.VzIdentifier)
+	if err := os.Remove(vzPath); err == nil {
+		vzReset = true
+	} else if !os.IsNotExist(err) {
+		return previous, false, err
+	}
+	_ = os.Remove(filepath.Join(inst.Dir, filenames.CIDataISO))
+	return previous, vzReset, nil
 }
 
 // Edit applies s as `limactl edit` does: the same checks, and nothing is
@@ -584,6 +682,9 @@ func (l *Lima) Start(ctx context.Context, name string, log io.Writer) error {
 	if err != nil {
 		return err
 	}
+	if err := cage.AllowDiskResizeStart(inst.Dir, os.Getenv(cage.JobEnv)); err != nil {
+		return err
+	}
 	if inst.Status == limatype.StatusRunning {
 		return nil
 	}
@@ -598,7 +699,7 @@ func (l *Lima) Start(ctx context.Context, name string, log io.Writer) error {
 		if loadErr != nil {
 			return loadErr
 		}
-		settings.MemoryGiB, settings.CPUs, err = allocation.Limits()
+		settings.MemoryGiB, settings.CPUs, err = allocation.StartupLimits()
 		if *inst.Config.OS == limatype.DARWIN && err == nil {
 			cfg, loadErr := cage.Load(configPath)
 			if loadErr != nil {

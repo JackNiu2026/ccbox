@@ -75,7 +75,7 @@ func (s *Server) browserClient() *browserClient {
 			}
 		} else {
 			transport.DialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
-				return s.dialGuestBrowser(ctx, lifetime)
+				return s.dialGuestLoopback(ctx, lifetime, "127.0.0.1:18500")
 			}
 		}
 	}

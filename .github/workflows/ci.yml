@@ -4,6 +4,11 @@ on:
     branches: ['**', '!codex/release/**']
   pull_request:
   workflow_dispatch:
+    inputs:
+      macos_intel:
+        description: Build and verify the Intel Mac development app
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -33,6 +38,7 @@ jobs:
           node scripts/check-ccbox-brand.mjs
           node scripts/check-version.mjs
           node --test scripts/release-version.test.mjs scripts/release-control.test.mjs scripts/prepare-release-assets.test.mjs scripts/esigner.test.mjs
+          bash scripts/test-ci-macos-signing.sh
           pwsh -NoProfile -File scripts/test-windows-signing.ps1
       - name: Validate workflow syntax
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.11 -color
@@ -43,6 +49,15 @@ jobs:
       ref: ${{ github.sha }}
       release: false
       artifact_name: ccbox-macos-arm64-test
+  macos-intel:
+    if: github.event_name == 'workflow_dispatch' && inputs.macos_intel
+    needs: workflow-checks
+    uses: ./.github/workflows/macos-build.yml
+    with:
+      ref: ${{ github.sha }}
+      release: false
+      artifact_name: ccbox-macos-amd64-test
+      architecture: amd64
   windows:
     needs: workflow-checks
     uses: ./.github/workflows/windows-build.yml

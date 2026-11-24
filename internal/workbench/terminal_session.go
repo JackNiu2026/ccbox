@@ -21,6 +21,7 @@ type terminalPTY interface {
 type terminalSession struct {
 	mu                    sync.Mutex
 	id, title             string
+	creationOrder         int
 	sharedID              string
 	connectionID          string
 	conversationEnded     bool
@@ -46,6 +47,22 @@ func (t *terminalSession) ownsConversation() bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return !t.closed && !t.conversationEnded
+}
+
+func (t *terminalSession) ended() bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if !t.closed {
+		return false
+	}
+	if t.done != nil {
+		select {
+		case <-t.done:
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 func newTerminalSession(file terminalPTY) *terminalSession {

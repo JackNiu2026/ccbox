@@ -58,6 +58,7 @@ ROOT = Path(_controller_context["CAGE_CLI_STATE_ROOT"]) if os.name == "nt" else 
 PROMPT_LIMIT = 32 << 10
 REPLY_LIMIT = 128 << 10
 HISTORY_LIMIT = 448 << 10
+COMMAND_RECORD_OPEN = re.compile(r"<(command-name|command-message|command-args|local-command-stdout|local-command-stderr|local-command-caveat)>")
 
 
 def identifier(value):
@@ -138,6 +139,35 @@ def channel_message(text):
     return match.group(1), body.removesuffix("\n")
 
 
+def is_command_record(text):
+    text = text.strip()
+    offset = 0
+    while offset < len(text):
+        opening = COMMAND_RECORD_OPEN.match(text, offset)
+        if not opening:
+            return False
+        closing = f"</{opening[1]}>"
+        end = text.find(closing, opening.end())
+        if end < 0:
+            return False
+        offset = end + len(closing)
+        while offset < len(text) and text[offset].isspace():
+            offset += 1
+    return offset > 0
+
+
+def automatic_title(row):
+    if row.get("type") != "user" or row.get("isCompactSummary"):
+        return ""
+    text = text_content(row.get("message") or {})
+    if row.get("isMeta"):
+        channel = channel_message(text)
+        text = channel[1] if channel else ""
+    elif is_command_record(text):
+        return ""
+    return text[:40] if text.strip() else ""
+
+
 def update_tools(turn, role, content):
     if not isinstance(content, list):
         return
@@ -174,10 +204,10 @@ def update_tools(turn, role, content):
 
 
 def transcript(path):
-    turns, seen, workspace, title = [], set(), "", ""
+    turns, seen, workspace, manual_title, auto_title = [], set(), "", "", ""
     if not path or not path.is_file() or path.is_symlink():
-        return turns, workspace, title, seen
-    with path.open() as stream:
+        return turns, workspace, "", seen
+    with path.open(encoding="utf-8") as stream:
         for line in stream:
             if len(line) > 4 * 1024 * 1024:
                 continue
@@ -185,11 +215,13 @@ def transcript(path):
                 row = json.loads(line)
             except ValueError:
                 continue
-            if row.get("isSidechain"):
+            if not isinstance(row, dict) or row.get("isSidechain"):
                 continue
             workspace = row.get("cwd") or workspace
             if row.get("type") == "custom-title":
-                title = row.get("customTitle") or title
+                manual_title = row.get("customTitle") or manual_title
+            if not auto_title:
+                auto_title = automatic_title(row)
             key = row.get("uuid")
             if not key or key in seen:
                 continue
@@ -215,7 +247,7 @@ def transcript(path):
                 turn = turns[-1]
                 value = turn["text"] + ("\n\n" if turn["text"] else "") + text
                 turn["text"], turn["truncated"] = clip_text(value, REPLY_LIMIT), len(value.encode()) > REPLY_LIMIT
-    return turns, workspace, title, seen
+    return turns, workspace, manual_title or auto_title, seen
 
 
 def connection_for(session_id, config):
@@ -244,9 +276,12 @@ def view(config, session_id, path=None):
     running = live(state.get("pid")) and not state.get("closed")
     channel = running and live(state.get("channel_pid")) and not state.get("blocked") and not state.get("policy_unavailable") and not state.get("native_ccs_unverified")
     known = {turn["id"] for turn in turns}
+    queued_title = ""
     for sent in state.get("sent", []):
         if sent["id"] not in known:
             turns.append({"id": sent["id"], "prompt": sent["text"], "text": "", "status": "interrupted" if sent.get("interrupted") else "queued"})
+            if not queued_title and isinstance(sent.get("text"), str) and sent["text"].strip():
+                queued_title = sent["text"][:40]
     display = state.get("display")
     if turns and display and state.get("busy") and display.get("text"):
         text = display["text"]
@@ -276,7 +311,7 @@ def view(config, session_id, path=None):
     elif state.get("policy_unavailable"):
         notice = "Cage 默认环境的通道配置未能更新，请在电脑更新环境组件。"
     return {"cli_id": session_id, "config": str(config), "connection": connection, "native_ccs_unverified": bool(state.get("native_ccs_unverified")),
-            "workspace": workspace or state.get("workspace", ""), "title": title or (turns[0]["prompt"][:40] if turns else "Claude Code"),
+            "workspace": workspace or state.get("workspace", ""), "title": title or queued_title or "Claude Code",
             "updated_at": modified, "turns": turns, "running": bool(running), "active": bool(running and (state.get("busy") or state.get("approvals"))), "channel_ready": bool(channel), "can_send": bool(channel and not state.get("resume_task")), "has_history": has_history, "history_truncated": shortened,
             "connection_notice": "" if channel else notice, "account_failure": state.get("account_failure", ""),
             "resume_pending": bool(state.get("resume_task")), "native_history": native_history}
@@ -284,8 +319,8 @@ def view(config, session_id, path=None):
 
 def history_summary(path):
     workspace, title = "", ""
-    with path.open() as stream:
-        for _ in range(64):
+    with path.open(encoding="utf-8") as stream:
+        for _ in range(256):
             line = stream.readline(4 << 20)
             if not line:
                 break
@@ -293,14 +328,11 @@ def history_summary(path):
                 row = json.loads(line)
             except ValueError:
                 continue
+            if not isinstance(row, dict) or row.get("isSidechain"):
+                continue
             workspace = row.get("cwd") or workspace
-            if row.get("type") == "user":
-                text = text_content(row.get("message") or {})
-                channel = channel_message(text) if row.get("isMeta") else None
-                if channel:
-                    title = channel[1][:40]
-                elif not row.get("isMeta"):
-                    title = text[:40]
+            if not title:
+                title = automatic_title(row)
             if workspace and title:
                 break
     # Names and directory changes are appended to the transcript. Read a
@@ -312,6 +344,8 @@ def history_summary(path):
         try:
             row = json.loads(line)
         except (ValueError, UnicodeDecodeError):
+            continue
+        if not isinstance(row, dict) or row.get("isSidechain"):
             continue
         workspace = row.get("cwd") or workspace
         if row.get("type") == "custom-title":
@@ -399,8 +433,11 @@ def hook(connection):
             state.pop("pending_send", None)
         if event in ("UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "Stop", "SessionEnd"):
             state["approvals"] = []
+        if event == "Stop" and (state.get("busy") or state.get("pending_send")) and not state.get("stopped") and not state.get("account_failure"):
+            state["turn_done"] = state.get("turn_done", 0) + 1
         if event in ("Stop", "StopFailure", "SessionEnd"):
             state["busy"] = False
+            state.pop("pending_send", None)
             state.pop("display", None)
         if event == "StopFailure":
             state["account_failure"] = payload.get("error", "unknown")

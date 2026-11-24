@@ -8,7 +8,7 @@ import { UploadManager } from "./browser-uploads.mjs";
 
 async function fixture(t, multiple = true) {
   const directory = await mkdtemp(join(tmpdir(), "cage-uploads-"));
-  t.after(() => rm(directory, { recursive: true, force: true }));
+  t.after(() => rm(directory, { recursive: true, force: true, maxRetries: 4 }));
   const calls = [];
   const manager = new UploadManager({
     directory,
@@ -36,7 +36,9 @@ test("binary files retain their names and bytes, and only the original input rec
   assert.equal(f.calls[0][2], "session-1");
   const [file, empty] = f.calls[0][1].files;
   assert.deepEqual(await readFile(file), bytes);
-  assert.equal((await stat(file)).mode & 0o777, 0o600);
+  if (process.platform !== "win32") {
+    assert.equal((await stat(file)).mode & 0o777, 0o600);
+  }
   assert.equal((await readFile(empty)).length, 0);
   assert.deepEqual(f.manager.snapshot(), []);
   assert.equal(f.manager.retained.get("tab-1").length, 1);

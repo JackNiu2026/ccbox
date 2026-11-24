@@ -110,7 +110,6 @@ func (c *browserClient) request(ctx context.Context, token, method, path string,
 		return nil, errors.New(browserOperation(path) + "失败：浏览器返回的数据超过 1 MiB，已停止读取。请关闭不再使用的标签页或扩展后再试；持续出现时导出诊断包。")
 	}
 	if response.StatusCode != http.StatusOK {
-		diagnostics.Log("warn", "browser", fmt.Sprintf("operation=%s http=%d", path, response.StatusCode))
 		var result struct {
 			Error string `json:"error"`
 		}
@@ -123,6 +122,12 @@ func (c *browserClient) request(ctx context.Context, token, method, path string,
 			"Copy target changed":  "要复制内容的页面已切换。请回到原页面重新复制。",
 			"Image too large":      "图片超过允许大小。请缩小图片后重新粘贴。",
 			"Invalid PNG":          "图片不是有效的 PNG 文件。请重新复制或导出图片。",
+			"诊断时区无效": "诊断时区无效。请重新应用时区设置后再试。",
+			"浏览器配置诊断未完成": "浏览器配置诊断未完成。请重新检测，或重启环境后再试。",
+			"诊断页面无法连接": "浏览器诊断页面无法连接。请重新检测，或重启环境后再试。",
+			"诊断页面尚未就绪": "浏览器诊断页面尚未就绪。请重新检测，或重启环境后再试。",
+			"浏览器诊断未完成": "浏览器诊断未完成。请重新检测，或重启环境后再试。",
+			"Failed to open new tab - no browser is open": "浏览器当前没有打开的窗口。请打开普通标签页或更新环境组件后再试。",
 			"Only HTTP(S) URLs without credentials are accepted":         "网址中包含账号或密码。请使用不带登录凭据的 http 或 https 网址。",
 			"Only HTTP(S) URLs and supported browser pages are accepted": "不支持这个网址类型。请使用 http 或 https 网址。",
 			"Unknown browser action":                                     "浏览器组件不支持这次操作。请更新环境组件后再试。",
@@ -136,8 +141,10 @@ func (c *browserClient) request(ctx context.Context, token, method, path string,
 			"扩展 ZIP 不能超过 32 MB":                                          "扩展 ZIP 不能超过 32 MB。请缩小扩展包后重新导入。",
 		}
 		if reason := known[result.Error]; reason != "" {
+			diagnostics.Log("warn", "browser", fmt.Sprintf("operation=%s http=%d reason=%s", path, response.StatusCode, result.Error))
 			return nil, errors.New(browserOperation(path) + "失败：" + reason)
 		}
+		diagnostics.Log("warn", "browser", fmt.Sprintf("operation=%s http=%d", path, response.StatusCode))
 		return nil, serviceHTTPFailure(browserOperation(path), response.StatusCode)
 	}
 	return data, nil

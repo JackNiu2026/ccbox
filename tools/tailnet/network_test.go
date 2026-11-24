@@ -27,7 +27,7 @@ import (
 )
 
 func TestHTTPProxyUsesTailnetAndRevokesConnections(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	isolateUserHome(t)
 	t.Setenv("USERPROFILE", os.Getenv("HOME"))
 	t.Setenv("TS_NO_LOGS_NO_SUPPORT", "true")
 	envknob.SetenvForTest(t, "TS_DEBUG_ALWAYS_USE_DERP", "true")

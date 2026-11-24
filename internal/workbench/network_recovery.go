@@ -67,6 +67,25 @@ func recoveryMatches(r networkRecovery, state cage.GateStatus, configuration str
 	return r.RunID != "" && !paused && generation == r.PauseVersion && state.RunID == r.RunID && state.Configuration == r.Configuration && configuration == r.Configuration && state.Epoch == r.Epoch && state.Mode == cage.GateClosed
 }
 
+// A recovered core can request the usual full check for its last closure.
+// It cannot renew the old grant or override newer user or policy decisions.
+func (s *Server) noteHealthyProxy(state cage.GateStatus, configuration string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	current := s.safety.Gate
+	if s.closing || s.networkPaused || !s.ready || current == nil ||
+		state.Mode != cage.GateClosed || state.Reason != proxyCoreUnavailableReason || state.Report == nil ||
+		state.Configuration != configuration || current.RunID != state.RunID || current.Epoch != state.Epoch ||
+		current.Mode != state.Mode || current.Reason != state.Reason ||
+		recoveryMatches(s.recovery, state, configuration, s.networkPaused, s.safety.pauseVersion) {
+		return
+	}
+	s.recovery = networkRecovery{RunID: state.RunID, Configuration: state.Configuration, Epoch: state.Epoch, PauseVersion: s.safety.pauseVersion, Next: time.Now().Add(15 * time.Second)}
+	s.proxyNetworkLost = false
+	s.proxyRebindAfter = time.Time{}
+	diagnostics.Log("info", "network", "proxy core recovered; full safety recheck scheduled")
+}
+
 // Called with s.op held. Admission uses the ordinary job queue and never changes
 // saved network intent. The worker rechecks after acquiring s.op as well.
 func (s *Server) recoverNetwork() {

@@ -83,6 +83,31 @@ func TestInitializationPersistsBeforeDiskCreationAndDoesNotResetExisting(t *test
 	}
 }
 
+func TestInterruptedProvisionOnlyResumesDuringTrackedFirstInstall(t *testing.T) {
+	s := testServer(t)
+	if s.canResumeInterruptedProvision("start", errGuestMaintenanceInterrupted) {
+		t.Fatal("untracked environment would be provisioned")
+	}
+	path := filepath.Join(s.profile, "initialization.json")
+	if err := writePrivate(path, initializationRecord{Version: 1, Started: true}); err != nil {
+		t.Fatal(err)
+	}
+	if !s.canResumeInterruptedProvision("start", errGuestMaintenanceInterrupted) ||
+		!s.canResumeInterruptedProvision("guest-install", errGuestMaintenanceInterrupted) {
+		t.Fatal("interrupted first install cannot resume")
+	}
+	if s.canResumeInterruptedProvision("proxy-network", errGuestMaintenanceInterrupted) ||
+		s.canResumeInterruptedProvision("start", errGuestUpdateRequired) {
+		t.Fatal("ordinary maintenance bypassed its explicit approval")
+	}
+	if err := writePrivate(path, initializationRecord{Version: 1, Started: true, Completed: true}); err != nil {
+		t.Fatal(err)
+	}
+	if s.canResumeInterruptedProvision("start", errGuestMaintenanceInterrupted) {
+		t.Fatal("installed environment would be provisioned on startup")
+	}
+}
+
 func TestInitializationWaitsForBackgroundOperationWithoutAJob(t *testing.T) {
 	s := testServer(t)
 	s.op.Lock()

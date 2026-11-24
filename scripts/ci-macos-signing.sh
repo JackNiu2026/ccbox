@@ -6,7 +6,14 @@ cd "$(dirname "$0")/.."
 
 usage() { echo 'Usage: scripts/ci-macos-signing.sh run|cleanup' >&2; }
 case "${1:-}" in run|cleanup) ;; *) usage; exit 2 ;; esac
-[[ "$(uname -s)" == Darwin && "$(uname -m)" == arm64 ]] || { echo 'Apple Silicon macOS is required.' >&2; exit 1; }
+case "$(uname -s)-$(uname -m)" in
+  Darwin-arm64) architecture=arm64 ;;
+  Darwin-x86_64) architecture=amd64 ;;
+  *) echo 'A macOS runner is required.' >&2; exit 1 ;;
+esac
+[[ "${CCBOX_MACOS_ARCH:-$architecture}" == "$architecture" ]] || {
+  echo 'The macOS runner does not match the requested architecture.' >&2; exit 1;
+}
 [[ "${GITHUB_ACTIONS:-}" == true && -n "${RUNNER_TEMP:-}" && -d "$RUNNER_TEMP" ]] || {
   echo 'This helper is restricted to a GitHub Actions runner.' >&2; exit 1;
 }

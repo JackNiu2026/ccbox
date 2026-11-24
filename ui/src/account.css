@@ -15,7 +15,9 @@
   gap: 10px;
   font-size: 18px;
   font-weight: 650;
+  flex-wrap: wrap;
 }
+.account-brand label { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; font-weight: 400; }
 .account-brand img {
   width: 28px;
   height: 28px;

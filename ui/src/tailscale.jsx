@@ -19,6 +19,7 @@ export function TailscalePanel({ status, onOpenLogin, onOpenBrowser, onInstall, 
   const [key, setKey] = useState(""), [notice, setNotice] = useState(""), [query, setQuery] = useState("");
   const [sshOpen, setSSHOpen] = useState(false), [selected, setSelected] = useState(""), [username, setUsername] = useState("");
   const [port, setPort] = useState("80"), [appsOpen, setAppsOpen] = useState(false);
+  const [controlOpen, setControlOpen] = useState(false), [controlDraft, setControlDraft] = useState("");
   const mounted = useRef(true), inflight = useRef(false), loginRequested = useRef(false), revision = useRef(0);
   const ready = status.ready && !status.job?.running;
   const connected = ready && state?.backend === "Running";
@@ -78,6 +79,25 @@ export function TailscalePanel({ status, onOpenLogin, onOpenBrowser, onInstall, 
     loginRequested.current = false;
     if (await act(logout ? "logout" : "disconnect")) { setSelected(""); setSSHOpen(false); }
   };
+  const saveControl = async (event) => {
+    event.preventDefault();
+    const control_url = controlDraft.trim();
+    if (state && control_url === (state.control_url || "")) return;
+    if (state?.enabled && !await onConfirm({
+      title: "切换控制服务器？",
+      body: "当前私网连接会断开。原服务器的设备身份仍可在切回时使用。",
+      confirm: "保存并断开",
+    })) return;
+    loginRequested.current = false;
+    const result = await act("control-server", { control_url });
+    if (result) {
+      setControlDraft(result.control_url || "");
+      setSelected("");
+      setSSHOpen(false);
+      setAppsOpen(false);
+      setNotice(result.enabled ? "控制服务器已保存。" : "控制服务器已保存，可以连接并登录。");
+    }
+  };
   return <div className="tailscale-panel">
       <div className={`tailscale-overview${connected ? " connected" : ""}`}>
         <div className="tailscale-state" role="status">
@@ -101,6 +121,24 @@ export function TailscalePanel({ status, onOpenLogin, onOpenBrowser, onInstall, 
             {connected && <button className="quiet-button" disabled={busy} onClick={() => stop(true)}>退出登录</button>}
           </>}
         </div>}
+        {ready && (state?.installed || !state && error) && <>
+          <button className="tailscale-disclosure" type="button" aria-expanded={controlOpen} aria-controls="tailnet-control-server"
+            onClick={() => {
+              if (!controlOpen) setControlDraft(state?.control_url || "");
+              setControlOpen(!controlOpen);
+            }}>
+            <span><Network size={16} />控制服务器{state?.control_url && " · 自建"}</span><ChevronDown size={16} />
+          </button>
+          {controlOpen && <form className="tailscale-detail" id="tailnet-control-server" onSubmit={saveControl}>
+            <label className="field-label" htmlFor="tailnet-control-url">Headscale 控制服务器</label>
+            <div className="tailscale-connect-form">
+              <input id="tailnet-control-url" type="url" maxLength={256} placeholder="https://headscale.example.com"
+                value={controlDraft} onChange={(event) => setControlDraft(event.target.value)} disabled={busy} spellCheck={false} autoComplete="off" />
+              <button className="quiet-button" type="submit" disabled={busy || Boolean(state && controlDraft.trim() === (state.control_url || ""))}>保存</button>
+            </div>
+            <p className="field-help">填入自己的 HTTPS 控制服务器地址。留空使用默认 Tailscale 服务。</p>
+          </form>}
+        </>}
       </div>
       {(error || loginError && !connected) && <p className="error-message" role="alert">{error || loginError}</p>}
       {ready && state?.health?.length > 0 && <div className="tailscale-health" role="status"><strong>网络需要留意</strong>{state.health.map((message, i) => <p key={i}>{message}</p>)}</div>}

@@ -1,10 +1,41 @@
 package limaembed
 
 import (
+	"bytes"
+	"encoding/json"
 	"os"
 	"strings"
 	"testing"
+
+	"github.com/lima-vm/lima/v2/pkg/logrusutil"
+
+	"github.com/sylvinus/agent-vm/internal/diagnostics"
 )
+
+func TestHostagentLogRelaysRedactedQEMUStderr(t *testing.T) {
+	var stderr bytes.Buffer
+	stream := hostagentLog(diagnostics.New(t.TempDir()), &stderr)
+	for _, part := range []string{
+		`{"level":"debug","msg":"qemu[stderr]: WHPX initialization failed with hr=80370302 token=`,
+		"synthetic-test-secret\"}\n",
+		"{\"level\":\"info\",\"msg\":\"a regular hostagent entry\"}\n",
+	} {
+		if _, err := stream.Write([]byte(part)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := stream.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var entry logrusutil.JSON
+	if err := json.Unmarshal(stderr.Bytes(), &entry); err != nil {
+		t.Fatalf("stderr must contain one valid JSON log record: %v", err)
+	}
+	if entry.Level != "debug" || !strings.Contains(entry.Msg, "qemu[stderr]: WHPX initialization failed with hr=80370302") ||
+		strings.Contains(entry.Msg, "synthetic-test-secret") {
+		t.Fatalf("startup output was lost or unredacted: %q", entry.Msg)
+	}
+}
 
 // The copy of limactl's hostagent command differs from it only as its
 // header says: after a Lima upgrade, copy it again.

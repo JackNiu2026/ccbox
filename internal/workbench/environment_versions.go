@@ -16,8 +16,9 @@ import (
 )
 
 var errGuestUpdateRequired = errors.New("环境组件需要更新，请先保存浏览器和编辑器中的修改。工作台终端与磁盘保留，编辑器内终端可能结束。")
+var errGuestMaintenanceInterrupted = fmt.Errorf("环境组件更新中断，请在设置中恢复组件维护；外网保持关闭：%w", errGuestUpdateRequired)
 
-const guestConnectionSnapshot = `sudo cat /etc/claude-cage/browser-control.json; printf '\n'; cat "$HOME/.config/claude-cage/browser-password"; printf '\n'; if sudo test -f /etc/claude-cage/components.json; then sudo cat /etc/claude-cage/components.json; else printf 'null'; fi`
+const guestConnectionSnapshot = `sudo cat /etc/claude-cage/browser-control.json; printf '\n'; cat "$HOME/.config/claude-cage/browser-password"; printf '\n'; if sudo test -e /etc/claude-cage/components.updating; then printf '{"updating":true}'; elif sudo test -f /etc/claude-cage/components.json; then sudo cat /etc/claude-cage/components.json; else printf 'null'; fi; if sudo test -e /etc/claude-cage/components.updating; then printf '\nupdating'; fi`
 
 func parseGuestConnection(data []byte) (guestCredentials, *cage.GuestManifest, error) {
 	lines := strings.SplitN(strings.TrimSpace(string(data)), "\n", 3)
@@ -27,7 +28,15 @@ func parseGuestConnection(data []byte) (guestCredentials, *cage.GuestManifest, e
 	}
 	credentials.VNCPassword = strings.TrimSpace(lines[1])
 	var manifest *cage.GuestManifest
-	if json.Unmarshal([]byte(lines[2]), &manifest) != nil || manifest == nil || !manifest.Current() {
+	dataLine, _, updating := strings.Cut(lines[2], "\nupdating")
+	if json.Unmarshal([]byte(dataLine), &manifest) != nil || manifest == nil {
+		return credentials, manifest, errGuestUpdateRequired
+	}
+	manifest.Updating = manifest.Updating || updating
+	if manifest.Updating {
+		return credentials, manifest, errGuestMaintenanceInterrupted
+	}
+	if !manifest.Current() {
 		return credentials, manifest, errGuestUpdateRequired
 	}
 	return credentials, manifest, nil
@@ -52,6 +61,9 @@ func (s *Server) environmentVersions(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
 	defer cancel()
+	s.mu.Lock()
+	generation := s.guestUpdateGeneration
+	s.mu.Unlock()
 	running := s.vmRunning()
 	components := componentVersions{Status: "stopped", Required: cage.RequiredGuestManifest()}
 	tools := map[string]toolVersion{}
@@ -66,6 +78,9 @@ from pathlib import Path
 p=Path('/etc/claude-cage/components.json')
 try: manifest=json.loads(p.read_text())
 except (OSError,ValueError): manifest=None
+if p.with_suffix('.updating').exists():
+ manifest=manifest if isinstance(manifest,dict) else {}
+ manifest['updating']=True
 versions={}
 env={**os.environ,'DISABLE_AUTOUPDATER':'1','PATH':str(Path.home()/'.local/bin')+':'+os.environ.get('PATH','')}
 browser='/usr/local/lib/workbench-browser/chromium'
@@ -90,6 +105,16 @@ CAGE_VERSIONS`)
 			components.Status = "current"
 			if components.UpdateRequired {
 				components.Status = "update_required"
+			}
+			if snapshot.Manifest != nil && snapshot.Manifest.Updating {
+				detail = errGuestMaintenanceInterrupted.Error()
+			}
+			if components.UpdateRequired {
+				message := errGuestUpdateRequired.Error()
+				if detail != "" {
+					message = detail
+				}
+				s.noteGuestUpdateRequired(generation, message)
 			}
 			for name, current := range snapshot.Tools {
 				entry := tools[name]
@@ -125,6 +150,23 @@ CAGE_VERSIONS`)
 	jsonReply(w, map[string]any{"vm_running": running, "busy": busy, "components": components, "controller": identity, "tools": tools, "tools_update_allowed": allowed && components.Status == "current" && !busy, "error": detail})
 }
 
+// Callers hold s.mu. An older version query must not override an attach,
+// stop, or explicit maintenance result.
+func (s *Server) setGuestUpdateLocked(required bool, message string) {
+	s.guestUpdateRequired = required
+	s.guestUpdateError = message
+	s.guestUpdateGeneration++
+}
+
+func (s *Server) noteGuestUpdateRequired(generation uint64, message string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.guestUpdateGeneration != generation || s.guestUpdateRequired || s.closing || s.jobs.snapshot().Running {
+		return
+	}
+	s.setGuestUpdateLocked(true, message)
+}
+
 func (s *Server) updateEnvironment(w http.ResponseWriter, r *http.Request) {
 	if err := s.nativeMaintenancePreflight(); err != nil {
 		http.Error(w, err.Error(), http.StatusConflict)
@@ -157,8 +199,7 @@ func (s *Server) synchronizeEnvironment() error {
 	}
 	s.mu.Lock()
 	s.ready = false
-	s.guestUpdateRequired = true
-	s.guestUpdateError = "环境组件更新尚未完成，请等待结果；失败时可以重试。"
+	s.setGuestUpdateLocked(true, "环境组件更新尚未完成，请等待结果；失败时可以重试。")
 	s.mu.Unlock()
 	s.setMessage("正在重启浏览器与编辑器组件，工作台终端保持运行…")
 	if err := s.runCage("update-components"); err != nil {
@@ -189,11 +230,12 @@ func (s *Server) upgradeEnvironmentTools() error {
 	s.mu.Lock()
 	allowed := s.toolsNetworkAllowedLocked()
 	manifest := s.guestManifest
+	updateRequired := s.guestUpdateRequired
 	s.mu.Unlock()
 	if !allowed {
 		return errors.New("工作台正在退出，请稍后重试工具更新。")
 	}
-	if manifest == nil || !manifest.Current() {
+	if updateRequired || manifest == nil || !manifest.Current() {
 		return errGuestUpdateRequired
 	}
 	monitorContext, stopMonitor := context.WithCancel(s.operationContext())

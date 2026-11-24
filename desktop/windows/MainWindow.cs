@@ -22,6 +22,11 @@ internal sealed class MainWindow : Form
     private readonly CancellationTokenSource lifetime = new();
     private readonly Dictionary<string, (string[] Paths, DateTime Expires)> fileSelections = new();
 
+    private (string TerminalID, string ConnectionID)? pendingNotification;
+    // The tray balloon reports clicks without saying which balloon was clicked.
+    // Once two targets are outstanding, a click only brings CCBox forward.
+    private bool pendingNotificationAmbiguous;
+
     public MainWindow()
     {
         nativeInput = new NativeInput(value => Script("window.dispatchEvent(new CustomEvent('cage-native-input',{detail:" + JsonSerializer.Serialize(value) + "}));"));
@@ -46,6 +51,15 @@ internal sealed class MainWindow : Form
         trayMenu.Opening += (_, _) => (chrome ?? new WindowChrome(BackColor, ForeColor, false)).ApplyMenu(trayMenu);
         tray = new NotifyIcon { Icon = Icon, Text = "CCBox", Visible = true, ContextMenuStrip = trayMenu };
         tray.DoubleClick += (_, _) => RestoreWindow();
+        tray.BalloonTipClicked += (_, _) => {
+            RestoreWindow();
+            var target = pendingNotification;
+            var ambiguous = pendingNotificationAmbiguous;
+            pendingNotification = null;
+            pendingNotificationAmbiguous = false;
+            if (!ambiguous && target != null && target.Value.TerminalID.Length > 0)
+                Script("window.dispatchEvent(new CustomEvent('cage-notification-click',{detail:" + JsonSerializer.Serialize(new { terminal_id = target.Value.TerminalID, connection_id = target.Value.ConnectionID }) + "}));");
+        };
         updater = new AppUpdater(PublishUpdate, () => { allowQuit = true; Close(); }, () => _ = Bootstrap());
         Shown += async (_, _) => {
             if (Program.SmokeOutput != null) _ = SmokeDeadline();
@@ -451,6 +465,7 @@ internal sealed class MainWindow : Form
                 }
                 case "clipboardReadContent":
                     if (Clipboard.ContainsFileDropList()) result = RememberFiles(Clipboard.GetFileDropList().Cast<string>().ToArray());
+                    else if (SharedClipboard.RichText() is { } copiedText) result = new { text = copiedText };
                     else if (Clipboard.ContainsImage())
                     {
                         using var clipboardImage = Clipboard.GetImage() ?? throw new InvalidDataException("无法读取剪贴板图片");
@@ -519,6 +534,31 @@ internal sealed class MainWindow : Form
                 case "accountDevice":
                     if (request.Text("operation") != "status") throw new InvalidDataException("此平台暂不支持快捷登录");
                     result = new { supported = false }; break;
+                case "notificationStatus":
+                case "requestNotificationPermission":
+                    // Balloon sounds follow Windows' own notification settings.
+                    result = new { supported = true, permission = "authorized", canOpenSettings = true, sound = false }; break;
+                case "showNotification":
+                {
+                    var notifTitle = request.Text("title");
+                    var notifBody = request.Text("body");
+                    var terminalID = request.Text("terminal_id");
+                    var connectionID = request.Text("connection_id");
+                    if (notifTitle.Length is 0 or > 200) throw new InvalidDataException("通知标题无效");
+                    if (notifBody.Length > 500) throw new InvalidDataException("通知内容过长");
+                    if (terminalID.Length > 0 && !System.Text.RegularExpressions.Regex.IsMatch(terminalID, "^[a-f0-9]{16}$"))
+                        throw new InvalidDataException("通知目标终端无效");
+                    if (connectionID.Length > 128) throw new InvalidDataException("通知连接标识无效");
+                    if (pendingNotification != null && pendingNotification.Value != (terminalID, connectionID))
+                        pendingNotificationAmbiguous = true;
+                    pendingNotification = (terminalID, connectionID);
+                    tray.ShowBalloonTip(5000, notifTitle, notifBody.Length > 0 ? notifBody : notifTitle, ToolTipIcon.None);
+                    result = new { delivered = true, permission = "authorized" };
+                    break;
+                }
+                case "openNotificationSettings":
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ms-settings:notifications") { UseShellExecute = true });
+                    result = true; break;
                 case "refreshSession":
                     var (exit, data) = await Backend.Json(controllerNeedsUpdate ? ["desktop", "--json", "--existing"] : ["desktop", "--json"], lifetime.Token);
                     if (exit != 0) throw new IOException("工作台会话恢复失败");

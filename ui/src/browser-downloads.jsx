@@ -209,6 +209,7 @@ export function BrowserDownloads({
   downloads = [],
   ready,
   onStatus,
+  onConfirm,
   menu = false,
   anchorRef,
 }) {
@@ -476,6 +477,28 @@ export function BrowserDownloads({
                             }}
                           >
                             {retrying === item.id ? "正在重试…" : "重试保存"}
+                          </button>
+                        )}
+                        {item.retryable && item.target !== "desktop" && onConfirm && (
+                          <button
+                            className="download-text-action"
+                            disabled={!ready || Boolean(retrying)}
+                            onClick={async (event) => {
+                              if (!(await onConfirm({
+                                title: "丢弃暂存文件？", body: `“${item.name}”的暂存内容将被删除。`,
+                                confirm: "丢弃文件", anchor: event.currentTarget,
+                              }))) return;
+                              setRetrying(`discard:${item.id}`);
+                              try {
+                                await api("/browser/download-discard", { id: item.id });
+                              } catch (error) {
+                                onStatus(error.message);
+                              } finally {
+                                setRetrying("");
+                              }
+                            }}
+                          >
+                            {retrying === `discard:${item.id}` ? "正在丢弃…" : "丢弃文件"}
                           </button>
                         )}
                       </div>

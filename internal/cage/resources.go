@@ -9,6 +9,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -21,6 +22,11 @@ import (
 // ResourceLimits keeps the existing host-share policy while replacing the fixed
 // 4 GiB / 2 CPU defaults. Zero hardware observations keep those legacy defaults.
 func ResourceLimits() (memoryGiB, cpus int) {
+	memoryGiB, cpus = HostResourceShare()
+	return memoryGiB, vmCPULimit(runtime.GOOS, cpus)
+}
+
+func HostResourceShare() (memoryGiB, cpus int) {
 	memoryGiB, cpus = host.MemGiB(), host.CPUs()
 	if memoryGiB <= 0 {
 		memoryGiB = 4
@@ -31,12 +37,22 @@ func ResourceLimits() (memoryGiB, cpus int) {
 	return host.Cap("memory", memoryGiB, io.Discard), host.Cap("cpus", cpus, io.Discard)
 }
 
+// Two virtio controllers on Windows use one queue per vCPU. Keep their event
+// handlers under the QEMU host limit, including on high-core-count systems.
+func vmCPULimit(platform string, cpus int) int {
+	if platform == "windows" {
+		return min(cpus, 16)
+	}
+	return cpus
+}
+
 const resourceProbe = `LC_ALL=C; export LC_ALL
 awk '/^(MemTotal|MemAvailable|SwapTotal|SwapFree):/ {print $1,$2}' /proc/meminfo
 awk '/^(oom_kill|balloon_inflate|balloon_deflate) / {print $1,$2}' /proc/vmstat
 printf 'page_size '; getconf PAGESIZE
 cat /proc/pressure/memory
 head -n 1 /proc/stat
+df -B1 --output=size,used,avail / 2>/dev/null | awk 'NR==2 {print "disk_root",$1,$2,$3}'
 printf 'boot '; cat /proc/sys/kernel/random/boot_id`
 
 type ResourceSample struct {
@@ -48,6 +64,9 @@ type ResourceSample struct {
 	Balloon           uint64  `json:"balloon_bytes"`
 	Stall             float64 `json:"memory_stall_percent"`
 	Boot              string  `json:"boot_id"`
+	DiskTotal         uint64  `json:"disk_total_bytes,omitempty"`
+	DiskUsed          uint64  `json:"disk_used_bytes,omitempty"`
+	DiskAvail         uint64  `json:"disk_avail_bytes,omitempty"`
 	cpuTotal, cpuIdle uint64
 }
 
@@ -101,6 +120,15 @@ func parseResources(data []byte) (ResourceSample, error) {
 			}
 		case "boot":
 			s.Boot = f[1]
+		case "disk_root":
+			if len(f) == 4 {
+				total, totalErr := strconv.ParseUint(f[1], 10, 64)
+				used, usedErr := strconv.ParseUint(f[2], 10, 64)
+				available, availableErr := strconv.ParseUint(f[3], 10, 64)
+				if totalErr == nil && usedErr == nil && availableErr == nil && total > 0 && used <= total && available <= total-used {
+					s.DiskTotal, s.DiskUsed, s.DiskAvail = total, used, available
+				}
+			}
 		case "cpu":
 			// guest/guest_nice are already included in user/nice.
 			for i := 1; i < len(f) && i <= 8; i++ {

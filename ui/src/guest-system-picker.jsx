@@ -101,8 +101,8 @@ export function GuestSystemPicker({ system, onChange, preserveOnUnmount = false,
   }
   return (
     <div className="guest-system-picker">
-      <span>客户机系统</span>
-      {initializing ? <strong>{names[os]}</strong> : <InlineSelect aria-label="客户机系统" value={system.clone ? "host" : os} disabled={system.pending}
+      <span>{tr("客户机系统")}</span>
+      {initializing ? <strong>{names[os]}</strong> : <InlineSelect aria-label={tr("客户机系统")} value={system.clone ? "host" : os} disabled={system.pending}
         onValueChange={(value) => onChange({ guest_system: value === "host" ? view.system : value, clone: value === "host", clone_key: "", clone_ready: false, media: "", sha256: "", editor_terms: false })}>
         {Boolean(view.system) && <option value="host" disabled={!view.available}>自动匹配本机系统版本{view.available ? "" : "（暂不可用）"}</option>}
         <option value="debian-13">Debian 13</option>
@@ -111,7 +111,7 @@ export function GuestSystemPicker({ system, onChange, preserveOnUnmount = false,
         <option value="windows-11" disabled={view.system !== "windows-11" || !view.available}>Windows 11{view.system === "windows-11" ? view.available ? "" : "（暂不可用）" : "（需要 Windows 11 与 Hyper-V）"}</option>
       </InlineSelect>}
       {system.clone && !system.activate && (deferMatch ? <small className="guest-install-fields">CCBox 会检测本机系统版本，在下一步显示匹配的官方镜像、下载量与空间要求。</small> : <HostCloneSummary pending={system.pending} onChange={onChange} />)}
-      {!system.activate && <small className="guest-install-fields">系统镜像通过主机网络下载，遵循主机系统代理或 TUN 设置，不使用 CCBox 的客机代理。使用 Clash 等软件时，请先开启系统代理或 TUN；代理规则决定镜像网站的实际出口。</small>}
+      {!system.activate && <small className="guest-install-fields">{tr("系统镜像通过主机网络下载，遵循主机系统代理或 TUN 设置，不使用 CCBox 的客机代理。使用 Clash 等软件时，请先开启系统代理或 TUN；代理规则决定镜像网站的实际出口。")}</small>}
       {!system.clone && os !== "debian-13" && !system.activate && <div className="guest-install-fields">
         {os === "ubuntu-22.04" ? <>
           <small>从 Ubuntu 官方源下载 Ubuntu 22.04 LTS 镜像，并校验 SHA-256。CCBox 按主机架构选择 ARM64 或 x86_64。</small>
@@ -166,3 +166,4 @@ export function validGuestChoice(value) {
   if (value.guest_system === "macos") return true;
   return value.media && /^[a-f\d]{64}$/i.test(value.sha256) && value.editor_terms;
 }
+import { translate as tr } from "./message-catalog.mjs";

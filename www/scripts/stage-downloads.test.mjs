@@ -117,3 +117,31 @@ test('Linux packages cannot be marked unsigned', async t => {
   await writeFile(join(f.input, 'build-metadata.json'), JSON.stringify({ schema: 1, platform: 'linux', version, commitSha: 'a'.repeat(40), unsigned: true }));
   await assert.rejects(stageDownloads({ inputs: [f.input], siteDirectory: f.site, notes: f.notes }), /not allowed for linux/);
 });
+
+test('stages Apple Silicon and Intel Mac installers with distinct architecture and signing state', async t => {
+  const f = await fixture(t);
+  const core = (await readFile(new URL('../../scripts/fetch-proxy-core.sh', import.meta.url), 'utf8')).match(/^version=(v[\d.]+)$/m)[1];
+  const base = `/downloads/${version}/`;
+  const archive = {};
+  const inputs = [];
+  for (const [platform, architecture, unsigned] of [['macos', 'arm64', false], ['macos-intel', 'amd64', true]]) {
+    const input = join(f.input, platform);
+    await mkdir(input);
+    inputs.push(input);
+    const dmg = `CCBox-${version}-macos-${architecture}.dmg`;
+    archive[platform] = dmg;
+    const guest = `cage-macos-guest-${version}${unsigned ? '-amd64' : ''}-source.tar.gz`;
+    const assets = { [dmg]: architecture, [`mihomo-${core}-source.tar.gz`]: 'core', [guest]: architecture };
+    for (const [name, data] of Object.entries(assets)) await writeFile(join(input, name), data);
+    await writeFile(join(input, 'SHA256SUMS'), Object.entries(assets).map(([name, data]) => `${digest(data)}  ${name}\n`).join(''));
+    await writeFile(join(input, 'build-metadata.json'), JSON.stringify({ schema: 1, platform, version, commitSha: 'a'.repeat(40), unsigned }));
+  }
+  const result = await stageDownloads({ inputs, siteDirectory: f.site, notes: f.notes });
+  const metadata = await readSiteRelease(f.site, { version });
+  assert.equal(metadata.downloadURL, base + archive.macos);
+  assert.equal(metadata.macosIntelDownloadURL, undefined);
+  assert.equal(metadata.macosIntelPreview.downloadURL, base + archive['macos-intel']);
+  assert.equal(metadata.updateAssets.find(asset => asset.name === archive.macos).manual, undefined);
+  assert.equal(metadata.updateAssets.find(asset => asset.name === archive['macos-intel']).manual, true);
+  assert.equal(await readFile(join(result.directory, `cage-macos-guest-${version}-amd64-source.tar.gz`), 'utf8'), 'amd64');
+});

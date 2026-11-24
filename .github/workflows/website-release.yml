@@ -7,9 +7,9 @@ on:
         required: true
         type: string
       platforms:
-        description: Exact platforms to publish, separated by spaces (windows macos linux android)
+        description: 'Exact platforms to publish, separated by spaces (windows macos macos-intel linux android)'
         required: true
-        default: windows macos linux android
+        default: windows macos macos-intel linux android
         type: string
       release_runs:
         description: Successful release candidate run IDs, separated by spaces
@@ -49,7 +49,7 @@ jobs:
           set -euo pipefail
           node scripts/release-version.mjs source "$BUILD_REF"
           git merge-base --is-ancestor "$BUILD_REF" origin/main
-          [[ "$RELEASE_RUNS" =~ ^[0-9]+([[:blank:]]+[0-9]+){0,3}$ ]]
+          [[ "$RELEASE_RUNS" =~ ^[0-9]+([[:blank:]]+[0-9]+){0,4}$ ]]
           node --input-type=module -e '
             const url = new URL(process.env.SITE_URL);
             if (url.href !== "https://ccbox.org/") throw Error("Set SITE_URL to https://ccbox.org");
@@ -60,7 +60,7 @@ jobs:
               --jq '[.event,.head_branch,.path,.conclusion] | @tsv' |
               grep -Fx $'workflow_dispatch\tmain\t.github/workflows/release-platforms.yml\tsuccess'
             gh run download "$run" --repo "$GITHUB_REPOSITORY" \
-              --pattern release-windows --pattern release-macos --pattern release-linux --pattern release-android \
+              --pattern release-windows --pattern release-macos --pattern release-macos-intel --pattern release-linux --pattern release-android \
               --dir "$RUNNER_TEMP/ccbox-release/$run"
           done
       - name: Verify package identities and build the website
@@ -86,7 +86,7 @@ jobs:
           node --input-type=module -e '
             import { readSiteRelease } from "./www/scripts/stage-downloads.mjs";
             const release = await readSiteRelease();
-            const platforms = {windows:["windowsDownloadURL","windowsPreview"], macos:["downloadURL","macosPreview"], linux:["linuxDownloadURL"], android:["androidDownloadURL"]};
+            const platforms = {windows:["windowsDownloadURL","windowsPreview"], macos:["downloadURL","macosPreview"], "macos-intel":["macosIntelDownloadURL","macosIntelPreview"], linux:["linuxDownloadURL"], android:["androidDownloadURL"]};
             const expected = new Set(process.env.RELEASE_PLATFORMS.trim().split(/\s+/));
             for (const [platform, fields] of Object.entries(platforms)) {
               if (fields.some(field => release[field]) !== expected.has(platform)) throw Error("Staged installer does not match the selected platforms: " + platform);

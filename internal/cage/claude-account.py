@@ -48,6 +48,10 @@ class SharedResourceConflict(ValueError):
     pass
 
 
+def linked(path):
+    return path.is_symlink() or os.name == "nt" and path.is_junction()
+
+
 def profile(account_id):
     if account_id != DEFAULT and not re.fullmatch("[0-9a-f]{24}", account_id):
         raise ValueError("invalid account ID")
@@ -406,7 +410,9 @@ def shared_profile_resources(base):
         fcntl.flock(lock, fcntl.LOCK_EX)
         conflict = "账号的技能或指令与共用资料同名冲突，请先核对 ~/.claude 中的对应文件；原文件已保留"
         def check(local, shared):
-            if (local.is_symlink() or os.name == "nt" and local.is_junction()):
+            if linked(shared):
+                raise SharedResourceConflict(conflict)
+            if linked(local):
                 if local.resolve() != shared.resolve():
                     raise SharedResourceConflict(conflict)
             elif local.exists() and shared.exists():
@@ -416,7 +422,9 @@ def shared_profile_resources(base):
                 elif not (local.is_file() and shared.is_file() and local.read_bytes() == shared.read_bytes()):
                     raise SharedResourceConflict(conflict)
         def merge(local, shared):
-            if (local.is_symlink() or os.name == "nt" and local.is_junction()):
+            if linked(shared):
+                raise SharedResourceConflict(conflict)
+            if linked(local):
                 if local.resolve() == shared.resolve():
                     return
                 raise SharedResourceConflict(conflict)
@@ -453,27 +461,125 @@ def shared_profile_resources(base):
         # claude.ai downloads skills into skills/synced. Keep that subtree
         # account-specific; link only locally installed skill entries.
         local, shared = config / "skills", common / "skills"
-        local.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
-        shared.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
-        names = {p.name for folder in (local, shared) for p in folder.iterdir()} - {"synced"}
         resources = [(config / name, common / name) for name in
                      ("commands", "agents", "rules", "agent-memory", "CLAUDE.md", "AGENTS.md")]
-        resources += [(local / name, shared / name) for name in sorted(names)]
-        # Validate every resource before moving any of them. A late conflict
-        # must leave the account's existing directory layout usable.
+        if linked(local) or linked(shared):
+            print(conflict, file=sys.stderr)
+        else:
+            local.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
+            shared.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
+            names = {p.name for folder in (local, shared) for p in folder.iterdir()} - {"synced"}
+            resources += [(local / name, shared / name) for name in sorted(names)]
         for source, destination in resources:
-            check(source, destination)
-        for source, destination in resources:
-            if source.exists() and not source.is_symlink():
-                backup = lock_dir / "backups" / base.name / source.relative_to(config)
-                if backup.exists():
-                    backup = backup.with_name(backup.name + "-" + str(time.time_ns()))
-                backup.parent.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
-                if source.is_dir():
-                    shutil.copytree(source, backup, symlinks=True)
-                else:
-                    shutil.copy2(source, backup)
-            merge(source, destination)
+            try:
+                check(source, destination)
+                if source.exists() and not linked(source):
+                    backup = lock_dir / "backups" / base.name / source.relative_to(config)
+                    if backup.exists():
+                        backup = backup.with_name(backup.name + "-" + str(time.time_ns()))
+                    backup.parent.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
+                    if source.is_dir():
+                        shutil.copytree(source, backup, symlinks=True)
+                    else:
+                        shutil.copy2(source, backup)
+                merge(source, destination)
+            except SharedResourceConflict as error:
+                # Keep both versions of this resource and launch with the
+                # account's own file. Other resources may still be shared.
+                print(f"{source.name}：{error}", file=sys.stderr)
+
+
+def merge_project_memory(own, memory, index_backups):
+    """Copy notes without overwriting a different note or losing its index link."""
+    conflict = "项目记忆无法无损合并，两份均保留，本次使用账号自己的记忆。"
+    index = memory / "MEMORY.md"
+    local_index = own / "MEMORY.md"
+    copies, renamed = {}, {}
+    for source in sorted(own.rglob("*")):
+        if linked(source) or not (source.is_file() or source.is_dir()):
+            raise SharedResourceConflict(conflict)
+        if not source.is_file() or source == local_index:
+            continue
+        relative = source.relative_to(own)
+        target = memory / relative
+        if any(linked(parent) or parent.exists() and not parent.is_dir()
+               for parent in target.parents if parent.is_relative_to(memory)) or linked(target):
+            raise SharedResourceConflict(conflict)
+        data = source.read_bytes()
+        if target.exists():
+            if not target.is_file():
+                raise SharedResourceConflict(conflict)
+            if target.read_bytes() == data:
+                continue
+            alternative = target.with_name(f"{target.stem}-{hashlib.sha256(data).hexdigest()[:8]}{target.suffix}")
+            renamed[relative.as_posix()] = alternative.relative_to(memory).as_posix()
+            target = alternative
+            if linked(target) or target.exists() and (not target.is_file() or target.read_bytes() != data):
+                raise SharedResourceConflict(conflict)
+        if target in copies and copies[target] != data:
+            raise SharedResourceConflict(conflict)
+        if not target.exists():
+            copies[target] = data
+
+    if linked(index) or index.exists() and not index.is_file() or local_index.exists() and not local_index.is_file():
+        raise SharedResourceConflict(conflict)
+    current = index.read_bytes() if index.is_file() else None
+    incoming = local_index.read_bytes() if local_index.is_file() else b""
+    updated = current
+    if incoming or renamed:
+        try:
+            existing_lines = set((current or b"").decode("utf-8").splitlines())
+            incoming_lines = incoming.decode("utf-8").splitlines()
+        except UnicodeDecodeError as error:
+            raise SharedResourceConflict(conflict) from error
+        mentioned = set()
+        added = []
+        for line in incoming_lines:
+            for old, new in renamed.items():
+                if f"]({old})" in line:
+                    mentioned.add(old)
+                    line = line.replace(f"]({old})", f"]({new})")
+            if line not in existing_lines:
+                existing_lines.add(line)
+                added.append(line)
+        for old, new in renamed.items():
+            if old not in mentioned:
+                line = f"- [{new}]({new})"
+                if line not in existing_lines:
+                    added.append(line)
+        if current is None and not renamed:
+            updated = incoming
+        elif added:
+            preceding = current or b""
+            if preceding and not preceding.endswith(b"\n"):
+                preceding += b"\n"
+            updated = preceding + ("\n".join(added) + "\n").encode("utf-8")
+
+    for target, data in copies.items():
+        target.parent.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
+        try:
+            with target.open("xb") as stream:
+                stream.write(data)
+        except FileExistsError as error:
+            if linked(target) or not target.is_file() or target.read_bytes() != data:
+                raise SharedResourceConflict(conflict) from error
+    if updated == current:
+        return
+    if current is not None:
+        index_backups.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
+        with (index_backups / f"MEMORY-{time.time_ns()}.md").open("xb") as backup:
+            backup.write(current)
+    with tempfile.NamedTemporaryFile(dir=memory, delete=False) as stream:
+        staged = Path(stream.name)
+        stream.write(updated)
+        stream.flush()
+        os.fsync(stream.fileno())
+    try:
+        if linked(index) or (index.read_bytes() if index.is_file() else None) != current:
+            raise SharedResourceConflict(conflict)
+        staged.replace(index)
+    finally:
+        staged.unlink(missing_ok=True)
 
 
 def shared_launch_arguments(base, args, settings_fd=None):
@@ -501,33 +607,31 @@ def shared_launch_arguments_locked(base, args, settings_fd):
         key = key[:140] + "-" + hashlib.sha256(str(directory).encode()).hexdigest()[:32]
     memory = Path.home() / ".claude/projects" / key / "memory"
     own_memory = config_directory(base) / "projects" / key / "memory"
-    memory.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
-    # Retain pre-existing account notes. Colliding files remain in their
-    # original directory and block automatic consolidation until reviewed.
-    if own_memory != memory and own_memory.exists() and not (own_memory.is_symlink() or os.name == "nt" and own_memory.is_junction()):
-        sources = [source for source in own_memory.rglob("*") if source.is_file()]
-        for source in sources:
-            destination = memory / source.relative_to(own_memory)
-            if destination.exists() and (not destination.is_file() or destination.read_bytes() != source.read_bytes()):
-                raise SharedResourceConflict("账号的项目记忆与共用记忆冲突，原记忆已保留，请先核对")
-        for source in sources:
-            if source.is_file():
-                destination = memory / source.relative_to(own_memory)
-                if destination.exists() and destination.read_bytes() != source.read_bytes():
-                    raise SharedResourceConflict("账号的项目记忆与共用记忆冲突，原记忆已保留，请先核对")
-                destination.parent.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
-                if not destination.exists():
-                    shutil.copy2(source, destination)
-        backup = shared_root() / "backups" / base.name / "projects" / key / "memory"
-        backup.parent.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
-        if backup.exists():
-            backup = backup.with_name(backup.name + "-" + str(time.time_ns()))
-        own_memory.rename(backup)
-        if os.name == "nt":
-            _platform["resource_link"](own_memory, memory)
-        else:
-            own_memory.symlink_to(memory, target_is_directory=True)
-    settings = {"autoMemoryDirectory": _runtime["path"](memory)}
+    settings = {}
+    try:
+        if linked(memory) or linked(own_memory) and own_memory.resolve() != memory.resolve():
+            raise SharedResourceConflict("项目记忆指向独立位置，继续使用账号原有记忆。")
+        memory.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
+        if own_memory != memory and own_memory.is_dir() and not linked(own_memory):
+            backups = shared_root() / "backups"
+            merge_project_memory(own_memory, memory, backups / "common" / "projects" / key / "memory")
+            backup = backups / base.name / "projects" / key / "memory"
+            backup.parent.mkdir(mode=PRIVATE_MODE, parents=True, exist_ok=True)
+            if backup.exists():
+                backup = backup.with_name(backup.name + "-" + str(time.time_ns()))
+            own_memory.rename(backup)
+            try:
+                if os.name == "nt":
+                    _platform["resource_link"](own_memory, memory)
+                else:
+                    own_memory.symlink_to(memory, target_is_directory=True)
+            except OSError:
+                if not own_memory.exists() and not linked(own_memory):
+                    backup.rename(own_memory)
+                raise
+        settings["autoMemoryDirectory"] = _runtime["path"](memory)
+    except SharedResourceConflict as error:
+        print(str(error), file=sys.stderr)
     # Only local behavior is shared. Never copy env, apiKeyHelper, login/org
     # constraints, OAuth metadata, or account-synced remote configuration.
     common_settings = json_file(Path.home() / ".claude/settings.json")
@@ -625,6 +729,9 @@ def main(args, *, mobile_settings_fd=None, verify_mobile=None):
         if len(rest) != 1:
             raise ValueError("usage requires an expected account")
         print(json.dumps(query_usage(binary, env, base, rest[0])))
+        return 0
+    if mode == "share" and account_id != DEFAULT and not rest:
+        shared_profile_resources(base)
         return 0
     expected = _controller_context.get("CAGE_CLAUDE_SUBJECT")
     if mode == "statusline":

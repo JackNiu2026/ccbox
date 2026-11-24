@@ -35,6 +35,13 @@ func (s *Server) startMonitors() {
 	}
 	ctx := s.lifetimeContextLocked()
 	s.monitors.Add(4)
+	if s.macosGuest == nil && s.windowsGuest == nil && s.localVMStorage() {
+		s.monitors.Add(1)
+		go func() {
+			defer s.monitors.Done()
+			s.monitorTerminalNotifications(ctx)
+		}()
+	}
 	s.mu.Unlock()
 	go func() {
 		defer s.monitors.Done()
@@ -126,6 +133,7 @@ func (s *Server) beginActivity(parent context.Context) (context.Context, func(),
 func (s *Server) closeService() error {
 	s.closeOnce.Do(func() {
 		s.beginClose()
+		s.notifications.stopWatcher()
 		// Closing PTYs first releases handlers blocked writing terminal input.
 		// The manager also rejects a terminal created by an already-admitted call.
 		s.terminals.close()

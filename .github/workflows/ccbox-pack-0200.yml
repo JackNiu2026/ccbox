@@ -1,0 +1,387 @@
+name: CCBox 0.20.0 platform packages
+on:
+  push:
+    branches:
+      - codex/release/0.20.0-platforms-20261124
+permissions:
+  contents: read
+jobs:
+  macos-arm64:
+    runs-on: macos-15
+    timeout-minutes: 90
+    env:
+      CCBOX_MACOS_ARCH: arm64
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify the exact source and native runner
+        env:
+          BUILD_REF: ${{ github.sha }}
+        run: |
+          [[ "$BUILD_REF" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git rev-parse HEAD)" == "$BUILD_REF" ]]
+          case "$CCBOX_MACOS_ARCH" in arm64) machine=arm64 ;; amd64) machine=x86_64 ;; *) exit 1 ;; esac
+          [[ "$(uname -s)" == Darwin && "$(uname -m)" == "$machine" ]]
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Install SSHFS build dependencies
+        run: |
+          brew install glib gettext pcre2
+          if [[ "$CCBOX_MACOS_ARCH" == amd64 ]]; then brew install libffi pixman pkgconf meson ninja; fi
+      - uses: astral-sh/setup-uv@v10.3.3
+      - name: Build and verify the unsigned preview
+        env:
+          CCBOX_LICENSE_PUBLIC_KEY: ${{ vars.CCBOX_LICENSE_PUBLIC_KEY }}
+        run: |
+          bash scripts/package-macos.sh --unsigned-preview
+          bash scripts/verify-macos-release.sh "$PWD/_output/releases/$(tr -d '\r\n' < VERSION)" --unsigned-preview
+      - name: Stage only public release files
+        env:
+          CCBOX_UNSIGNED_PREVIEW: "1"
+        run: |
+          version=$(tr -d '\r\n' < VERSION)
+          source_version=$(sed -n 's/^version=//p' scripts/fetch-proxy-core.sh)
+          release="$PWD/_output/releases/$version"
+          platform=macos
+          guest_source="cage-macos-guest-$version-source.tar.gz"
+          if [[ "$CCBOX_MACOS_ARCH" == amd64 ]]; then
+            platform=macos-intel
+            guest_source="cage-macos-guest-$version-amd64-source.tar.gz"
+          fi
+          node scripts/release-version.mjs metadata "$platform" "$release/build-metadata.json"
+          mkdir -p _output/ci-macos-release
+          cp "$release/CCBox-$version-macos-$CCBOX_MACOS_ARCH.dmg" "$release/mihomo-$source_version-source.tar.gz" "$release/$guest_source" "$release/SHA256SUMS" "$release/build-metadata.json" _output/ci-macos-release/
+          (cd _output/ci-macos-release && shasum -a 256 --check SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ccbox-0200-macos-arm64
+          path: _output/ci-macos-release/
+          if-no-files-found: error
+          overwrite: true
+          compression-level: 0
+          retention-days: 14
+  macos-amd64:
+    runs-on: macos-15-intel
+    timeout-minutes: 90
+    env:
+      CCBOX_MACOS_ARCH: amd64
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify the exact source and native runner
+        env:
+          BUILD_REF: ${{ github.sha }}
+        run: |
+          [[ "$BUILD_REF" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git rev-parse HEAD)" == "$BUILD_REF" ]]
+          case "$CCBOX_MACOS_ARCH" in arm64) machine=arm64 ;; amd64) machine=x86_64 ;; *) exit 1 ;; esac
+          [[ "$(uname -s)" == Darwin && "$(uname -m)" == "$machine" ]]
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Install SSHFS build dependencies
+        run: |
+          brew install glib gettext pcre2
+          if [[ "$CCBOX_MACOS_ARCH" == amd64 ]]; then brew install libffi pixman pkgconf meson ninja; fi
+      - uses: astral-sh/setup-uv@v10.3.3
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Build and verify the unsigned preview
+        env:
+          CCBOX_LICENSE_PUBLIC_KEY: ${{ vars.CCBOX_LICENSE_PUBLIC_KEY }}
+        run: |
+          bash scripts/package-macos.sh --unsigned-preview
+          bash scripts/verify-macos-release.sh "$PWD/_output/releases/$(tr -d '\r\n' < VERSION)" --unsigned-preview
+      - name: Stage only public release files
+        env:
+          CCBOX_UNSIGNED_PREVIEW: "1"
+        run: |
+          version=$(tr -d '\r\n' < VERSION)
+          source_version=$(sed -n 's/^version=//p' scripts/fetch-proxy-core.sh)
+          release="$PWD/_output/releases/$version"
+          platform=macos
+          guest_source="cage-macos-guest-$version-source.tar.gz"
+          if [[ "$CCBOX_MACOS_ARCH" == amd64 ]]; then
+            platform=macos-intel
+            guest_source="cage-macos-guest-$version-amd64-source.tar.gz"
+          fi
+          node scripts/release-version.mjs metadata "$platform" "$release/build-metadata.json"
+          mkdir -p _output/ci-macos-release
+          cp "$release/CCBox-$version-macos-$CCBOX_MACOS_ARCH.dmg" "$release/mihomo-$source_version-source.tar.gz" "$release/$guest_source" "$release/SHA256SUMS" "$release/build-metadata.json" _output/ci-macos-release/
+          (cd _output/ci-macos-release && shasum -a 256 --check SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ccbox-0200-macos-amd64
+          path: _output/ci-macos-release/
+          if-no-files-found: error
+          overwrite: true
+          compression-level: 0
+          retention-days: 14
+  linux:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    container:
+      image: ubuntu:22.04
+      options: --init --dns 1.1.1.1 --dns 8.8.8.8 --security-opt seccomp=unconfined --security-opt systempaths=unconfined --security-opt apparmor=unconfined
+    steps:
+      - name: Install build and test dependencies
+        run: |
+          getent hosts archive.ubuntu.com
+          getent hosts security.ubuntu.com
+          apt-get -o APT::Update::Error-Mode=any update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev libjson-glib-dev dpkg-dev curl ca-certificates git qemu-system-x86 qemu-utils ovmf openssh-client iproute2 dbus-x11 xvfb xauth fonts-noto-cjk zsh sudo tzdata
+          # Ubuntu 22.04 predates safe.bareRepository. Build the signed upstream
+          # v2.52.0 revision on this ABI without needing the Launchpad PPA API.
+          DEBIAN_FRONTEND=noninteractive apt-get install -y libssl-dev libcurl4-openssl-dev libexpat1-dev zlib1g-dev gettext
+          git init -q /tmp/git-source
+          git -C /tmp/git-source fetch --depth=1 https://github.com/git/git.git 9a2fb147f2c61d0cab52c883e7e26f5b7948e3ed
+          git -C /tmp/git-source checkout --detach FETCH_HEAD
+          test "$(git -C /tmp/git-source rev-parse HEAD)" = 9a2fb147f2c61d0cab52c883e7e26f5b7948e3ed
+          make -C /tmp/git-source -j4 prefix=/usr/local NO_TCLTK=YesPlease install > /tmp/git-install.log
+          hash -r
+          dpkg --compare-versions "$(git --version | awk '{print $3}')" ge 2.38
+          useradd -m -s /bin/bash cage
+          echo "cage ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/cage
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify the immutable build revision
+        env:
+          CAGE_BUILD_REF: ${{ github.sha }}
+        run: |
+          # checkout's temporary HOME does not persist into later container
+          # steps. Trust this CI-owned checkout only, before root builds it.
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          [[ "$CAGE_BUILD_REF" =~ ^[0-9a-fA-F]{40}$ ]] || { echo 'Build ref must be a complete commit SHA.' >&2; exit 1; }
+          [[ "$(git rev-parse HEAD)" == "${CAGE_BUILD_REF,,}" ]] || { echo 'Checkout differs from the requested commit.' >&2; exit 1; }
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - uses: astral-sh/setup-uv@v10.3.3
+      - name: Build Linux application and package
+        env:
+          CCBOX_DEB_MAINTAINER: ${{ vars.CCBOX_DEB_MAINTAINER || 'CCBox <niuchen160@gmail.com>' }}
+          CCBOX_LICENSE_PUBLIC_KEY: ${{ vars.CCBOX_LICENSE_PUBLIC_KEY }}
+        run: |
+          [[ "$CCBOX_LICENSE_PUBLIC_KEY" =~ ^[A-Za-z0-9_-]{43}$ ]]
+          node scripts/check-version.mjs
+          bash scripts/build-linux.sh
+          bash scripts/package-linux.sh --skip-build
+          npm test --prefix ui
+          npm run --prefix ui lint
+          node --test internal/cage/browser-clipboard.test.mjs internal/cage/native-input.test.mjs internal/cage/display-density.test.mjs
+          cc -std=c11 -Wall -Wextra -Werror -o /tmp/ccbox-media-plugins-test desktop/linux/media-plugins-test.c
+          (cd /tmp && ./ccbox-media-plugins-test)
+      - name: Linux executable tests as an ordinary user
+        env:
+          UV_CACHE_DIR: /home/cage/.cache/uv
+          UV_PYTHON_INSTALL_DIR: /home/cage/.local/share/uv/python
+          UV_PYTHON: "3.11"
+        run: |
+          chown -R cage:cage "$GITHUB_WORKSPACE"
+          # uv's setup step runs as root; its cache and managed Python must not
+          # leak into ordinary-user tests, including tests that isolate HOME.
+          runuser -u cage -- uv python install 3.11
+          runuser -u cage -- go test ./internal/... ./cmd/...
+          runuser -u cage -- go vet ./internal/managedproxy ./internal/workbench ./cmd/cage
+          runuser -u cage -- uv run --no-project --python 3.11 internal/cage/desktop-downloads.test.py
+          runuser -u cage -- uv run --no-project --python 3.11 internal/cage/display-governor.test.py
+      - name: Install, render native workbench, reinstall and remove
+        env:
+          CAGE_RELEASE: "true"
+        run: |
+          runuser -u cage -- bwrap --unshare-user --unshare-pid --ro-bind / / --proc /proc --dev /dev -- true
+          version=$(cat VERSION)
+          bash scripts/test-linux-install.sh "_output/releases/$version/linux/CCBox-$version-linux-amd64.deb"
+      - name: Record release candidate identity
+        run: |
+          version=$(cat VERSION)
+          node scripts/release-version.mjs metadata linux "_output/releases/$version/linux/build-metadata.json"
+      - name: Upload verified package and corresponding source
+        uses: actions/upload-artifact@v4
+        with:
+          name: ccbox-0200-linux
+          path: |
+            _output/releases/*/linux/CCBox-*-linux-amd64.deb
+            _output/releases/*/linux/SHA256SUMS
+            _output/releases/*/linux/mihomo-*-source.tar.gz
+            _output/releases/*/linux/build-metadata.json
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 14
+  linux-compatibility:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - debian:12
+          - ubuntu:24.04
+    container:
+      image: ${{ matrix.image }}
+      options: --init --dns 1.1.1.1 --dns 8.8.8.8 --security-opt seccomp=unconfined --security-opt systempaths=unconfined --security-opt apparmor=unconfined
+    steps:
+      - name: Install package test tools
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates git dbus-x11 xvfb xauth fonts-noto-cjk
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v4
+        with:
+          name: ccbox-0200-linux
+          path: _output/compatibility
+      - name: Test the Ubuntu 22.04-built package unchanged
+        shell: bash
+        env:
+          CAGE_RELEASE: "true"
+        run: |
+          package=$(find _output/compatibility -name 'CCBox-*-linux-amd64.deb' -print -quit)
+          test -n "$package"
+          bash scripts/test-linux-install.sh "$package"
+    needs: linux
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: mobile/bindings/go.mod
+          cache-dependency-path: mobile/bindings/go.sum
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Prepare the pinned Android toolchain
+        run: |
+          set -euo pipefail
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [[ ! -x "$sdkmanager" ]]; then
+            sdkmanager=$(find "$ANDROID_HOME/cmdline-tools" -path '*/bin/sdkmanager' -type f -print -quit)
+          fi
+          test -x "$sdkmanager"
+          "$sdkmanager" --sdk_root="$ANDROID_HOME" 'platforms;android-35' 'build-tools;35.0.0' 'ndk;27.2.12479018'
+      - name: Build and verify the Android test APK
+        run: |
+          set -euo pipefail
+          npm ci --prefix ui --no-audit --no-fund
+          bash mobile/build.sh android
+          version=$(tr -d '\r\n' < VERSION)
+          tools="$ANDROID_HOME/build-tools/35.0.0"
+          apk=mobile/.build/android/CCBox-android-arm64-debug.apk
+          "$tools/apksigner" verify --verbose "$apk"
+          "$tools/zipalign" -c -P 16 4 "$apk"
+          "$tools/aapt2" dump badging "$apk" > "$RUNNER_TEMP/apk-badging.txt"
+          grep -F "package: name='org.ccbox.android'" "$RUNNER_TEMP/apk-badging.txt"
+          grep -Fx "application-label:'CCBox'" "$RUNNER_TEMP/apk-badging.txt"
+          grep -Fx "native-code: 'arm64-v8a'" "$RUNNER_TEMP/apk-badging.txt"
+          grep -F "versionName='$version'" "$RUNNER_TEMP/apk-badging.txt"
+          mark=$(find mobile/.build/resources/mobile-ui/assets -name 'logo-*.svg' -print -quit)
+          test -s "$mark"
+          unzip -p "$apk" "assets/mobile-ui/assets/$(basename "$mark")" | cmp "$mark" -
+          mkdir -p _output/ci-android
+          artifact="CCBox-$version-android-arm64-debug.apk"
+          cp "$apk" "_output/ci-android/$artifact"
+          (cd _output/ci-android && sha256sum "$artifact" > SHA256SUMS && sha256sum -c SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ccbox-android-arm64-debug
+          path: _output/ci-android/
+          if-no-files-found: error
+          retention-days: 14
+  ios-simulator:
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: mobile/bindings/go.mod
+          cache-dependency-path: mobile/bindings/go.sum
+      - name: Build and verify both iOS Simulator apps
+        run: |
+          set -euo pipefail
+          npm ci --prefix ui --no-audit --no-fund
+          bash mobile/build.sh ios-assets
+          version=$(tr -d '\r\n' < VERSION)
+          short_version=${version%%-*}
+          output="$PWD/_output/ci-ios"
+          products="$RUNNER_TEMP/ccbox-ios-products"
+          mkdir -p "$output"
+          for target in CageMobile CageMobileBasic; do
+            variant=
+            bundle_id=org.ccbox.ios
+            if [[ "$target" == CageMobileBasic ]]; then variant=-basic; bundle_id=org.ccbox.ios.basic; fi
+            xcodebuild -project mobile/ios/CageMobile.xcodeproj -target "$target" \
+              -sdk iphonesimulator -configuration Debug ARCHS=arm64 ONLY_ACTIVE_ARCH=YES \
+              CODE_SIGNING_ALLOWED=NO MARKETING_VERSION="$short_version" SYMROOT="$products" build
+            app="$products/Debug-iphonesimulator/$target.app"
+            [[ "$(/usr/libexec/PlistBuddy -c 'Print CFBundleDisplayName' "$app/Info.plist")" == CCBox ]]
+            [[ "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$app/Info.plist")" == "$bundle_id" ]]
+            [[ "$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$app/Info.plist")" == "$short_version" ]]
+            [[ "$(lipo -archs "$app/$target")" == arm64 ]]
+            vtool -show-build "$app/$target" | grep -E 'platform[[:space:]]+IOSSIMULATOR'
+            test -s "$app/Assets.car"
+            ditto -c -k --keepParent "$app" "$output/CCBox-$version-ios$variant-simulator-arm64.zip"
+          done
+          (cd "$output" && shasum -a 256 ./*.zip > SHA256SUMS && shasum -a 256 -c SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ccbox-ios-arm64-simulator
+          path: _output/ci-ios/
+          if-no-files-found: error
+          retention-days: 14

@@ -1,3 +1,4 @@
+import { translate as tr } from "./message-catalog.mjs";
 import React, { useEffect, useId, useRef, useState } from "react";
 import { AlertCircle, FileText, LoaderCircle, Upload } from "lucide-react";
 
@@ -170,9 +171,7 @@ export function ProxyYAMLInput({
           {selected ? "更换文件" : "选择文件"}
         </span>
       </button>
-      <p id={helpID} className="proxy-yaml-help">
-        支持 YAML / YML / JSON，单个文件不超过 8 MiB
-      </p>
+      <p id={helpID} className="proxy-yaml-help">{tr("支持 YAML / YML / JSON，单个文件不超过 8 MiB")}</p>
       <p className="proxy-yaml-status" role="status">
         {reading
           ? "正在读取文件，请稍候。"
@@ -189,7 +188,7 @@ export function ProxyYAMLInput({
       <label>
         {selected ? "配置内容" : "或直接粘贴配置"}
         <textarea
-          aria-label="节点 YAML"
+          aria-label={tr("节点 YAML")}
           rows={7}
           value={content}
           disabled={disabled || reading}
@@ -199,11 +198,11 @@ export function ProxyYAMLInput({
             onContentChange(event.target.value);
           }}
           spellCheck={false}
-          placeholder="proxies: …"
+          placeholder="粘贴 YAML、分享链接或 Base64 节点列表"
         />
       </label>
       <p className="field-help">
-        只导入节点和明确的代理链，CCBox 自行管理 DNS、监听端口及出站规则。
+        可导入节点、明确的代理链和仅用于来源节点域名的 HTTPS DNS。监听端口及出站规则由 CCBox 管理。
       </p>
     </div>
   );

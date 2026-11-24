@@ -33,6 +33,7 @@ type Preferences struct {
 	Clock12Hour           bool   `json:"clock_12_hour"`
 	AutoTimezone          bool   `json:"auto_timezone"`
 	AutoLanguage          bool   `json:"auto_language"`
+	TLSClientHelloSplit   bool   `json:"tls_client_hello_split,omitempty"`
 }
 
 const defaultBrowserHomeURL = "https://www.bing.com/"
@@ -150,11 +151,15 @@ func (s *Server) prepareEnvironment() error {
 
 type Settings struct {
 	Preferences
-	DNSURL          string          `json:"dns_url"`
-	Timezone        string          `json:"timezone"`
-	Locale          string          `json:"locale"`
-	BrowserLanguage string          `json:"browser_language"`
-	ExitPolicy      cage.ExitPolicy `json:"exit_policy"`
+	DNSURL              string          `json:"dns_url"`
+	DNSFallbackURLs     []string        `json:"dns_fallback_urls"`
+	DNSBootstrapURLs    []string        `json:"dns_bootstrap_urls"`
+	DNSPublicFallback   *bool           `json:"dns_public_fallback"`
+	TLSClientHelloSplit *bool           `json:"tls_client_hello_split"`
+	Timezone            string          `json:"timezone"`
+	Locale              string          `json:"locale"`
+	BrowserLanguage     string          `json:"browser_language"`
+	ExitPolicy          cage.ExitPolicy `json:"exit_policy"`
 }
 type Location struct {
 	IP                       string    `json:"ip"`
@@ -171,6 +176,13 @@ type Location struct {
 type savedProfile struct {
 	Config      cage.Config `json:"config"`
 	Preferences Preferences `json:"preferences"`
+}
+
+type restorableProfile struct {
+	savedProfile
+	FallbackDNS    []string `json:"dns_fallback_urls,omitempty"`
+	BootstrapDNS   []string `json:"dns_bootstrap_urls,omitempty"`
+	PublicFallback bool     `json:"dns_public_fallback,omitempty"`
 }
 
 func writePrivate(path string, v any) error {
@@ -207,13 +219,28 @@ func settingsView(c cage.Config, p Preferences) Settings {
 	}
 	p.BrowserHomeURL = browserHomeURL(p)
 	p.ClaudeTerminalCommand = claudeTerminalCommand(p)
-	return Settings{Preferences: p, DNSURL: c.DNSURL, Timezone: c.Timezone, Locale: c.Locale, BrowserLanguage: c.BrowserLanguage, ExitPolicy: c.ExitPolicy.Normalized()}
+	return Settings{Preferences: p, DNSURL: c.DNSURL, DNSFallbackURLs: c.DNS.FallbackURLs(), DNSBootstrapURLs: c.DNS.BootstrapURLs(), DNSPublicFallback: &c.DNS.PublicFallback, TLSClientHelloSplit: &c.TLSClientHelloSplit, Timezone: c.Timezone, Locale: c.Locale, BrowserLanguage: c.BrowserLanguage, ExitPolicy: c.ExitPolicy.Normalized()}
 }
 func proposedSettings(input Settings, old cage.Config, profile string) (cage.Config, Preferences, error) {
 	if input.ExitPolicy == (cage.ExitPolicy{}) {
 		input.ExitPolicy = old.ExitPolicy
 	}
-	c := cage.Config{ProxyURL: old.ProxyURL, ProxyRevision: old.ProxyRevision, DNSURL: input.DNSURL, Timezone: input.Timezone, Locale: input.Locale, BrowserLanguage: input.BrowserLanguage, ExitPolicy: input.ExitPolicy.Normalized()}
+	c := old
+	c.DNSURL, c.Timezone, c.Locale, c.BrowserLanguage, c.ExitPolicy = input.DNSURL, input.Timezone, input.Locale, input.BrowserLanguage, input.ExitPolicy.Normalized()
+	fallback, bootstrap, publicFallback := c.DNS.FallbackURLs(), c.DNS.BootstrapURLs(), c.DNS.PublicFallback
+	if input.DNSFallbackURLs != nil {
+		fallback = input.DNSFallbackURLs
+	}
+	if input.DNSBootstrapURLs != nil {
+		bootstrap = input.DNSBootstrapURLs
+	}
+	if input.DNSPublicFallback != nil {
+		publicFallback = *input.DNSPublicFallback
+	}
+	c.DNS = cage.NewDNSOptions(fallback, bootstrap, publicFallback)
+	if input.TLSClientHelloSplit != nil {
+		c.TLSClientHelloSplit = *input.TLSClientHelloSplit
+	}
 	if err := c.Validate(); err != nil {
 		return c, input.Preferences, err
 	}
@@ -221,6 +248,7 @@ func proposedSettings(input Settings, old cage.Config, profile string) (cage.Con
 		return c, input.Preferences, errors.New("请选择 Mac 或原生 Linux 按键习惯")
 	}
 	p := input.Preferences
+	p.TLSClientHelloSplit = c.TLSClientHelloSplit
 	p.MobileRelay = strings.TrimSuffix(strings.TrimSpace(p.MobileRelay), "/")
 	if p.MobileRelay != "" && (!strings.HasPrefix(p.MobileRelay, "https://") || !mobilelink.ValidRelayOrigin(p.MobileRelay)) {
 		return c, p, errors.New("中继地址须为 HTTPS 地址，只包含主机和可选端口")

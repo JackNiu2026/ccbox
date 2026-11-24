@@ -2,10 +2,11 @@ package guestprofile
 
 import (
 	"encoding/json"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/sylvinus/agent-vm/internal/host"
 )
 
 func TestAudioCatalogAndGeneratedDevice(t *testing.T) {
@@ -69,7 +70,7 @@ func TestLegacyProfileWithoutNewFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	dir := t.TempDir()
-	if err = os.WriteFile(filepath.Join(dir, Filename), b, 0600); err != nil {
+	if err = host.CreatePrivateFile(filepath.Join(dir, Filename), b); err != nil {
 		t.Fatal(err)
 	}
 	loaded, err := Load(dir)

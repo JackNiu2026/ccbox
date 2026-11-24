@@ -29,3 +29,16 @@ test("service destinations are validated and forwarded through the same private 
   assert.equal((await client.request({action:"status"})).action,"status");
  } finally {client.close();}
 });
+
+test("custom control settings use only the designated private requests", async () => {
+  const fixture = "require('node:readline').createInterface({input:process.stdin}).on('line',line=>console.log(line));";
+  const client = createTailnetClient({ executable: process.execPath, start: (_file, _args, options) => spawn(process.execPath, ["-e", fixture], options) });
+  try {
+    const control_url = "https://private.example:8443";
+    assert.deepEqual(await client.request({ action: "set-control-url", control_url, executable: "ignored" }), { action: "set-control-url", control_url });
+    assert.deepEqual(await client.request({ action: "connect", control_url: "" }), { action: "connect", control_url: "" });
+    await assert.rejects(client.request({ action: "set-control-url" }));
+    await assert.rejects(client.request({ action: "status", control_url }));
+    await assert.rejects(client.request({ action: "login", control_url: "x".repeat(257) }));
+  } finally { client.close(); }
+});

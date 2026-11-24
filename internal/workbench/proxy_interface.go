@@ -35,12 +35,12 @@ func (s *Server) monitorProxyInterface() {
 	s.mu.Lock()
 	lost, retryAfter := s.proxyNetworkLost, s.proxyRebindAfter
 	s.mu.Unlock()
-	bound, err := managedproxy.BoundInterface(filepath.Join(managedproxy.Dir(s.profile), "config.yaml"))
-	if (!lost && (err != nil || bound == name)) || time.Now().Before(retryAfter) {
+	path := filepath.Join(managedproxy.Dir(s.profile), "config.yaml")
+	if time.Now().Before(retryAfter) || (!lost && managedproxy.BindingMatches(path, name)) {
 		return
 	}
 	// Revoke the previous report before the asynchronous recovery can start.
-	if err := s.closeProxyGate("物理网卡已变化，正在重新绑定代理并检查出口"); err != nil {
+	if err := s.closeProxyGate("主机网卡或节点路由已变化，正在重新绑定代理并检查出口"); err != nil {
 		return
 	}
 	s.mu.Lock()

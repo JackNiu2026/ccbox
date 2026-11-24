@@ -16,7 +16,7 @@ func TestHysteria2SubscriptionAliasesPreserveTransportAndPin(t *testing.T) {
 	s, _ := Load(profile)
 	pin := strings.Repeat("ab", 32)
 	data := `proxies:
- - {name: ordinary, type: socks5, server: 127.0.0.1, port: 1080}
+ - {name: ordinary, type: socks5, server: 203.0.113.10, port: 1080}
  - {name: hopping, type: hysteria2, server: example.com, port: 35000, password: test-password, mport: 35000-39000, pinSHA256: "` + pin + `"}
 `
 	if err := s.Import("feedback", "", []byte(data), "feedback", 0, ""); err != nil {
@@ -49,7 +49,7 @@ func TestPartialSubscriptionImportReportsSkippedNodesAndDependencies(t *testing.
 	profile := t.TempDir()
 	s, _ := Load(profile)
 	data := `proxies:
- - {name: good, type: socks5, server: 127.0.0.1, port: 1080}
+ - {name: good, type: socks5, server: 203.0.113.10, port: 1080}
  - {name: unsupported, type: hysteria2, server: example.com, port: 443, password: secret-password, mport: secret-value}
  - {name: dependent, type: socks5, server: example.com, port: 1080, dialer-proxy: unsupported}
  - {name: unsafe, type: http, server: example.com, port: 80, ws-opts: {private-key: /private/secret-key}}
@@ -103,7 +103,7 @@ func TestHysteria2InvalidOrConflictingAliasesSkipOnlyThatNode(t *testing.T) {
 	} {
 		s, _ := Load(t.TempDir())
 		data := `proxies:
- - {name: good, type: http, server: 127.0.0.1, port: 8080}
+ - {name: good, type: http, server: 203.0.113.10, port: 8080}
  - {name: bad, type: hysteria2, server: example.com, port: 443, password: secret, ` + fields + `}
 `
 		if err := s.Import("test", "", []byte(data), "test", 0, ""); err != nil || s.Count() != 1 {
@@ -156,9 +156,9 @@ func TestRefreshRetainsSelectedExitAndTransitWhenSkipped(t *testing.T) {
 		for _, bad := range []string{"entry", "exit"} {
 			s, _ := Load(t.TempDir())
 			data := `proxies:
- - {name: entry, type: http, server: 127.0.0.1, port: 8080}
- - {name: exit, type: http, server: 127.0.0.1, port: 8081, dialer-proxy: entry}
- - {name: spare, type: http, server: 127.0.0.1, port: 8082}
+ - {name: entry, type: http, server: 203.0.113.10, port: 8080}
+ - {name: exit, type: http, server: 203.0.113.10, port: 8081, dialer-proxy: entry}
+ - {name: spare, type: http, server: 203.0.113.10, port: 8082}
 `
 			if err := s.Import("test", "https://example.com/sub", []byte(data), "test", 24, ""); err != nil {
 				t.Fatal(err)
@@ -177,5 +177,90 @@ func TestRefreshRetainsSelectedExitAndTransitWhenSkipped(t *testing.T) {
 				t.Fatal("failed refresh changed saved nodes, metadata or route")
 			}
 		}
+	}
+}
+
+func TestDialerProxyResolvesSingleNodeGroup(t *testing.T) {
+	data := `proxies:
+  - {name: hop, type: socks5, server: 203.0.113.10, port: 1080}
+  - {name: hop2, type: socks5, server: 203.0.113.11, port: 1080}
+  - {name: residential, type: socks5, server: 203.0.113.20, port: 1080, dialer-proxy: SG-Hop}
+  - {name: nested, type: socks5, server: 203.0.113.21, port: 1080, dialer-proxy: Outer}
+  - {name: multi, type: socks5, server: 203.0.113.22, port: 1080, dialer-proxy: Pool}
+  - {name: dynamic, type: socks5, server: 203.0.113.23, port: 1080, dialer-proxy: Filtered}
+  - {name: direct, type: socks5, server: 203.0.113.24, port: 1080, dialer-proxy: Direct-Only}
+  - {name: loop, type: socks5, server: 203.0.113.25, port: 1080, dialer-proxy: Loop-A}
+proxy-groups:
+  - {name: SG-Hop, type: url-test, proxies: [hop]}
+  - {name: Outer, type: select, proxies: [SG-Hop]}
+  - {name: Pool, type: url-test, proxies: [hop, hop2]}
+  - {name: Filtered, type: select, proxies: [hop], filter: "HK"}
+  - {name: Direct-Only, type: select, proxies: [DIRECT]}
+  - {name: Loop-A, type: select, proxies: [Loop-B]}
+  - {name: Loop-B, type: select, proxies: [Loop-A]}
+`
+	nodes, skipped, err := parseNodes([]byte(data), "groups")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := map[string]string{}
+	for _, n := range nodes {
+		ids[n.Name] = n.ID
+	}
+	for _, name := range []string{"residential", "nested"} {
+		var config map[string]any
+		for _, n := range nodes {
+			if n.Name == name {
+				config = n.Config
+			}
+		}
+		if config == nil || config["dialer-proxy"] != ids["hop"] {
+			t.Fatalf("%s did not keep its single-node group hop: %+v", name, config)
+		}
+	}
+	reasons := map[string]string{}
+	for _, issue := range skipped {
+		reasons[issue.Name] = issue.Reason
+	}
+	for _, name := range []string{"multi", "dynamic", "direct", "loop"} {
+		if !strings.Contains(reasons[name], "不能引用 DIRECT 或选择分组") {
+			t.Errorf("%s: ambiguous group reference was accepted: %q", name, reasons[name])
+		}
+	}
+	if len(nodes) != 4 {
+		t.Fatalf("unexpected imported nodes: %v", ids)
+	}
+}
+
+func TestInlineProvidersImportWithTopLevelNodes(t *testing.T) {
+	data := `proxies:
+  - {name: top-level, type: socks5, server: 203.0.113.10, port: 1080}
+proxy-providers:
+  remote:
+    type: http
+    url: https://example.invalid/sub
+  inline-example:
+    type: inline
+    payload:
+      - {name: inline-only, type: socks5, server: 203.0.113.11, port: 1080, dialer-proxy: top-level}
+  inline-override:
+    type: inline
+    override: {dialer-proxy: top-level}
+    payload:
+      - {name: overridden, type: socks5, server: 203.0.113.12, port: 1080}
+`
+	nodes, skipped, err := parseNodes([]byte(data), "inline")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(nodes) != 2 || nodes[0].Name != "top-level" || nodes[1].Name != "inline-only" || nodes[1].Config["dialer-proxy"] != nodes[0].ID {
+		t.Fatalf("inline provider nodes were not imported in order: %+v", nodes)
+	}
+	if len(skipped) != 1 || skipped[0].Name != "overridden" || !strings.Contains(skipped[0].Reason, "override") {
+		t.Fatalf("inline provider with override was not reported: %+v", skipped)
+	}
+	only := "proxy-providers:\n  p:\n    type: inline\n    payload:\n      - {name: a, type: socks5, server: 203.0.113.13, port: 1080}\n"
+	if nodes, _, err := parseNodes([]byte(only), "only"); err != nil || len(nodes) != 1 {
+		t.Fatalf("inline-only config did not import: %v %v", nodes, err)
 	}
 }

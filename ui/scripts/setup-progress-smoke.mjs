@@ -96,10 +96,48 @@ try {
 }
 
 {
+  const { browser, page } = await createWorkbench({
+    waitForReady: false,
+    initialization: { required: true, tracked: true, started: true, prepared: true },
+    beforeNavigate: async (page, state) => {
+      await page.addInitScript(() => {
+        if (!localStorage.getItem("ccbox-interface-language")) localStorage.setItem("ccbox-interface-language", "ar");
+      });
+      state.status.job = { id: "boot-error", kind: "start", running: false,
+        error: "启动 Linux 基础环境失败：虚拟机后台在环境就绪前退出。请打开“操作详情”查看启动记录。若继续安装仍失败，可从安装页底部的“日志与诊断”导出诊断包。",
+        setup_progress: { phase: "image", operation: "boot", label: "正在启动 Linux 基础环境" } };
+      await page.route("**/api/desktop-license", route => route.fulfill({ json: { state: "active" } }));
+    },
+  });
+  try {
+    const language = page.locator(".initialization-brand select");
+    await language.waitFor();
+    assert.deepEqual(await language.locator("option").allTextContents(), ["简体中文", "繁體中文", "English"]);
+    await page.waitForFunction(() => localStorage.getItem("ccbox-interface-language") === "zh-CN");
+    await page.getByRole("heading", { name: "Linux 基础环境启动失败" }).waitFor();
+    await language.selectOption("en");
+    await page.locator("html[lang=en]").waitFor();
+    await page.getByRole("heading", { name: "Could not start the base Linux environment" }).waitFor();
+    await page.getByText(/the virtual machine process exited before the environment was ready/).waitFor();
+    await page.getByRole("button", { name: "Continue installation", exact: true }).waitFor();
+    await page.reload();
+    await page.locator("html[lang=en]").waitFor();
+    await language.selectOption("zh-TW");
+    await page.getByRole("button", { name: "繼續安裝", exact: true }).waitFor();
+    await language.selectOption("zh-CN");
+    await page.locator("html[lang=zh-CN]").waitFor();
+    await page.getByRole("button", { name: "继续安装", exact: true }).waitFor();
+    console.log("PASS: three interface languages, legacy locale migration, English persistence, and translated Linux boot recovery");
+  } finally { await browser.close(); }
+}
+
+{
   const { browser, page, state, errors } = await createWorkbench({
     initialization: { required: true, tracked: true, started: true },
     clientContext: { mode: "local", connection_id: "local", client_platform: "windows", server_platform: "windows" },
     beforeNavigate: async (page, state) => {
+      await page.route("**/api/desktop-license", route => route.fulfill({ json: { state: "active" } }));
+      await page.route("**/api/environment/guest-systems", route => route.fulfill({ json: { pending: { system: "windows-11" } } }));
       state.status.job = { id: "windows-install", kind: "guest-install", running: false,
         setup_progress: { system: "windows-11", phase: "packages", operation: "oobe", label: "请在虚拟机连接窗口完成 Windows 首次设置" } };
     },

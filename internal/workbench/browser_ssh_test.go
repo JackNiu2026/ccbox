@@ -11,10 +11,12 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -39,6 +41,8 @@ func TestBrowserUsesInstanceSSHWithHostPortOccupied(t *testing.T) {
 		_, _ = io.WriteString(w, `{"ok":true}`)
 	}))
 	defer guest.Close()
+	const displayGreeting = "RFB 003.008\n"
+	displays := make(chan ssh.Channel, 2)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -71,7 +75,7 @@ func TestBrowserUsesInstanceSSHWithHostPortOccupied(t *testing.T) {
 						Origin     string
 						OriginPort uint32
 					}
-					if incoming.ChannelType() != "direct-tcpip" || ssh.Unmarshal(incoming.ExtraData(), &target) != nil || target.Host != "127.0.0.1" || target.Port != 18500 {
+					if incoming.ChannelType() != "direct-tcpip" || ssh.Unmarshal(incoming.ExtraData(), &target) != nil || target.Host != "127.0.0.1" || (target.Port != 18500 && target.Port != 15900) {
 						_ = incoming.Reject(ssh.Prohibited, "unexpected destination")
 						continue
 					}
@@ -80,6 +84,13 @@ func TestBrowserUsesInstanceSSHWithHostPortOccupied(t *testing.T) {
 						return
 					}
 					go ssh.DiscardRequests(requests)
+					if target.Port == 15900 {
+						displays <- channel
+						_, _ = io.WriteString(channel, displayGreeting)
+						_, _ = io.Copy(io.Discard, channel)
+						_ = channel.Close()
+						continue
+					}
 					remote, err := net.Dial("tcp", guest.Listener.Addr().String())
 					if err != nil {
 						channel.Close()
@@ -116,6 +127,57 @@ func TestBrowserUsesInstanceSSHWithHostPortOccupied(t *testing.T) {
 	if err != nil || string(data) != `{"ok":true}` || connections.Load() == 0 || leaked.Load() {
 		t.Fatalf("browser did not use instance SSH: data=%q err=%v SSH=%d host-port-contacted=%t", data, err, connections.Load(), leaked.Load())
 	}
+	t.Run("display reconnect uses the same guest", func(t *testing.T) {
+		// Own the host port for this test; never contact a running VM or app.
+		occupied, err := net.Listen("tcp", "127.0.0.1:15900")
+		if err != nil {
+			t.Skip("local display port already in use")
+		}
+		defer occupied.Close()
+		var hostPortContacted atomic.Bool
+		go func() {
+			conn, err := occupied.Accept()
+			if err == nil {
+				hostPortContacted.Store(true)
+				_ = conn.Close()
+			}
+		}()
+		s.ready = true
+		s.credentials.Token = "isolated-test-token"
+		server := httptest.NewServer(http.HandlerFunc(s.vnc))
+		s.origin = server.URL
+		defer server.Close()
+		socket := "ws" + strings.TrimPrefix(server.URL, "http")
+		for i := 0; i < 2; i++ {
+			ws, _, err := websocket.DefaultDialer.DialContext(ctx, socket, http.Header{"Origin": {server.URL}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			_ = ws.SetReadDeadline(time.Now().Add(3 * time.Second))
+			kind, message, err := ws.ReadMessage()
+			if err != nil || kind != websocket.BinaryMessage || string(message) != displayGreeting {
+				_ = ws.Close()
+				t.Fatalf("guest display greeting missing on connection %d: %v (SSH connections=%d, display channels=%d, host port contacted=%t)", i+1, err, connections.Load(), len(displays), hostPortContacted.Load())
+			}
+			display := <-displays
+			if i == 0 {
+				// Drop the active guest stream after its first frame. The
+				// next browser request reconnects to the same guest.
+				_ = display.Close()
+				if _, _, err := ws.ReadMessage(); err == nil {
+					_ = ws.Close()
+					t.Fatal("browser did not observe the guest stream closing")
+				} else if timeout, ok := err.(net.Error); ok && timeout.Timeout() {
+					_ = ws.Close()
+					t.Fatal("closed guest stream left the browser connection hanging")
+				}
+			}
+			_ = ws.Close()
+		}
+		if hostPortContacted.Load() {
+			t.Fatal("display bypassed its authenticated guest SSH transport")
+		}
+	})
 	body, err := client.events(ctx, "isolated-test-token")
 	if err != nil {
 		t.Fatal(err)

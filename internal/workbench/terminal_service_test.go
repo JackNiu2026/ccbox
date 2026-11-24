@@ -209,6 +209,29 @@ func TestTerminalManagerStopAllowsLaterTerminals(t *testing.T) {
 	}
 }
 
+func TestTerminalManagerCountsOnlyLiveProcessesForAdmission(t *testing.T) {
+	manager := terminalManager{sessions: map[string]*terminalSession{}}
+	for i := range 12 {
+		session := newTerminalSession(nil)
+		manager.sessions[fmt.Sprint(i)] = session
+	}
+	if err := manager.canStart(); !errors.Is(err, errTerminalLimit) {
+		t.Fatalf("12 live terminals should fill capacity: %v", err)
+	}
+	ending := manager.sessions["0"]
+	ending.closed = true
+	if err := manager.canStart(); !errors.Is(err, errTerminalLimit) {
+		t.Fatalf("a closing terminal still occupies capacity until its process exits: %v", err)
+	}
+	close(ending.done)
+	if err := manager.canStart(); err != nil {
+		t.Fatalf("an ended terminal must not block starting another: %v", err)
+	}
+	if manager.get("0") != ending {
+		t.Fatal("checking capacity must not remove visible history")
+	}
+}
+
 type controlledTerminal struct {
 	reader      *io.PipeReader
 	writer      *io.PipeWriter

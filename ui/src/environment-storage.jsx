@@ -42,6 +42,11 @@ export function EnvironmentStorage({ status, onConfirm }) {
   const apply = async () => {
     if (!location?.directory || busy || recovery?.required) return;
     const path = directory.trim();
+    if (location.missing && !(await onConfirm({
+      title: "使用新的环境目录？",
+      body: `原目录 ${location.directory} 当前无法访问。请先确认原磁盘和文件夹。继续后，CCBox 将使用 ${path} 作为空目录，并保留原路径记录。`,
+      confirm: "使用空目录",
+    }))) return;
     if (location.has_environment && !(await onConfirm({
       title: "迁移本机环境？",
       body: `请先保存文件。CCBox 会停止环境和终端，将虚拟磁盘复制到 ${path}，校验后再切换位置。原数据保留为备份，迁移完成后可手动启动环境。`,
@@ -52,6 +57,7 @@ export function EnvironmentStorage({ status, onConfirm }) {
     try {
       const accepted = await api("/environment/storage", {
         directory: path, previous: location.directory, migrate: location.has_environment,
+        missing: Boolean(location.missing),
       });
       setPending({ id: accepted.id, previousJob: job?.id, path });
     } catch (e) { setError(e.message); }
@@ -80,9 +86,10 @@ export function EnvironmentStorage({ status, onConfirm }) {
     </> : <>
     <p className="field-help">系统镜像、下载缓存和虚拟磁盘可以放在另一块本地磁盘。项目文件保存在各自的项目文件夹。</p>
     <div className="setting-summary-row"><span>当前环境目录</span><strong>{location?.directory || "正在读取…"}</strong></div>
+    {location?.missing && <p role="alert" className="error-message">{location.error}</p>}
     {status.environment_identity_directory && status.environment_identity_directory !== status.environment_directory &&
       <p className="field-help">原工作目录中的文件保留在 <code>{status.environment_identity_directory}</code>。需要使用时可从工作台添加该文件夹；位于 CCBox 私有配置目录中的项目需先移到配置目录之外。</p>}
-    {location?.backup && <p className="field-help">迁移前的备份保存在 <code>{location.backup}</code>。确认新环境能正常启动、文件和登录状态齐全后，可自行清理备份。</p>}
+    {location?.backup && <p className="field-help">此前的环境位置已记录为 <code>{location.backup}</code>。确认新环境能正常启动、文件和登录状态齐全后，可自行清理仍保留的备份。</p>}
     <label>新存储位置
       <input value={directory} onChange={(e) => { setDirectory(e.target.value); setError(""); }} spellCheck="false"
         disabled={busy || !location?.directory} placeholder="本地磁盘上专用空文件夹的完整路径" />
@@ -90,7 +97,7 @@ export function EnvironmentStorage({ status, onConfirm }) {
     <div className="storage-actions">
       {nativeAvailable() && <button type="button" disabled={busy || !location?.directory} onClick={choose}><FolderOpen size={15} />选择文件夹</button>}
       <button type="button" disabled={busy || !location?.directory || !directory.trim() || directory.trim() === location.directory} onClick={apply}>
-        {location?.has_environment ? "迁移到此位置" : "使用此位置"}
+        {location?.has_environment ? "迁移到此位置" : location?.missing ? "使用新的空目录" : "使用此位置"}
       </button>
     </div>
     </>}

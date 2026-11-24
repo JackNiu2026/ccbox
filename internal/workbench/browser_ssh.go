@@ -7,14 +7,15 @@ import (
 	"sync"
 )
 
-// Browser control goes through this instance's authenticated SSH connection.
-// It never relies on a host port that another application or VM can occupy.
-func (s *Server) dialGuestBrowser(ctx context.Context, lifetime context.Context) (net.Conn, error) {
+// Browser control and display use this instance's authenticated SSH
+// connection, independent of host port forwarding. address is a fixed guest
+// loopback endpoint chosen by the caller.
+func (s *Server) dialGuestLoopback(ctx context.Context, lifetime context.Context, address string) (net.Conn, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	processContext, cancel := context.WithCancel(lifetime)
-	cmd := s.sshCommand(processContext, "-T", "-W", "127.0.0.1:18500", s.sshTarget())
+	cmd := s.sshCommand(processContext, "-T", "-W", address, s.sshTarget())
 	input, err := cmd.StdinPipe()
 	if err != nil {
 		cancel()

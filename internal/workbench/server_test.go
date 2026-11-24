@@ -23,7 +23,7 @@ func testServer(t *testing.T) *Server {
 	c := cage.DefaultConfig()
 	p, _ := managedproxy.Load(profile)
 	p.Auth = strings.Repeat("secret", 8)
-	if err := p.Import("test", "", []byte(`proxies: [{name: qa, type: socks5, server: 127.0.0.1, port: 1}]`), "source", 0, ""); err != nil {
+	if err := p.Import("test", "", []byte(`proxies: [{name: qa, type: socks5, server: 192.0.2.1, port: 1}]`), "source", 0, ""); err != nil {
 		t.Fatal(err)
 	}
 	p.Selected = p.Sources[0].Nodes[0].ID

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { translate as tr } from "./message-catalog.mjs";
 import { ArrowDownToLine, LoaderCircle } from "lucide-react";
 import { api, native, nativeAvailable, writeClipboard } from "./api";
 import { reportDiagnostic } from "./diagnostics.mjs";
@@ -51,7 +52,7 @@ export function DiagnosticSettings({ status } = {}) {
     {info && <p className="footnote">{remote ? "服务器" : "本机"}日志 {(info.bytes / 1024 / 1024).toFixed(1)} MiB · {info.files} 个文件</p>}
     <button className="secondary-button" disabled={busy} onClick={save}>
       {busy ? <LoaderCircle size={14} className="spin" /> : <ArrowDownToLine size={14} />}
-      {busy ? "正在导出…" : remote ? "导出服务器诊断包" : "导出诊断包"}
+      {tr(busy ? "正在导出…" : remote ? "导出服务器诊断包" : "导出诊断包")}
     </button>
     <p className="footnote">{remote ? "诊断包包含本机界面与当前云端主机的脱敏日志、版本和收集状态，需要保持远程连接。导出后保存在你选择的本机位置。" : "诊断包包含界面与环境的脱敏日志、版本和收集状态，环境离线时仍可导出本机记录。只保存在你选择的位置。"}</p>
     {report && <button className="secondary-button" disabled={busy} onClick={copySafetyReport}>复制联网检查报告</button>}

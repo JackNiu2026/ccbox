@@ -1,6 +1,7 @@
 package workbench
 
 import (
+	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -80,11 +81,15 @@ func (s *Server) resourceStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	maximum, _ := units.RAMInBytes(configured.Memory)
 	var observation *cage.ResourceStatus
+	var guestDiskUsed uint64
 	status, err := cage.ReadResourceStatus(s.instanceDir())
 	if running && err == nil {
 		observation = &status
+		if status.Guest != nil {
+			guestDiskUsed = status.Guest.DiskUsed
+		}
 	}
-	jsonReply(w, map[string]any{
+	data := map[string]any{
 		"running": running, "automatic": a.Automatic,
 		"memory_gib": memory, "cpus": cpus,
 		"max_memory_gib": maxMemory, "max_cpus": maxCPUs,
@@ -93,7 +98,28 @@ func (s *Server) resourceStatus(w http.ResponseWriter, r *http.Request) {
 		"configured_memory_bytes": maximum, "configured_cpus": configured.CPUs,
 		"restart_required": running && (maximum != int64(memory)<<30 || configured.CPUs != cpus || observation == nil),
 		"observation":      observation,
-	})
+	}
+	disk, diskErr := s.readResourceDisk()
+	if diskErr == nil && disk.supported {
+		minDisk, maxDisk := cage.DiskBounds(s.instanceDir(), uint64(disk.info.VirtualBytes), guestDiskUsed)
+		limit, limitErr := disk.diskLimit(a, s.instanceDir(), guestDiskUsed)
+		if limitErr != nil {
+			limit = a.DiskGiB
+			data["disk_error"] = limitErr.Error()
+		}
+		data["disk_supported"] = true
+		data["disk_recovery_required"] = disk.recovery
+		data["disk_change_pending"] = disk.changePending(a, limit) && limitErr == nil
+		data["disk_gib"] = limit
+		data["saved_disk_gib"] = a.DiskGiB
+		data["min_disk_gib"] = minDisk
+		data["max_disk_gib"] = maxDisk
+		data["configured_disk_bytes"] = disk.info.VirtualBytes
+		data["host_disk_allocated_bytes"] = disk.info.HostAllocatedBytes
+	} else if diskErr != nil {
+		data["disk_error"] = diskErr.Error()
+	}
+	jsonReply(w, data)
 }
 
 func (s *Server) applyResources(w http.ResponseWriter, r *http.Request) {
@@ -103,6 +129,8 @@ func (s *Server) applyResources(w http.ResponseWriter, r *http.Request) {
 	}
 	var input struct {
 		Allocation *cage.ResourceAllocation `json:"allocation"`
+		DiskAction string                   `json:"disk_action"`
+		DiskGiB    int                      `json:"disk_gib"`
 	}
 	if !readJSON(w, r, &input) {
 		return
@@ -112,6 +140,10 @@ func (s *Server) applyResources(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if input.Allocation != nil {
+		if input.DiskAction != "" || input.DiskGiB != 0 {
+			http.Error(w, "请先保存配置，再单独应用硬盘调整", http.StatusBadRequest)
+			return
+		}
 		if _, _, err := s.resourceAllocationLimits(*input.Allocation); err != nil {
 			requestError(w, err)
 			return
@@ -120,13 +152,75 @@ func (s *Server) applyResources(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "另一个操作仍在进行，请稍候", http.StatusConflict)
 			return
 		}
+		defer s.op.Unlock()
+		if input.Allocation.DiskGiB != 0 {
+			disk, err := s.readResourceDisk()
+			if err != nil {
+				requestError(w, err)
+				return
+			}
+			var used uint64
+			if observation, err := cage.ReadResourceStatus(s.instanceDir()); err == nil && observation.Guest != nil {
+				used = observation.Guest.DiskUsed
+			}
+			if _, err := disk.diskLimit(*input.Allocation, s.instanceDir(), used); err != nil {
+				requestError(w, err)
+				return
+			}
+		}
 		err := writePrivate(cage.ResourceAllocationPath(s.configPath), input.Allocation)
-		s.op.Unlock()
 		if err != nil {
 			requestError(w, err)
 			return
 		}
 		jsonReply(w, map[string]bool{"ok": true})
+		return
+	}
+	switch input.DiskAction {
+	case "apply", "restore":
+		if !s.localVMStorage() || s.macosGuest != nil || s.windowsGuest != nil {
+			http.Error(w, "当前环境不支持调整虚拟硬盘", http.StatusBadRequest)
+			return
+		}
+		s.launch(w, "resources", func() error {
+			disk, err := s.readResourceDisk()
+			if err != nil {
+				return err
+			}
+			if !disk.supported {
+				return errors.New("当前环境不支持调整虚拟硬盘")
+			}
+			if input.DiskAction == "restore" {
+				if input.DiskGiB != 0 || !disk.recovery {
+					return errors.New("找不到需要恢复的硬盘备份")
+				}
+				ctx := s.operationContext()
+				return s.withStoppedDisk(ctx, func() error { return cage.RestoreDiskResize(ctx, s.instanceDir()) })
+			}
+			allocation, err := cage.LoadResourceAllocation(s.configPath)
+			if err != nil {
+				return err
+			}
+			if _, _, err := s.resourceAllocationLimits(allocation); err != nil {
+				return err
+			}
+			target, err := disk.diskLimit(allocation, s.instanceDir(), 0)
+			if err != nil {
+				return err
+			}
+			if input.DiskGiB != target || !disk.changePending(allocation, target) {
+				return errors.New("虚拟硬盘配置已变化，请核对最新容量后重新确认")
+			}
+			return s.adjustEnvironmentDisk(disk, target)
+		})
+		return
+	case "":
+		if input.DiskGiB == 0 {
+			break
+		}
+		fallthrough
+	default:
+		http.Error(w, "未知的虚拟硬盘操作", http.StatusBadRequest)
 		return
 	}
 	s.launch(w, "resources", func() error {

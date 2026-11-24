@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -26,8 +27,9 @@ import (
 // Preserve causes for errors.Is/As without exposing private socket paths,
 // request URLs, credentials or response contents in displayed/logged errors.
 type coreError struct {
-	stage string
-	err   error
+	stage  string
+	err    error
+	status int // HTTP status from the core API, 0 when no response arrived
 }
 
 func (e *coreError) Error() string {
@@ -136,7 +138,7 @@ func API(ctx context.Context, profile, method, path string, body any, reply any)
 	}
 	defer res.Body.Close()
 	if res.StatusCode < 200 || res.StatusCode > 299 {
-		return &coreError{stage: fmt.Sprintf("api.http-%d", res.StatusCode)}
+		return &coreError{stage: fmt.Sprintf("api.http-%d", res.StatusCode), status: res.StatusCode}
 	}
 	if reply != nil {
 		if err := json.NewDecoder(io.LimitReader(res.Body, 4<<20)).Decode(reply); err != nil {
@@ -145,11 +147,69 @@ func API(ctx context.Context, profile, method, path string, body any, reply any)
 	}
 	return nil
 }
+
+// DelayError explains a failed /proxies/{id}/delay call. Checked against the
+// bundled mihomo v1.19.33 hub/route: 404 when the node is not loaded
+// (findProxyByName), 504 when the test timed out, 503 when the node failed to
+// connect or respond, 400 for an invalid query. 408 is not sent by that version
+// and is treated as a timeout only for forward compatibility. Only fixed text and the API stage are
+// reported; node addresses and core output stay out of the message.
+func DelayError(err error) error {
+	var core *coreError
+	if !errors.As(err, &core) {
+		return fmt.Errorf("测速失败：%w", err)
+	}
+	switch {
+	case core.status == http.StatusNotFound:
+		return errors.New("节点未载入核心；请先应用节点以载入当前列表")
+	case core.status == http.StatusGatewayTimeout || core.status == http.StatusRequestTimeout:
+		return errors.New("测速超时：节点已载入核心，但 5 秒内没有收到测速地址的响应；请检查节点或上游代理")
+	case core.status == http.StatusServiceUnavailable:
+		return errors.New("测速失败：节点已载入核心，但连接节点或上游代理时出错；请检查节点或上游代理")
+	case core.status != 0:
+		return fmt.Errorf("测速失败：代理核心返回 HTTP %d", core.status)
+	case strings.HasPrefix(core.stage, "api.transport"):
+		return fmt.Errorf("代理核心未运行或无法连接；请先应用节点。%w", err)
+	default:
+		return fmt.Errorf("测速失败：%w", err)
+	}
+}
+
 func Running(ctx context.Context, profile string, s Store) bool {
-	return checkRunning(ctx, profile, s) == nil
+	return RunningStage(ctx, profile, s) == ""
+}
+
+// RunningStage reports a fixed diagnostic stage code when the managed proxy
+// core is not ready for the selected route. It never includes node addresses,
+// credentials, headers, or host paths.
+func RunningStage(ctx context.Context, profile string, s Store) string {
+	return runningStageError(checkRunning(ctx, profile, s))
+}
+
+func runningStageError(err error) string {
+	if err == nil {
+		return ""
+	}
+	var core *coreError
+	if errors.As(err, &core) && core.stage != "" {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return core.stage + ".timeout"
+		}
+		return core.stage
+	}
+	if errors.Is(err, ErrLocalProxyNode) {
+		return "route.local_node"
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "timeout"
+	}
+	return "route"
 }
 
 func checkRunning(ctx context.Context, profile string, s Store) error {
+	if _, err := s.Route(); err != nil {
+		return err
+	}
 	var cfg struct {
 		Port         int    `json:"mixed-port"`
 		Interface    string `json:"interface-name"`
@@ -186,6 +246,16 @@ func label(profile string) string {
 	h := sha256.Sum256([]byte(profile))
 	return fmt.Sprintf("org.ccbox.managed-proxy.%x", h[:8])
 }
+
+// coreReadyTimeout matches Linux and Windows; a freshly signed core can take
+// several seconds on its first launch.
+const coreReadyTimeout = 15 * time.Second
+
+// launchdStartArgs registers the per-profile job and then starts that job.
+func launchdStartArgs(uid int, label, plist string) (bootstrap, kickstart []string) {
+	domain := "gui/" + strconv.Itoa(uid)
+	return []string{"bootstrap", domain, plist}, []string{"kickstart", domain + "/" + label}
+}
 func servicePath(profile string) string { return filepath.Join(Dir(profile), "managed-service.plist") }
 func Stop(profile string) error {
 	if runtime.GOOS == "windows" {
@@ -210,6 +280,9 @@ func Stop(profile string) error {
 	return nil
 }
 func Start(ctx context.Context, profile string, s Store) error {
+	if _, err := s.Route(); err != nil {
+		return err
+	}
 	if runtime.GOOS == "windows" {
 		return startWindowsCore(ctx, profile, s)
 	}
@@ -224,8 +297,7 @@ func Start(ctx context.Context, profile string, s Store) error {
 		return err
 	}
 	path := filepath.Join(Dir(profile), "config.yaml")
-	bound, _ := BoundInterface(path)
-	if bound == name && Running(ctx, profile, s) {
+	if BindingMatches(path, name) && Running(ctx, profile, s) {
 		return nil
 	}
 	if err := Validate(ctx, profile, s); err != nil {
@@ -276,12 +348,19 @@ func Start(ctx context.Context, profile string, s Store) error {
 	if err = Write(servicePath(profile), []byte(plist)); err != nil {
 		return err
 	}
-	if exec.CommandContext(ctx, "launchctl", "bootstrap", "gui/"+strconv.Itoa(os.Getuid()), servicePath(profile)).Run() != nil {
+	bootstrap, kickstart := launchdStartArgs(os.Getuid(), label(profile), servicePath(profile))
+	if exec.CommandContext(ctx, "launchctl", bootstrap...).Run() != nil {
 		return errors.New("无法启动 Cage 自带代理核心")
+	}
+	// RunAtLoad is only a request: a GUI domain in on-demand-only mode keeps
+	// the job pending. Start it explicitly; without -k a running job is kept.
+	// The readiness wait below still decides whether the core is usable.
+	if err := exec.CommandContext(ctx, "launchctl", kickstart...).Run(); err != nil {
+		diagnostics.Log("warn", "proxy", "launchd kickstart failed; waiting for RunAtLoad")
 	}
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
-	deadline := time.NewTimer(10 * time.Second)
+	deadline := time.NewTimer(coreReadyTimeout)
 	defer deadline.Stop()
 	for {
 		select {

@@ -4,6 +4,13 @@ cd "$(dirname "$0")/.."
 if [[ "$(uname -s)" != Darwin ]]; then echo 'CCBox.app must be built on macOS.' >&2; exit 1; fi
 node scripts/check-ccbox-brand.mjs
 case "${1:-}" in ''|--install|--macos-trial|--install-macos-trial|--intel-macos-test) ;; *) echo 'Usage: scripts/build-app.sh [--install|--macos-trial|--install-macos-trial|--intel-macos-test]' >&2; exit 2 ;; esac
+if [[ "${1:-}" == --install* ]]; then
+  host_version="$(sw_vers -productVersion 2>/dev/null || true)"
+  if [[ ! "$host_version" =~ ^([0-9]+)(\.[0-9]+)*$ ]] || (( 10#${BASH_REMATCH[1]} < 14 )); then
+    printf 'CCBox requires macOS 14.0 or later; this Mac runs %s.\n' "${host_version:-an unknown version}" >&2
+    exit 1
+  fi
+fi
 bundle_id=org.ccbox.desktop
 app_name=CCBox
 if [[ "${1:-}" == *macos-trial ]]; then
@@ -29,7 +36,7 @@ check_destination() {
     exit 1
   fi
   local running_pids
-  running_pids="$(/usr/sbin/lsof -t "$target/Contents/MacOS/Cage" "$target/Contents/Resources/cage" 2>/dev/null || true)"
+  running_pids="$(/usr/sbin/lsof -n -P -a -d txt -t -- "$target/Contents/MacOS/Cage" "$target/Contents/Resources/cage" 2>/dev/null || true)"
   if [[ -n "$running_pids" ]]; then
     echo 'CCBox is running from this destination. Quit it before replacing the App.' >&2; exit 1
   fi
@@ -48,6 +55,10 @@ export CAGE_SIGNING_IDENTITY="$identity"
 export MACOSX_DEPLOYMENT_TARGET=14.0
 export CGO_CFLAGS="${CGO_CFLAGS:-} -mmacosx-version-min=14.0"
 export CGO_LDFLAGS="${CGO_LDFLAGS:-} -mmacosx-version-min=14.0"
+source scripts/macos-build-env.sh
+mkdir -p _output
+macos_prepare_caches
+macos_check_toolchain
 bash scripts/fetch-proxy-core.sh
 if [[ "$(uname -m)" == arm64 ]]; then
   bash scripts/guest-os/build-macos-guest-core.sh "$version"
@@ -60,8 +71,8 @@ install_stage=''
 trap 'rm -rf "$build_stage"; if [[ -n "$install_stage" ]]; then rm -rf "$install_stage"; fi' EXIT
 bundle="$build_stage/Cage.app"
 mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
-swiftc -O -target "$(uname -m)-apple-macosx14.0" -parse-as-library -framework Cocoa -framework WebKit -framework Security -framework LocalAuthentication desktop/Cage.swift desktop/MacKeyboard.swift desktop/NativeInput.swift desktop/Updates.swift desktop/AccountDevice.swift desktop/MacGuestLogin.swift -o "$bundle/Contents/MacOS/Cage"
-swiftc -O -target "$(uname -m)-apple-macosx14.0" -parse-as-library -framework Cocoa -framework Security desktop/Updates.swift desktop/UpdateInstaller.swift -o "$bundle/Contents/Resources/CageUpdateInstaller"
+xcrun swiftc ${swift_flags[@]+"${swift_flags[@]}"} -O -target "$(uname -m)-apple-macosx14.0" -parse-as-library -framework Cocoa -framework WebKit -framework Security -framework LocalAuthentication -framework UserNotifications desktop/Cage.swift desktop/MacKeyboard.swift desktop/NativeInput.swift desktop/Updates.swift desktop/AccountDevice.swift desktop/MacGuestLogin.swift -o "$bundle/Contents/MacOS/Cage"
+xcrun swiftc ${swift_flags[@]+"${swift_flags[@]}"} -O -target "$(uname -m)-apple-macosx14.0" -parse-as-library -framework Cocoa -framework Security desktop/Updates.swift desktop/UpdateInstaller.swift -o "$bundle/Contents/Resources/CageUpdateInstaller"
 cp _output/bin/cage "$bundle/Contents/Resources/cage"
 "$bundle/Contents/Resources/cage" verify-macos-guest
 if [[ "$(uname -m)" == x86_64 ]]; then
@@ -89,8 +100,9 @@ done
 mkdir -p "$bundle/Contents/Resources/licenses/mihomo"
 cp _output/proxy-core/LICENSE _output/proxy-core/NOTICE "$bundle/Contents/Resources/licenses/mihomo/"
 node scripts/collect-app-licenses.mjs "$bundle/Contents/Resources/licenses"
-swift desktop/Icon.swift assets/ccbox-logo.png _output/Cage.iconset
-iconutil -c icns _output/Cage.iconset -o "$bundle/Contents/Resources/Cage.icns"
+xcrun swiftc ${swift_flags[@]+"${swift_flags[@]}"} -framework Cocoa desktop/Icon.swift -o "$build_stage/make-icon"
+"$build_stage/make-icon" assets/ccbox-logo.png "$build_stage/Cage.iconset"
+iconutil -c icns "$build_stage/Cage.iconset" -o "$bundle/Contents/Resources/Cage.icns"
 cat > "$bundle/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">

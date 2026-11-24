@@ -88,6 +88,38 @@ func TestClaudeAccountOnlyEmptyRegistryFallsBack(t *testing.T) {
 	}
 }
 
+func TestClaudeAccountDeleteRejectsLiveTerminalAndPreservesProfile(t *testing.T) {
+	s := testServer(t)
+	id := strings.Repeat("a", 24)
+	other := strings.Repeat("b", 24)
+	if err := s.saveClaudeAccounts(claudeAccountList{Accounts: []claudeAccount{
+		{ID: id, Label: "保留历史", Email: "a@example.test", Enabled: true, Status: "ready"},
+		{ID: other, Label: "其它账号", Email: "b@example.test", Enabled: true, Status: "ready"},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	history := filepath.Join(s.profile, "keep-existing-profile.jsonl")
+	if err := os.WriteFile(history, []byte("preserved"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	payload := `{"action":"delete","id":"` + id + `"}`
+	s.terminals.sessions = map[string]*terminalSession{"active": {claudeAccountID: id}}
+	if w := request(s, "POST", "/api/claude-accounts", s.origin, payload, true); w.Code != http.StatusConflict || !strings.Contains(w.Body.String(), "请先结束") {
+		t.Fatal(w.Code, w.Body)
+	}
+	s.terminals.sessions = nil
+	if w := request(s, "POST", "/api/claude-accounts", s.origin, payload, true); w.Code != http.StatusOK {
+		t.Fatal(w.Code, w.Body)
+	}
+	list, err := s.loadClaudeAccounts()
+	if err != nil || list.find(id) != nil || list.find(other) == nil {
+		t.Fatalf("registry delete touched the wrong account: %+v %v", list, err)
+	}
+	if data, err := os.ReadFile(history); err != nil || string(data) != "preserved" {
+		t.Fatalf("profile data changed: %q %v", data, err)
+	}
+}
+
 func TestClaudeGuestIdentityAndPartialQuota(t *testing.T) {
 	now := time.Unix(1700000000, 0)
 	list := claudeAccountList{Accounts: []claudeAccount{{ID: "one"}, {ID: "two"}}}

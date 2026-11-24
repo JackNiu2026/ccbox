@@ -34,6 +34,14 @@ command -v pkg-config >/dev/null
 export MACOSX_DEPLOYMENT_TARGET=14.0
 sdk=$(xcrun --show-sdk-path)
 mkdir -p "$cache/pkgconfig"
+if command -v brew >/dev/null; then
+    for formula in pixman libffi; do
+        if prefix=$(brew --prefix "$formula" 2>/dev/null) && [[ -d $prefix/lib/pkgconfig ]]; then
+            PKG_CONFIG_PATH="$prefix/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+        fi
+    done
+    export PKG_CONFIG_PATH
+fi
 ffi_pc=$(pkg-config --variable=pcfiledir libffi)/libffi.pc
 sed "s#^homebrew_sdkroot=.*#homebrew_sdkroot=$sdk#" "$ffi_pc" > "$cache/pkgconfig/libffi.pc"
 export PKG_CONFIG_PATH="$cache/pkgconfig:${PKG_CONFIG_PATH:-}"

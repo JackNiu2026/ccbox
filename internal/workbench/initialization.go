@@ -81,6 +81,18 @@ func (s *Server) finishInitialization() error {
 	return writePrivate(filepath.Join(s.profile, "initialization.json"), initializationRecord{Version: 1, Completed: true})
 }
 
+// Earlier builds removed the initial-provision marker even while the guest's
+// update marker was present. A user resuming tracked onboarding can finish
+// that transaction in the existing guest. Ordinary starts of installed
+// environments continue to require explicit component maintenance.
+func (s *Server) canResumeInterruptedProvision(jobKind string, err error) bool {
+	if (jobKind != "start" && jobKind != "guest-install") || !errors.Is(err, errGuestMaintenanceInterrupted) {
+		return false
+	}
+	view, stateErr := s.initializationState()
+	return stateErr == nil && view.Tracked && view.Required && view.Started
+}
+
 func (s *Server) initialization(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		state, err := s.initializationState()

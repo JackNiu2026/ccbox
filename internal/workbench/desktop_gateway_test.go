@@ -18,6 +18,7 @@ import (
 type gatewayLocalFixture struct {
 	endpoint                         *httptest.Server
 	connections, suspended, commands atomic.Int32
+	ownedReleaseChecks               atomic.Int32
 	status                           DesktopLocalStatus
 	release                          func(DesktopLocalStatus, bool) error
 	owned                            bool
@@ -63,7 +64,41 @@ func (f *gatewayLocalFixture) Release(_ context.Context, expected DesktopLocalSt
 }
 
 func (f *gatewayLocalFixture) ReleaseOwnedIdle(context.Context, DesktopLocalStatus) (bool, error) {
+	f.ownedReleaseChecks.Add(1)
 	return f.owned, nil
+}
+
+func TestDesktopCloseChecksOnlyIdleLocalControllerForRelease(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		mutate         func(*DesktopLocalStatus)
+		local          bool
+		wantOwnedCheck int32
+	}{
+		{name: "idle", local: true, wantOwnedCheck: 1},
+		{name: "guest running", local: true, mutate: func(st *DesktopLocalStatus) { st.Running = true }},
+		{name: "terminal running", local: true, mutate: func(st *DesktopLocalStatus) { st.LiveTerminals = 1 }},
+		{name: "busy", local: true, mutate: func(st *DesktopLocalStatus) { st.Busy = true }},
+		{name: "unknown", local: true, mutate: func(st *DesktopLocalStatus) { st.Known = false }},
+		{name: "no local selection"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, f := gatewayFixture(t)
+			d := s.remote.desktop
+			if tc.local {
+				chooseLocal(t, d, d.context().ConnectionID)
+			}
+			f.status.ServiceRunning = true
+			if tc.mutate != nil {
+				tc.mutate(&f.status)
+			}
+			d.close()
+			d.close()
+			if got := f.ownedReleaseChecks.Load(); got != tc.wantOwnedCheck {
+				t.Fatalf("owned-release checks: got %d, want %d", got, tc.wantOwnedCheck)
+			}
+		})
+	}
 }
 
 func candidateState(t *testing.T, d *desktopGateway, want string) *desktopCandidate {

@@ -29,9 +29,16 @@ import (
 	"time"
 )
 
+func isolateUserHome(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir)
+	return dir
+}
+
 func TestBidirectionalSSHAndPersistentIdentity(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("USERPROFILE", os.Getenv("HOME"))
+	isolateUserHome(t)
 	t.Setenv("TS_NO_LOGS_NO_SUPPORT", "true")
 	envknob.SetenvForTest(t, "TS_DEBUG_ALWAYS_USE_DERP", "true")
 	netns.SetEnabled(false)
@@ -277,7 +284,7 @@ type bufferedConnection struct {
 
 func (c *bufferedConnection) Read(b []byte) (int, error) { return c.reader.Read(b) }
 func TestRejectPrivateKeysAndMultipleKeys(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	isolateUserHome(t)
 	n, err := newNode(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -290,7 +297,7 @@ func TestRejectPrivateKeysAndMultipleKeys(t *testing.T) {
 }
 
 func TestInteractiveAuthorizationFlow(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testHome := isolateUserHome(t)
 	t.Setenv("TS_NO_LOGS_NO_SUPPORT", "true")
 	netns.SetEnabled(false)
 	defer netns.SetEnabled(true)
@@ -331,7 +338,7 @@ func TestInteractiveAuthorizationFlow(t *testing.T) {
 		t.Fatalf("login not running: %+v %v", value, err)
 	}
 	// A broken optional SSH configuration must not hide a healthy private network.
-	sshConfig := filepath.Join(os.Getenv("HOME"), ".ssh", "config")
+	sshConfig := filepath.Join(testHome, ".ssh", "config")
 	if err := os.Remove(sshConfig); err != nil {
 		t.Fatal(err)
 	}

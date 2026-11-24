@@ -28,6 +28,7 @@ type proxyInput struct {
 	NodeID       string   `json:"node_id"`
 	NodeIDs      []string `json:"node_ids"`
 	Port         int      `json:"port"`
+	LocalID      string   `json:"local_id"`
 }
 
 func (s *Server) proxyStatus(w http.ResponseWriter, r *http.Request) {
@@ -109,18 +110,22 @@ func (s *Server) proxyMutation(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	if input.LocalID != "" && (action != "import" || !s.hasTrustedView(r)) {
+		http.Error(w, "请在 CCBox 本机窗口导入本机代理配置", http.StatusForbidden)
+		return
+	}
 	s.mu.Lock()
 	pauseVersion := s.safety.pauseVersion
 	s.mu.Unlock()
 	s.launch(w, "proxy", func() error { return s.changeProxy(action, input, &pauseVersion) })
 }
 func (s *Server) subscriptionClient(host bool) (*http.Client, error) {
-	if host {
-		return managedproxy.BootstrapClient(), nil
-	}
 	cfg, err := loadConfig(s.configPath)
 	if err != nil {
 		return nil, err
+	}
+	if host {
+		return managedproxy.BootstrapClientWith(cfg.BootstrapEndpoints()), nil
 	}
 	if err = cfg.RequireManagedProxy(s.profile); err != nil {
 		return nil, err
@@ -225,7 +230,13 @@ func (s *Server) changeProxy(action string, in proxyInput, resumeVersion *uint64
 	} else {
 		var data []byte
 		usage := ""
-		if action == "refresh" {
+		if in.LocalID != "" {
+			source, err := s.resolveLocalProxySource(in.LocalID)
+			if err != nil {
+				return err
+			}
+			in.ID, in.Name, in.URL, in.Interval, data = "", source.Name, source.URL, 0, source.Data
+		} else if action == "refresh" {
 			if index < 0 || p.Sources[index].URL == "" {
 				return errors.New("该来源没有订阅链接")
 			}
@@ -235,7 +246,7 @@ func (s *Server) changeProxy(action string, in proxyInput, resumeVersion *uint64
 			data = []byte(in.Content)
 			in.ID = ""
 		}
-		if in.URL != "" {
+		if in.URL != "" && in.LocalID == "" {
 			s.setMessage("正在下载节点订阅…")
 			client, e := s.subscriptionClient(in.HostDownload)
 			if e != nil {
@@ -264,12 +275,26 @@ func (s *Server) changeProxy(action string, in proxyInput, resumeVersion *uint64
 		if _, ok := candidate.Find(candidate.Selected); !ok {
 			candidate.Selected = candidate.Sources[0].Nodes[0].ID
 		}
+		_, routeErr := candidate.Route()
+		legacyLocalRoute := errors.Is(routeErr, managedproxy.ErrLocalProxyNode)
+		if legacyLocalRoute {
+			replacement := len(candidate.Sources) - 1
+			if index >= 0 {
+				replacement = index
+			}
+			candidate.Selected = candidate.Sources[replacement].Nodes[0].ID
+			candidate.Chain = nil
+		}
+		candidate.GuestDNS, candidate.BootstrapDNS = cfg.DNSEndpoints(), cfg.BootstrapEndpoints()
 		if err = validateProxyCore(ctx, s.profile, candidate); err != nil {
 			s.proxySourceFailure(in.ID, err)
 			return err
 		}
 		if _, ok := p.Find(p.Selected); !ok {
 			p.Selected = ""
+		}
+		if legacyLocalRoute {
+			return p.Save(s.profile)
 		}
 	}
 	if cfg.ProxyRevision != "" && cfg.ProxyURL == p.Endpoint() {
@@ -324,6 +349,7 @@ func (s *Server) applyProxy(p managedproxy.Store, old cage.Config, resumeVersion
 		return err
 	}
 	s.setMessage("正在验证节点配置…")
+	p.GuestDNS, p.BootstrapDNS = old.DNSEndpoints(), old.BootstrapEndpoints()
 	if err := validateProxyCore(ctx, s.profile, p); err != nil {
 		return err
 	}
@@ -499,6 +525,8 @@ func (s *Server) refreshProxySubscriptions() {
 	}
 }
 
+const proxyCoreUnavailableReason = "内置代理未就绪；外网保持关闭"
+
 func (s *Server) checkProxyHealth() {
 	if s.busy() {
 		return
@@ -516,13 +544,29 @@ func (s *Server) checkProxyHealth() {
 	defer cancel()
 	valid := err == nil && cfg.RequireManagedProxy(s.profile) == nil
 	if valid && managedproxy.Running(ctx, s.profile, p) {
+		s.mu.Lock()
+		candidate := s.safety.Gate != nil && s.safety.Gate.Mode == cage.GateClosed && s.safety.Gate.Reason == proxyCoreUnavailableReason
+		s.mu.Unlock()
+		if candidate {
+			client, err := s.gateClient()
+			if err == nil {
+				if state, err := client.Status(ctx); err == nil {
+					s.publishGate(state)
+					s.noteHealthyProxy(state, cfg.Fingerprint())
+				}
+			}
+		}
 		return
 	}
-	_ = s.closeProxyGate("内置代理已中断或节点状态变化，请重试应用节点")
+	reason := proxyCoreUnavailableReason
+	if !valid {
+		reason = "内置代理节点状态变化，请重新应用节点；外网保持关闭"
+	}
+	_ = s.closeProxyGate(reason)
 	s.mu.Lock()
 	if valid {
 		s.proxyNetworkLost = true
 	}
-	s.safety.monitorError = "内置代理未就绪；外网保持关闭"
+	s.safety.monitorError = reason
 	s.mu.Unlock()
 }

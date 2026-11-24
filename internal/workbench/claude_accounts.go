@@ -61,9 +61,10 @@ type claudeGuestSnapshot struct {
 }
 
 type claudeAccountList struct {
-	Accounts     []claudeAccount  `json:"accounts"`
-	PendingLogin string           `json:"pending_login,omitempty"`
-	Scheduling   claudeScheduling `json:"scheduling"`
+	Accounts          []claudeAccount  `json:"accounts"`
+	PendingLogin      string           `json:"pending_login,omitempty"`
+	Scheduling        claudeScheduling `json:"scheduling"`
+	DismissedDefaults []string         `json:"dismissed_defaults,omitempty"`
 }
 
 type claudeScheduling struct {
@@ -150,6 +151,11 @@ func (s *Server) loadClaudeAccounts() (claudeAccountList, error) {
 	}
 	if list.PendingLogin != "" && (!validClaudeID(list.PendingLogin) || ids[list.PendingLogin] || profiles[list.PendingLogin]) {
 		return list, errors.New("Claude 登录记录损坏，请恢复备份")
+	}
+	for _, subject := range list.DismissedDefaults {
+		if len(subject) != 64 || strings.Trim(subject, "0123456789abcdef") != "" {
+			return list, errors.New("已移除的 Claude 账号记录无效，请恢复备份")
+		}
 	}
 	return list, nil
 }

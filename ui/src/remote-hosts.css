@@ -19,6 +19,10 @@
 .ssh-sidebar-body { overflow:auto; min-height:0; padding-bottom:16px; }
 .ssh-list-heading { margin:12px 0 4px; padding-left:6px; display:flex; align-items:center; justify-content:space-between; color:var(--muted); font-size:.82rem; }
 .ssh-list-heading button { flex:none; }
+.ssh-list-actions { display:flex; align-items:center; gap:4px; }
+.ssh-config-hosts { display:grid; gap:8px; margin:10px 0; }
+.ssh-config-hosts label { display:flex; align-items:center; gap:8px; }
+.ssh-config-hosts small { display:block; color:var(--muted); overflow-wrap:anywhere; }
 .ssh-host-row { display:flex; width:100%; align-items:center; gap:8px; text-align:left; padding:8px; border:0; border-radius:6px; background:transparent; color:var(--ink); }
 .ssh-host-row.selected { background:var(--selected); }
 .ssh-host-row > span { flex:1; min-width:0; }
