@@ -675,8 +675,11 @@ func TestGuestStartRecoversFromTruncatedGuestFiles(t *testing.T) {
 
 	// 2. PYCONTROL recovers truncated/corrupt browser-control.json and preserves valid token.
 	ctrlStart := strings.Index(guestStart, "import json, os, secrets, grp, tempfile")
+	if ctrlStart < 0 {
+		t.Fatal("PYCONTROL block not found")
+	}
 	ctrlEnd := strings.Index(guestStart[ctrlStart:], "\nPYCONTROL")
-	if ctrlStart < 0 || ctrlEnd < 0 {
+	if ctrlEnd < 0 {
 		t.Fatal("PYCONTROL block not found")
 	}
 	ctrlScript := guestStart[ctrlStart : ctrlStart+ctrlEnd]
@@ -748,7 +751,13 @@ func TestGuestStartRecoversFromTruncatedGuestFiles(t *testing.T) {
 
 	// 3. PYCODE recovers truncated/corrupt Chromium Preferences atomically.
 	prefStart := strings.Index(guestStart, "import json, os\nfrom pathlib import Path\np = Path.home()")
+	if prefStart < 0 {
+		t.Fatal("PYCODE block not found")
+	}
 	prefEnd := strings.Index(guestStart[prefStart:], "\nPYCODE")
+	if prefEnd < 0 {
+		t.Fatal("PYCODE block not found")
+	}
 	prefScript := strings.Replace(guestStart[prefStart:prefStart+prefEnd], "Path.home()", `Path(os.environ["FIXTURE"])`, 1)
 	for name, corrupt := range map[string]string{"empty": "", "truncated": `{"intl":`, "wrong-type": `"bad"`} {
 		t.Run("preferences-"+name, func(t *testing.T) {
@@ -770,8 +779,22 @@ func TestGuestStartRecoversFromTruncatedGuestFiles(t *testing.T) {
 			if err != nil || !json.Valid(raw) {
 				t.Fatalf("preferences not recovered: %q %v", raw, err)
 			}
-			if entries, _ := os.ReadDir(prof); len(entries) != 1 {
-				t.Fatalf("temp files left in profile dir: %v", entries)
+			entries, err := os.ReadDir(prof)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if corrupt == "" {
+				if len(entries) != 1 {
+					t.Fatalf("unexpected files after repairing empty preferences: %v", entries)
+				}
+				return
+			}
+			if len(entries) != 2 || !strings.HasPrefix(entries[1].Name(), "Preferences.corrupt-") {
+				t.Fatalf("missing backup of damaged preferences: %v", entries)
+			}
+			backup, err := os.ReadFile(filepath.Join(prof, entries[1].Name()))
+			if err != nil || string(backup) != corrupt {
+				t.Fatalf("damaged preferences backup differs from the original: %v", err)
 			}
 		})
 	}

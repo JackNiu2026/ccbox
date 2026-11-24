@@ -8,6 +8,7 @@ import shutil
 import ssl
 import subprocess
 import sys
+import urllib.parse
 import urllib.request
 
 cache, dest = map(lambda s: Path(s).resolve(), sys.argv[1:3])
@@ -124,6 +125,11 @@ def https_context():
 
 
 def source_archive(name, url, digest=None):
+    source = urllib.parse.urlsplit(url)
+    if source.netloc == "ftpmirror.gnu.org":
+        # Avoid an arbitrary mirror redirect. The formula's digest still
+        # verifies that the canonical GNU archive matches the linked release.
+        url = source._replace(netloc="ftp.gnu.org", path="/gnu" + source.path).geturl()
     target = licenses / "sources" / name
     cached = cache / "downloads" / name
     if not cached.exists():
@@ -131,6 +137,7 @@ def source_archive(name, url, digest=None):
             raise RuntimeError("Source archive requires HTTPS")
         temporary = cached.with_name(cached.name + ".part")
         try:
+            print("Fetching corresponding source:", name, flush=True)
             with urllib.request.urlopen(url, timeout=60, context=https_context()) as response, temporary.open("xb") as output:
                 shutil.copyfileobj(response, output)
             temporary.replace(cached)
