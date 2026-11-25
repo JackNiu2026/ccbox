@@ -126,29 +126,48 @@ def https_context():
 
 def source_archive(name, url, digest=None):
     source = urllib.parse.urlsplit(url)
+    urls = [url]
     if source.netloc == "ftpmirror.gnu.org":
-        # Avoid an arbitrary mirror redirect. The formula's digest still
-        # verifies that the canonical GNU archive matches the linked release.
-        url = source._replace(netloc="ftp.gnu.org", path="/gnu" + source.path).geturl()
+        # Homebrew formulae can include an optional /gnu/ prefix. Keep the
+        # original source as a fallback and require the same formula digest.
+        relative = source.path.removeprefix("/gnu/").lstrip("/")
+        urls = [
+            "https://ftp.gnu.org/gnu/" + relative,
+            "https://mirrors.kernel.org/gnu/" + relative,
+            url,
+        ]
     target = licenses / "sources" / name
     cached = cache / "downloads" / name
+    verified_url = urls[0]
     if not cached.exists():
-        if not url.startswith("https://"):
-            raise RuntimeError("Source archive requires HTTPS")
         temporary = cached.with_name(cached.name + ".part")
-        try:
-            print("Fetching corresponding source:", name, flush=True)
-            with urllib.request.urlopen(url, timeout=60, context=https_context()) as response, temporary.open("xb") as output:
-                shutil.copyfileobj(response, output)
-            temporary.replace(cached)
-        finally:
-            temporary.unlink(missing_ok=True)
+        for candidate in urls:
+            if not candidate.startswith("https://"):
+                raise RuntimeError("Source archive requires HTTPS")
+            try:
+                print("Fetching corresponding source:", name, candidate, flush=True)
+                with urllib.request.urlopen(candidate, timeout=60, context=https_context()) as response, temporary.open("xb") as output:
+                    if not response.url.startswith("https://"):
+                        raise RuntimeError("Source archive redirected to an unsecured URL")
+                    shutil.copyfileobj(response, output)
+                with temporary.open("rb") as stream:
+                    if digest and hashlib.file_digest(stream, "sha256").hexdigest() != digest:
+                        raise RuntimeError("Corresponding source checksum mismatch: " + name)
+                temporary.replace(cached)
+                verified_url = candidate
+                break
+            except OSError as error:
+                print("Source download failed:", name, error, file=sys.stderr, flush=True)
+            finally:
+                temporary.unlink(missing_ok=True)
+        else:
+            raise RuntimeError("All corresponding source downloads failed: " + name)
     with cached.open("rb") as stream:
         actual = hashlib.file_digest(stream, "sha256").hexdigest()
     if digest and actual != digest:
         raise RuntimeError("Corresponding source checksum mismatch: " + name)
     shutil.copy2(cached, target)
-    provenance["sources"].append(dict(name=name, url=url, sha256=actual))
+    provenance["sources"].append(dict(name=name, url=verified_url, sha256=actual))
 
 
 source_archive("qemu-11.1.3.tar.xz", "https://download.qemu.org/qemu-11.1.3.tar.xz", "5a8289c7940dc77d3873c81a6c29ba3afe1446fc9d36e77fa1658cdbecb84b22")
