@@ -1,0 +1,103 @@
+name: CCBox 1.2.1 native macOS packages
+on:
+  push:
+    branches:
+      - codex/release/1.2.1-macos-20261128
+permissions:
+  contents: read
+jobs:
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: arm64
+            runner: macos-15
+          - architecture: amd64
+            runner: macos-15-intel
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    env:
+      CCBOX_MACOS_ARCH: ${{ matrix.architecture }}
+      GOTOOLCHAIN: auto
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fb1309f716b147245208da90add67a70cb58bd92
+          persist-credentials: false
+      - name: Verify the exact source and native runner
+        env:
+          BUILD_REF: fb1309f716b147245208da90add67a70cb58bd92
+        run: |
+          [[ "$BUILD_REF" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$(git rev-parse HEAD)" == "$BUILD_REF" ]]
+          case "$CCBOX_MACOS_ARCH" in arm64) machine=arm64 ;; amd64) machine=x86_64 ;; *) exit 1 ;; esac
+          [[ "$(uname -s)" == Darwin && "$(uname -m)" == "$machine" ]]
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - name: Install SSHFS build dependencies
+        run: |
+          brew install glib gettext pcre2
+          if [[ "$CCBOX_MACOS_ARCH" == amd64 ]]; then brew install libffi pixman pkgconf meson ninja; fi
+      - uses: astral-sh/setup-uv@v10.3.3
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Verify corresponding gettext source before compiling QEMU
+        if: matrix.architecture == 'amd64'
+        run: |
+          python3 - <<'PY'
+          import ast, hashlib, json, shutil, ssl, sys, urllib.parse, urllib.request
+          from pathlib import Path
+          cache = Path('_output/intel-runtime')
+          licenses = cache / 'source-preflight'
+          (cache / 'downloads').mkdir(parents=True, exist_ok=True)
+          (licenses / 'sources').mkdir(parents=True, exist_ok=True)
+          provenance = {'sources': []}
+          script = ast.parse(Path('scripts/package-intel-macos-runtime.py').read_bytes())
+          functions = [node for node in script.body if isinstance(node, ast.FunctionDef) and node.name in ('https_context', 'source_archive')]
+          exec(compile(ast.Module(body=functions, type_ignores=[]), 'source preflight', 'exec'))
+          source_archive('gettext-1.0-source.tar.gz', 'https://ftpmirror.gnu.org/gnu/gettext/gettext-1.0.tar.gz', '85d99b79c981a404874c02e0342176cf75c7698e2b51fe41031cf6526d974f1a')
+          PY
+      - name: Build and verify the unsigned preview
+        env:
+          CCBOX_LICENSE_PUBLIC_KEY: ${{ vars.CCBOX_LICENSE_PUBLIC_KEY }}
+        run: |
+          [[ "$CCBOX_LICENSE_PUBLIC_KEY" =~ ^[A-Za-z0-9_-]{43}$ ]]
+          node scripts/check-version.mjs
+          bash scripts/package-macos.sh --unsigned-preview
+          bash scripts/verify-macos-release.sh "$PWD/_output/releases/$(tr -d '\r\n' < VERSION)" --unsigned-preview
+      - name: Stage only public release files
+        env:
+          CCBOX_UNSIGNED_PREVIEW: "1"
+        run: |
+          version=$(tr -d '\r\n' < VERSION)
+          source_version=$(sed -n 's/^version=//p' scripts/fetch-proxy-core.sh)
+          release="$PWD/_output/releases/$version"
+          platform=macos
+          guest_source="cage-macos-guest-$version-source.tar.gz"
+          if [[ "$CCBOX_MACOS_ARCH" == amd64 ]]; then
+            platform=macos-intel
+            guest_source="cage-macos-guest-$version-amd64-source.tar.gz"
+          fi
+          node scripts/release-version.mjs metadata "$platform" "$release/build-metadata.json"
+          mkdir -p _output/ci-macos-release
+          cp "$release/CCBox-$version-macos-$CCBOX_MACOS_ARCH.dmg" "$release/mihomo-$source_version-source.tar.gz" "$release/$guest_source" "$release/SHA256SUMS" "$release/build-metadata.json" _output/ci-macos-release/
+          (cd _output/ci-macos-release && shasum -a 256 --check SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ccbox-121-macos-${{ matrix.architecture }}
+          path: _output/ci-macos-release/
+          if-no-files-found: error
+          overwrite: true
+          compression-level: 0
+          retention-days: 14
