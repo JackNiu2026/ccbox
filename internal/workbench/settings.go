@@ -340,7 +340,7 @@ func probeLocation(ctx context.Context, c cage.Config) (Location, error) {
 
 // All exit modes need country evidence. Manual locale settings only control
 // whether the observed timezone/language is applied to the environment.
-func probeEnvironmentLocation(ctx context.Context, c cage.Config, _ Preferences) (Location, error) {
+var probeEnvironmentLocation = func(ctx context.Context, c cage.Config, _ Preferences) (Location, error) {
 	return probeLocation(ctx, c)
 }
 

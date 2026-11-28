@@ -14,6 +14,9 @@ var claudeDesktopOpen string
 //go:embed claude-desktop-start.sh
 var claudeDesktopStart string
 
+//go:embed claude-desktop-instance-open.sh
+var claudeDesktopInstanceOpen string
+
 //go:embed guest-open.sh
 var guestOpen string
 
@@ -37,6 +40,8 @@ func ClaudeDesktopProvisionScript() string {
 		"sudo tee /usr/local/bin/cage-claude-session >/dev/null <<'CAGE_CLAUDE_SESSION'\n" + claudeDesktopSession + "\nCAGE_CLAUDE_SESSION\n" +
 		"sudo tee /usr/local/bin/cage-claude-open >/dev/null <<'CAGE_CLAUDE_OPEN'\n" + claudeDesktopOpen + "\nCAGE_CLAUDE_OPEN\n" +
 		"sudo tee /usr/local/bin/cage-claude-start >/dev/null <<'CAGE_CLAUDE_START'\n" + claudeDesktopStart + "\nCAGE_CLAUDE_START\n" +
+		"sudo tee /usr/local/bin/ccbox-instance-open >/dev/null <<'CCBOX_INSTANCE_OPEN'\n" + claudeDesktopInstanceOpen + "\nCCBOX_INSTANCE_OPEN\n" +
+		"sudo chmod 0755 /usr/local/bin/ccbox-instance-open\n" +
 		"sudo chmod 0755 /usr/local/bin/cage-claude-session /usr/local/bin/cage-claude-open /usr/local/bin/cage-claude-start\n" + guestOpenScript() + `
 printf 'cage-browser ALL=(cage) NOPASSWD: /usr/local/bin/cage-claude-open *\n' | sudo tee /etc/sudoers.d/cage-claude-desktop >/dev/null
 sudo chmod 0440 /etc/sudoers.d/cage-claude-desktop
@@ -77,6 +82,24 @@ KillMode=control-group
 TimeoutStartSec=45
 TimeoutStopSec=20
 CAGE_CLAUDE_UNIT
+sudo tee /etc/systemd/system/ccbox-claude-desktop@.service >/dev/null <<'CCBOX_CLAUDE_INSTANCE'
+[Unit]
+Description=CCBox Claude Desktop instance %i
+[Service]
+Type=notify
+NotifyAccess=all
+User=cage
+WorkingDirectory=/home/cage
+Environment=HOME=/home/cage CCBOX_DESKTOP_SLOT=%i
+EnvironmentFile=/etc/claude-cage/environment
+RuntimeDirectory=ccbox-claude-desktop-%i
+RuntimeDirectoryMode=0700
+ExecStart=/usr/local/bin/cage-log-run /usr/local/bin/cage-claude-session
+LogNamespace=cage
+KillMode=control-group
+TimeoutStartSec=45
+TimeoutStopSec=20
+CCBOX_CLAUDE_INSTANCE
 sudo systemctl daemon-reload
 `
 }

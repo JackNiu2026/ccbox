@@ -275,7 +275,8 @@ func (s *Server) routeRemote(w http.ResponseWriter, r *http.Request) bool {
 	} else {
 		session, err = s.remote.manager.Acquire(requestConnection(r))
 	}
-	if remote && r.URL.Path == "/api/projects/client-share" {
+	if remote && (r.URL.Path == "/api/projects/client-share" || r.URL.Path == "/api/browser/history" || r.URL.Path == "/api/audio/input" ||
+		strings.HasPrefix(r.URL.Path, "/api/claude-desktop/instances/")) {
 		http.NotFound(w, r)
 		return true
 	}

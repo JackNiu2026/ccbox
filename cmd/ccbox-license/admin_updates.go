@@ -149,7 +149,7 @@ func (c *updateChannel) candidate(ctx context.Context) (*catalog.Release, error)
 	}
 	result := &catalog.Release{Tag: entry.Tag}
 	var checksums catalog.Asset
-	for _, platform := range []struct{ os, arch string }{{"windows", "amd64"}, {"darwin", "arm64"}, {"linux", "amd64"}} {
+	for _, platform := range []struct{ os, arch string }{{"windows", "amd64"}, {"darwin", "arm64"}, {"darwin", "amd64"}, {"linux", "amd64"}} {
 		selected, err := catalog.Select(entries, "0.0.0", platform.os, platform.arch)
 		if err != nil {
 			return nil, err

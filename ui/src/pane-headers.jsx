@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Archive, ArrowLeft, ArrowRight, ArrowUpRight, ChevronRight, FolderOpen,
-  Globe2, Cookie, Settings, Puzzle, ScanEye, Maximize2, MoreHorizontal, PanelLeftOpen, Plus, RefreshCw, X } from "lucide-react";
+import { Archive, ArrowLeft, ArrowRight, ChevronRight, FolderOpen,
+  Globe2, Cookie, History, Settings, Puzzle, ScanEye, Maximize2, MoreHorizontal, PanelLeftOpen, Plus, RefreshCw, X } from "lucide-react";
 import { WorkspaceTabs } from "./workspace-tabs";
 import { BrowserFavorites } from "./browser-favorites";
 import { BrowserDownloads } from "./browser-downloads";
 import { BrowserCookies } from "./browser-cookies";
+import { BrowserAddressBar, BrowserHistoryDialog } from "./browser-history";
+import { translate as tr } from "./message-catalog.mjs";
 import { tabName } from "./workspace-state.mjs";
 import { shortcut } from "./platform.mjs";
 import logo from "./logo.svg";
@@ -80,16 +82,15 @@ export function BrowserTabRail({ tabs, metadata, active, ready, busy, splitDrag,
   </aside>;
 }
 
-export function BrowserHeader({ tab, tabs, metadata, ready, busy, focused, compact, triggerRef, vertical,
+export function BrowserHeader({ tab, tabs, metadata, ready, busy, focused, compact, triggerRef, vertical, localHistory,
   sidebarButton, exitButton, splitDrag, onSelect, onClose, onRename, onPin, onReorder, onNew,
   location, menu, back, forward, action, onNavigate, onOpen, onNewPrivate, onNewRegular, onCloseBrowser, onSettings, onReload, downloads, onStatus, onConfirm, onEditor, onRecover, recoveringEditor }) {
-  const [address, setAddress] = useState("");
   const [toolsOpen, setToolsOpen] = useState(false);
   const [cookiesOpen, setCookiesOpen] = useState(false);
+  const [historyTab, setHistoryTab] = useState("");
   const toolsTrigger = useRef(), toolsMenu = useRef();
-  const url = tab.url === "about:blank" ? "" : tab.url || "";
-  useEffect(() => { setAddress(url); }, [tab.id, url]);
-  useEffect(() => { setToolsOpen(false); setCookiesOpen(false); }, [tab.id]);
+  const historyEnabled = localHistory && ready && !tab.incognito && !tab.login && tab.kind === "web";
+  useEffect(() => { setToolsOpen(false); setCookiesOpen(false); setHistoryTab(""); }, [tab.id, historyEnabled]);
   useEffect(() => {
     if (!toolsOpen) return;
     toolsMenu.current?.querySelector('[role="menuitem"]:not(:disabled)')?.focus();
@@ -182,30 +183,7 @@ export function BrowserHeader({ tab, tabs, metadata, ready, busy, focused, compa
           <RefreshCw size={15} />
         </button>
       </div>
-      <form className="address-bar" onSubmit={event => { event.preventDefault(); onNavigate(address); }}>
-        {tab.incognito ? <span className="browser-private-badge" title="关闭全部无痕标签后清理此会话"><ScanEye size={13} />无痕</span> : <Globe2 size={13} />}
-        <input
-          aria-label="网页地址或搜索"
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          onFocus={(e) => e.target.select()}
-          placeholder={
-            ready
-              ? "输入网址或搜索，在 CCBox 内打开"
-              : "启动环境后浏览网页"
-          }
-          disabled={!ready}
-          spellCheck="false"
-        />
-        <button
-          className="address-go"
-          type="submit"
-          aria-label="打开地址"
-          disabled={!ready}
-        >
-          <ArrowUpRight size={15} />
-        </button>
-      </form>
+      <BrowserAddressBar key={tab.id} tab={tab} ready={ready} historyEnabled={historyEnabled} onNavigate={onNavigate} />
       <BrowserFavorites current={tab} shortcuts={focused} ready={ready && !busy} onOpen={onOpen} />
       <BrowserDownloads downloads={downloads} ready={ready && !busy} onStatus={onStatus} onConfirm={onConfirm} />
       <button className="icon-button browser-more-trigger" aria-label="浏览器菜单" title="浏览器菜单"
@@ -230,6 +208,9 @@ export function BrowserHeader({ tab, tabs, metadata, ready, busy, focused, compa
         <button className="browser-menu-item" role="menuitem" disabled={!ready || busy} onClick={onNewPrivate}><ScanEye size={16} />新建无痕标签</button>
         {tab.incognito && <button className="browser-menu-item" role="menuitem" disabled={!ready || busy} onClick={onNewRegular}><Globe2 size={16} />新建普通标签</button>}
         {!tab.login && tab.kind !== "browser-settings" && <button className="browser-menu-item" role="menuitem" disabled={!ready || busy} onClick={() => setCookiesOpen(true)}><Cookie size={16} />管理 Cookie</button>}
+        {historyEnabled && <button className="browser-menu-item" role="menuitem" disabled={busy} onClick={() => setHistoryTab(tab.id)}>
+          <History size={16} />{tr("浏览历史")}
+        </button>}
         <button className="browser-menu-item" role="menuitem" disabled={!ready || busy} onClick={() => onSettings('extensions')}><Puzzle size={16} />扩展</button>
         <BrowserDownloads menu anchorRef={toolsTrigger} downloads={downloads} ready={ready && !busy} onStatus={onStatus} onConfirm={onConfirm} />
         {tab.kind === "editor" && <button className="browser-menu-item" role="menuitem" aria-label="恢复编辑器" title="单独重启编辑器"
@@ -241,6 +222,8 @@ export function BrowserHeader({ tab, tabs, metadata, ready, busy, focused, compa
     </div>
     </div>
     {cookiesOpen && <BrowserCookies key={`${tab.id}:${tab.url}`} tab={tab} onClose={() => { setCookiesOpen(false); toolsTrigger.current?.focus(); }} />}
+    {historyEnabled && historyTab === tab.id && <BrowserHistoryDialog tabID={tab.id} onNavigate={onNavigate}
+      onClose={() => { setHistoryTab(""); toolsTrigger.current?.focus(); }} />}
     {tab.incognito && <p className="browser-private-note">无痕会话 · 关闭全部无痕标签后清理网站数据；下载和主动保存的收藏会保留。</p>}
     {menu}
     {busy && <div className="progress-line" />}

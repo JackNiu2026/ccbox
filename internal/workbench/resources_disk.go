@@ -14,10 +14,16 @@ import (
 	"github.com/sylvinus/agent-vm/internal/vm"
 )
 
+var errDiskShrinkUnavailable = errors.New("暂不支持缩小虚拟硬盘，现有磁盘仍可扩容或从已有备份恢复")
+
 type resourceDisk struct {
 	supported bool
 	info      cage.DiskImageInfo
 	recovery  bool
+}
+
+func (d resourceDisk) currentGiB() int {
+	return int((d.info.VirtualBytes + (1 << 30) - 1) >> 30)
 }
 
 func (s *Server) readResourceDisk() (resourceDisk, error) {
@@ -49,7 +55,7 @@ func (d resourceDisk) diskLimit(allocation cage.ResourceAllocation, instanceDir 
 
 func (d resourceDisk) changePending(allocation cage.ResourceAllocation, limit int) bool {
 	return d.supported && !d.recovery && !allocation.Automatic && allocation.DiskGiB > 0 &&
-		d.info.VirtualBytes > 0 && limit > 0 && int64(limit)<<30 != d.info.VirtualBytes
+		d.info.VirtualBytes > 0 && allocation.DiskGiB > d.currentGiB() && int64(limit)<<30 > d.info.VirtualBytes
 }
 
 func (s *Server) startEnvironmentForDisk() error {
@@ -142,11 +148,10 @@ func (s *Server) adjustEnvironmentDisk(disk resourceDisk, targetGiB int) (return
 	ctx := s.operationContext()
 	dir := s.instanceDir()
 	targetBytes := int64(targetGiB) << 30
-	shrinking := targetBytes < disk.info.VirtualBytes
-	additional := disk.info.HostAllocatedBytes + (1 << 30)
-	if shrinking && disk.info.Format == "qcow2" {
-		additional += disk.info.HostAllocatedBytes
+	if targetBytes < disk.info.VirtualBytes {
+		return errDiskShrinkUnavailable
 	}
+	additional := disk.info.HostAllocatedBytes + (1 << 30)
 	if free, ok := host.FreeGiB(filepath.Dir(disk.info.Path)); ok && uint64(free)<<30 < uint64(additional) {
 		return fmt.Errorf("可用磁盘空间不足，至少需要 %d GiB 临时空间保存恢复备份", (additional+(1<<30)-1)>>30)
 	}
@@ -169,21 +174,15 @@ func (s *Server) adjustEnvironmentDisk(disk resourceDisk, targetGiB int) (return
 		returned = fmt.Errorf("硬盘调整未完成，已恢复调整前的磁盘：%w", returned)
 	}()
 
-	if shrinking {
-		if err := s.shrinkEnvironmentDisk(dir, disk.info.VirtualBytes, targetGiB); err != nil {
-			return err
-		}
-	} else if err := cage.SetDiskResizeLimit(dir, targetGiB); err != nil {
+	if err := cage.SetDiskResizeLimit(dir, targetGiB); err != nil {
 		return err
 	}
 
 	if err := s.startEnvironmentForDisk(); err != nil {
 		return err
 	}
-	if !shrinking {
-		if _, err := s.controlDiskGuest(90*time.Second, cage.GuestDiskGrowScript(targetBytes)); err != nil {
-			return fmt.Errorf("环境未能扩展根文件系统：%w", err)
-		}
+	if _, err := s.controlDiskGuest(90*time.Second, cage.GuestDiskGrowScript(targetBytes)); err != nil {
+		return fmt.Errorf("环境未能扩展根文件系统：%w", err)
 	}
 	final, err := cage.DiskImageUsage(dir)
 	if err != nil || final.VirtualBytes != targetBytes {
@@ -193,43 +192,4 @@ func (s *Server) adjustEnvironmentDisk(disk resourceDisk, targetGiB int) (return
 		return fmt.Errorf("重启后未能确认客机磁盘容量与根文件系统：%w", err)
 	}
 	return cage.CommitDiskResize(dir)
-}
-
-func (s *Server) shrinkEnvironmentDisk(dir string, currentBytes int64, targetGiB int) error {
-	if err := s.startEnvironmentForDisk(); err != nil {
-		return err
-	}
-	out, err := s.controlDiskGuest(45*time.Second, cage.GuestDiskInspectShrinkScript)
-	if err != nil {
-		return fmt.Errorf("无法检查现有 Linux 根分区：%w", err)
-	}
-	inspection, err := cage.ParseDiskShrinkInspection(out)
-	if err != nil {
-		return err
-	}
-	if inspection.DiskSectors != currentBytes/512 {
-		return errors.New("客机根分区与主虚拟磁盘的容量不一致，无法安全缩小")
-	}
-	plan, err := cage.PlanDiskShrink(inspection, targetGiB)
-	if err != nil {
-		return err
-	}
-	s.setMessage("正在准备离线缩小根文件系统…")
-	if _, err = s.controlDiskGuest(3*time.Minute, cage.GuestInstallShrinkHookAndStageScript(plan)); err != nil {
-		return err
-	}
-	if err = s.stopEnvironmentForDisk(s.operationContext()); err != nil {
-		return err
-	}
-	if err = s.startEnvironmentForDisk(); err != nil {
-		return err
-	}
-	if _, err = s.controlDiskGuest(2*time.Minute, cage.GuestRelocateGPTAndTrimScript(plan)); err != nil {
-		return err
-	}
-	ctx := s.operationContext()
-	return s.withStoppedDisk(ctx, func() error {
-		s.setMessage("正在校验和压缩虚拟磁盘…")
-		return cage.ShrinkColdDiskImage(ctx, dir, targetGiB)
-	})
 }

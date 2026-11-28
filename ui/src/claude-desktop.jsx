@@ -17,6 +17,7 @@ import { DeviceCheckButton } from "./device-checks";
 import { RemoteView } from "./views";
 import { useWindowVisibility } from "./window-visibility";
 import { guestCapability } from "./guest-capabilities.mjs";
+import { translate as tr } from "./message-catalog.mjs";
 import "./claude-desktop.css";
 
 const desktopZooms = [0.75, 0.9, 1, 1.1, 1.25, 1.5];
@@ -33,7 +34,7 @@ export function useDesktopZoom(automatic = false) {
   return [zoom, setZoom];
 }
 
-export function DesktopToolbar({ desktop, platform, title = "Claude Desktop", zoom, setZoom, onConfirm, onStop, busy, refresh, sidebarCollapsed, onExpand, children, automatic = false }) {
+export function DesktopToolbar({ desktop, platform, title = "Claude Desktop", zoom, setZoom, onConfirm, onStop, busy, refresh, sidebarCollapsed, onExpand, children, automatic = false, deviceCheck = true }) {
   const [hidden, setHidden] = useState(() => {
     try { return localStorage.getItem("cage-desktop-toolbar-hidden") === "true"; }
     catch { return false; }
@@ -69,7 +70,7 @@ export function DesktopToolbar({ desktop, platform, title = "Claude Desktop", zo
         </span>
         <span className="desktop-toolbar-spacer" />
         {children}
-        <DeviceCheckButton target="desktop" disabled={busy || !desktop?.running} />
+        {deviceCheck && <DeviceCheckButton target="desktop" disabled={busy || !desktop?.running} />}
         {desktop?.running && (
           <label className="desktop-display-size">
             显示大小
@@ -115,7 +116,13 @@ export function DesktopToolbar({ desktop, platform, title = "Claude Desktop", zo
   );
 }
 
-export function ClaudeDesktop({
+export function ClaudeDesktop({ localInstances, instance, ...props }) {
+  const openedDefault = useRef(false);
+  const slot = localInstances ? instance : "";
+  return <ClaudeDesktopSession key={slot} {...props} slot={slot} localInstances={localInstances} openedDefault={openedDefault} />;
+}
+
+function ClaudeDesktopSession({
   uploads = [],
   status,
   onProjectOpened,
@@ -127,9 +134,13 @@ export function ClaudeDesktop({
   onDetails,
   onExpand,
   sidebarCollapsed,
+  slot,
+  localInstances,
+  onInstanceChange,
+  openedDefault,
 }) {
   const [closedChooser, setClosedChooser] = useState("");
-  const directoryRequest = uploads.find((item) => item.directory && item.id !== closedChooser);
+  const directoryRequest = !slot && uploads.find((item) => item.directory && item.id !== closedChooser);
   const automatic = status.guest_system?.startsWith("windows");
   const available = guestCapability(status, "desktop");
   const [zoom, setZoom] = useDesktopZoom(automatic);
@@ -140,7 +151,7 @@ export function ClaudeDesktop({
   const [statusError, setStatusError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [jobID, setJobID] = useState("");
-  const opened = useRef(false);
+  const base = slot ? "/claude-desktop/instances/" + slot : "/claude-desktop";
   const statusRequest = useRef(null);
   const statusRevision = useRef(0);
   const ownJob = status.job?.kind?.startsWith("claude-desktop-");
@@ -148,7 +159,7 @@ export function ClaudeDesktop({
   const refresh = async (valid = () => true) => {
     if (!available) return null;
     const revision = statusRevision.current;
-    const request = statusRequest.current ??= api("/claude-desktop");
+    const request = statusRequest.current ??= api(base);
     try {
       const value = await request;
       if (!valid() || revision !== statusRevision.current) return null;
@@ -169,7 +180,7 @@ export function ClaudeDesktop({
     setSubmitting(true);
     setError("");
     try {
-      const job = await api(`/claude-desktop/${action}`, {});
+      const job = await api(base + "/" + action, {});
       setJobID(job.id);
     } catch (e) {
       setError(e.message);
@@ -184,8 +195,8 @@ export function ClaudeDesktop({
     const poll = async () => {
       const value = await refresh(() => !disposed);
       if (disposed) return;
-      if (value && !opened.current) {
-        opened.current = true;
+      if (value && !slot && !openedDefault.current) {
+        openedDefault.current = true;
         if (value.installed && !value.running && !value.failed && !jobID)
           await run("start");
       }
@@ -209,7 +220,7 @@ export function ClaudeDesktop({
   }, [status.job]);
   return (
     <section className="claude-desktop-view" aria-label="Claude Desktop">
-      {!nativeAvailable() && <BrowserUploads requests={uploads} onStatus={onStatus} />}
+      {!slot && !nativeAvailable() && <BrowserUploads requests={uploads} onStatus={onStatus} />}
       {directoryRequest && <ProjectDialog
         key={directoryRequest.id}
         status={status}
@@ -225,8 +236,14 @@ export function ClaudeDesktop({
         }}
       />}
       <DesktopToolbar desktop={desktop} platform={automatic ? "Windows" : "Linux"} zoom={zoom} setZoom={setZoom} automatic={automatic}
+        deviceCheck={!slot}
         onConfirm={onConfirm} onStop={() => run("stop")} busy={busy || !available} refresh={() => refresh()} sidebarCollapsed={sidebarCollapsed} onExpand={onExpand}>
-        {desktop?.installed && !status.guest_system?.startsWith("windows") && <button className="quiet-button" disabled={busy} onClick={async () => {
+        {localInstances && <InlineSelect aria-label={tr("Claude Desktop 实例")} value={slot} disabled={busy}
+          onValueChange={onInstanceChange}>
+          <option value="">{tr("默认实例")}</option>
+          {["2", "3", "4"].map(number => <option key={number} value={number}>{tr("独立实例 {0}", number)}</option>)}
+        </InlineSelect>}
+        {!slot && desktop?.installed && !status.guest_system?.startsWith("windows") && <button className="quiet-button" disabled={busy} onClick={async () => {
           if (!desktop.running || await onConfirm({ title: "更新 Claude Desktop？", body: "请先保存应用内的工作。更新会关闭 Claude Desktop，从官方软件源安装可用版本，再重新打开；登录资料继续保留。", confirm: "更新应用" })) run("update");
         }}>更新应用</button>}
       </DesktopToolbar>
@@ -259,6 +276,8 @@ export function ClaudeDesktop({
           <RemoteView
             ref={remoteRef}
             desktop
+            desktopInstance={slot}
+            systemClipboard={!slot}
             zoom={zoom}
             visible={visible}
             keyboard={status.keyboard}
@@ -275,16 +294,15 @@ export function ClaudeDesktop({
                 : "在 CCBox 中使用 Claude Desktop"}
             </h2>
             <p>
-              Chat 和 Code 共用一个官方应用。在 CCBox
-              内安装、登录并使用，项目文件来自已打开的文件夹。
+              {slot ? tr("此实例使用独立的登录资料和应用设置。") : "Chat 和 Code 共用一个官方应用。在 CCBox 内安装、登录并使用，项目文件来自已打开的文件夹。"}
             </p>
-            {!desktop?.installed && (
+            {!slot && !desktop?.installed && (
               <p>
                 首次使用时从 Anthropic 官方源下载，不增加 CCBox 默认安装包体积。
               </p>
             )}
             <div className="desktop-actions">
-              {desktop && (
+              {desktop && (!slot || desktop.installed) && (
                 <button
                   className="primary"
                   disabled={busy || !status.vm_running}
@@ -298,7 +316,7 @@ export function ClaudeDesktop({
                   {desktop.installed ? "打开 Claude Desktop" : "下载并安装"}
                 </button>
               )}
-              {desktop?.installed && !status.guest_system?.startsWith("windows") && (
+              {!slot && desktop?.installed && !status.guest_system?.startsWith("windows") && (
                 <button
                   className="quiet-button"
                   disabled={busy}
@@ -317,7 +335,8 @@ export function ClaudeDesktop({
                 </button>
               )}
             </div>
-            {desktop?.installed && <p>{status.guest_system?.startsWith("windows")
+            {slot && desktop && !desktop.installed && <p>{tr("请先从默认实例安装 Claude Desktop。")}</p>}
+            {!slot && desktop?.installed && <p>{status.guest_system?.startsWith("windows")
               ? "在 Claude Desktop 应用内检查并安装更新。"
               : "Linux 版通过系统软件源更新。可点击上方“更新应用”，或在 CCBox 终端运行 sudo apt update && sudo apt install --only-upgrade claude-desktop。"}</p>}
             <p className="desktop-note">

@@ -276,7 +276,7 @@ func (s *Server) createWindowsCLITerminal(input terminalRequest) (*terminalSessi
 			if len(parts) == 2 && parts[0] == "ccs" {
 				request["ccs_profile"] = parts[1]
 			}
-			payload, found, err := s.prepareTerminalConversation(workspace, selection, input.sharedID)
+			payload, found, err := s.prepareTerminalConversation(workspace, selection, input.sharedID, input.AutoHandoff)
 			if err != nil {
 				return nil, err
 			}

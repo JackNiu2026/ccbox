@@ -189,7 +189,14 @@ internal sealed class MainWindow : Form
             core.NavigationStarting += (_, e) => { if (!UpdatePolicy.IsWorkbench(e.Uri, expectedPort)) e.Cancel = true; };
             core.NewWindowRequested += (_, e) => e.Handled = true;
             core.DownloadStarting += (_, e) => e.Cancel = true;
-            core.PermissionRequested += (_, e) => e.State = CoreWebView2PermissionState.Deny;
+            core.PermissionRequested += (_, e) =>
+            {
+                e.SavesInProfile = false;
+                e.State = e.PermissionKind == CoreWebView2PermissionKind.Microphone
+                    && UpdatePolicy.IsWorkbench(e.Uri, expectedPort)
+                    ? CoreWebView2PermissionState.Allow
+                    : CoreWebView2PermissionState.Deny;
+            };
             core.WebMessageReceived += Receive;
             core.ProcessFailed += (_, _) => { webFailed = true; Error("工作台显示进程已退出。后台任务保留，可重试连接。"); };
             core.NavigationCompleted += (_, e) => {

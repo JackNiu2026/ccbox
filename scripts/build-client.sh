@@ -69,6 +69,7 @@ if [[ "$platform" == macos ]]; then
 <key>CFBundleIconFile</key><string>Cage</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
+<key>NSMicrophoneUsageDescription</key><string>CCBox uses the microphone when you enable it and a guest application is recording.</string>
 <key>NSHighResolutionCapable</key><true/>
 <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
 </dict></plist>
@@ -76,8 +77,8 @@ PLIST
   # An ad-hoc development signature makes the local build runnable. No release
   # certificate, notarization, installer, or installed app is touched.
   codesign --force --sign - "$bundle/Contents/Resources/cage"
-  codesign --force --sign - "$bundle/Contents/MacOS/Cage"
-  codesign --force --sign - "$bundle"
+  codesign --force --sign - --entitlements packaging/macos/ccbox-audio.entitlements "$bundle/Contents/MacOS/Cage"
+  codesign --force --sign - --entitlements packaging/macos/ccbox-audio.entitlements "$bundle"
   codesign --verify --deep --strict "$bundle"
   ditto -c -k --keepParent "$bundle" "$stage/result/CCBox-Client-macos-$arch.zip"
 else

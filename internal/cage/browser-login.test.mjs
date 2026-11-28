@@ -32,3 +32,27 @@ test("login redirects and popups stay private, closing one login leaves the othe
   await browser.finish("b".repeat(24));
   assert.deepEqual(closed, ["1", "2"]);
 });
+
+test("a slow login hands off an open tab without waiting for the website", async () => {
+  let finishNavigation;
+  const methods = [];
+  const browser = new LoginBrowser(async (method, params) => {
+    methods.push(method);
+    if (method === "Target.createBrowserContext") return { browserContextId: "private-context" };
+    if (method === "Target.createTarget") return { targetId: "prepared-login" };
+    if (method === "Page.navigate") return new Promise(resolve => { finishNavigation = resolve; });
+    if (method === "Target.disposeBrowserContext") assert.equal(params.browserContextId, "private-context");
+  }, { navigateWait: 10 });
+  const login = "a".repeat(24);
+  try {
+    const deadline = AbortSignal.timeout(250);
+    const timeout = new Promise((_, reject) => deadline.addEventListener("abort", () => reject(deadline.reason), { once: true }));
+    const result = await Promise.race([browser.open(login, "https://claude.ai/oauth/authorize", async () => "connected"), timeout]);
+    assert.deepEqual(result, { id: "prepared-login" });
+    assert.equal(browser.contexts.size, 1);
+    assert.ok(methods.includes("Page.navigate"));
+  } finally {
+    finishNavigation?.();
+    await browser.finish(login);
+  }
+});

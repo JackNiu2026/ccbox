@@ -150,3 +150,46 @@ func TestProjectGroupsCannotTakeAnotherNamedProjectsFolders(t *testing.T) {
 		t.Fatal("failed save modified groups", groups)
 	}
 }
+
+func TestProjectMetadataPreservesExistingWorkspaceOffline(t *testing.T) {
+	s, current, other := groupFixture(t)
+	saved := sharedProjects{
+		Paths: []string{current, other},
+		Groups: []projectGroup{
+			{Workspace: current, Name: "active", Folders: []string{current}},
+			{Workspace: other, Name: "other", Folders: []string{other}},
+		},
+	}
+	if err := writePrivate(filepath.Join(s.profile, "projects.json"), saved); err != nil {
+		t.Fatal(err)
+	}
+	s.preferences.Workspace = current
+	s.ready = false
+	s.projectShares = nil
+
+	update := func(workspace string, fields map[string]any, want int) {
+		t.Helper()
+		fields["workspace"] = workspace
+		data, err := json.Marshal(fields)
+		if err != nil {
+			t.Fatal(err)
+		}
+		r := request(s, "POST", "/api/projects/metadata", s.origin, string(data), true)
+		if r.Code != want {
+			t.Fatalf("metadata status=%d, want %d: %s", r.Code, want, r.Body.String())
+		}
+	}
+	update(other, map[string]any{"pinned": true}, http.StatusOK)
+	update(other, map[string]any{"name": "renamed"}, http.StatusOK)
+	update(clientMountRoot+"/"+strings.Repeat("c", 32), map[string]any{"name": "bad"}, http.StatusBadRequest)
+	groups, err := s.projectGroups()
+	if err != nil || len(groups) != 2 || groups[0].Workspace != other || groups[0].Name != "renamed" ||
+		!slices.Equal(groups[0].Folders, []string{other}) || s.workspace() != current || len(s.projectShares) != 0 {
+		t.Fatalf("metadata changed current workspace, grants, or ordering: %+v, %v", groups, err)
+	}
+	update(other, map[string]any{"pinned": false}, http.StatusOK)
+	groups, err = s.projectGroups()
+	if err != nil || len(groups) != 2 || groups[0].Workspace != current || groups[1].Name != "renamed" {
+		t.Fatalf("unpin changed base order or name: %+v, %v", groups, err)
+	}
+}

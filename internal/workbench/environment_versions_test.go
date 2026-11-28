@@ -54,6 +54,42 @@ func TestGuestConnectionRejectsInterruptedMaintenanceEvenWithCurrentManifest(t *
 	}
 }
 
+func TestGuestConnectionKeepsShipped0200GuestUsable(t *testing.T) {
+	shipped := cage.GuestManifest{
+		Protocol: 1, AppVersion: "0.20.0",
+		Revision: "934074036b1e9f32d67b9b30c7cd0aa9a25481db88d51ec14c7189cf267f7f6e",
+	}
+	for _, test := range []struct {
+		name    string
+		change  func(*cage.GuestManifest)
+		allowed bool
+	}{
+		{"shipped", func(*cage.GuestManifest) {}, true},
+		{"local Windows preview", func(m *cage.GuestManifest) {
+			m.Revision = "490b498591785b10a317e3b479eb0e446fa8969d416c374f193b5617ffa73d9d"
+		}, true},
+		{"interrupted", func(m *cage.GuestManifest) { m.Updating = true }, false},
+		{"other protocol", func(m *cage.GuestManifest) { m.Protocol++ }, false},
+		{"other version", func(m *cage.GuestManifest) { m.AppVersion = "0.19.3" }, false},
+		{"unidentified scripts", func(m *cage.GuestManifest) { m.Revision = strings.Repeat("a", 64) }, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			manifest := shipped
+			test.change(&manifest)
+			encoded, _ := json.Marshal(manifest)
+			got, current, err := parseGuestConnection(append([]byte("{\"token\":\"existing-test-token\"}\nexisting-test-password\n"), encoded...))
+			if test.allowed {
+				if err != nil || current == nil || current.Current() ||
+					got.Token != "existing-test-token" || got.VNCPassword != "existing-test-password" {
+					t.Fatalf("compatible guest cannot reuse its credentials: manifest=%+v error=%v", current, err)
+				}
+			} else if !errors.Is(err, errGuestUpdateRequired) {
+				t.Fatalf("unexpected legacy guest accepted: %v", err)
+			}
+		})
+	}
+}
+
 func TestVersionQueryPreservesNewerMaintenanceDecision(t *testing.T) {
 	s := testServer(t)
 	s.noteGuestUpdateRequired(0, errGuestMaintenanceInterrupted.Error())

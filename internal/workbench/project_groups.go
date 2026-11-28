@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -19,6 +20,7 @@ type projectGroup struct {
 	Workspace string   `json:"workspace"`
 	Name      string   `json:"name"`
 	Folders   []string `json:"folders"`
+	Pinned    bool     `json:"pinned,omitempty"`
 }
 
 func (s *Server) readSharedProjects() (sharedProjects, error) {
@@ -65,7 +67,87 @@ func (s *Server) projectGroups() ([]projectGroup, error) {
 			groups = append(groups, projectGroup{Workspace: path, Name: filepath.Base(path), Folders: []string{path}})
 		}
 	}
+	sort.SliceStable(groups, func(i, j int) bool { return groups[i].Pinned && !groups[j].Pinned })
 	return groups, nil
+}
+
+func (s *Server) projectMetadata(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Workspace string  `json:"workspace"`
+		Name      *string `json:"name"`
+		Pinned    *bool   `json:"pinned"`
+	}
+	if !readJSON(w, r, &input) {
+		return
+	}
+	if input.Workspace == "" || isClientMountPath(input.Workspace) || input.Name == nil && input.Pinned == nil {
+		http.Error(w, "请选择已保存的项目", http.StatusBadRequest)
+		return
+	}
+	if input.Name != nil {
+		*input.Name = strings.TrimSpace(*input.Name)
+		if !validProjectName(*input.Name) {
+			http.Error(w, "请填写有效的项目名称", http.StatusBadRequest)
+			return
+		}
+	}
+	if !s.op.TryLock() {
+		http.Error(w, "另一个操作仍在进行，请稍候", http.StatusConflict)
+		return
+	}
+	defer s.op.Unlock()
+	s.mu.Lock()
+	closing := s.closing
+	s.mu.Unlock()
+	if closing || s.busy() {
+		http.Error(w, "环境正在处理其他操作，请稍后重试", http.StatusConflict)
+		return
+	}
+	groups, err := s.projectGroups()
+	if err != nil {
+		requestError(w, err)
+		return
+	}
+	matches := func(group projectGroup) bool { return group.Workspace == input.Workspace }
+	index := slices.IndexFunc(groups, matches)
+	if index < 0 || slices.ContainsFunc(groups[index].Folders, isClientMountPath) {
+		http.Error(w, "请选择已保存的项目", http.StatusBadRequest)
+		return
+	}
+	saved, err := s.readSharedProjects()
+	if err != nil {
+		requestError(w, err)
+		return
+	}
+	group := groups[index]
+	index = slices.IndexFunc(saved.Groups, matches)
+	if index >= 0 {
+		// Retain grants that are not currently visible in the project list.
+		group = saved.Groups[index]
+	}
+	if input.Name != nil {
+		group.Name = *input.Name
+	}
+	if input.Pinned != nil {
+		group.Pinned = *input.Pinned
+	}
+	if index >= 0 {
+		saved.Groups[index] = group
+	} else {
+		saved.Groups = append(saved.Groups, group)
+		if !slices.Contains(saved.Paths, group.Workspace) {
+			saved.Paths = append(saved.Paths, group.Workspace)
+		}
+	}
+	if err := writePrivate(filepath.Join(s.profile, "projects.json"), saved); err != nil {
+		requestError(w, err)
+		return
+	}
+	jsonReply(w, group)
+}
+
+func validProjectName(name string) bool {
+	return name != "" && utf8.RuneCountInString(name) <= 100 && !strings.ContainsAny(name, "\x00\r\n")
 }
 
 func (s *Server) projectFolders(workspace string) ([]string, error) {
@@ -152,7 +234,7 @@ func (s *Server) saveProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	input.Name = strings.TrimSpace(input.Name)
-	if input.Name == "" || utf8.RuneCountInString(input.Name) > 100 || strings.ContainsAny(input.Name, "\x00\r\n") || len(input.Folders) == 0 || len(input.Folders) > 32 {
+	if !validProjectName(input.Name) || len(input.Folders) == 0 || len(input.Folders) > 32 {
 		http.Error(w, "请填写项目名称，并添加 1–32 个文件夹", http.StatusBadRequest)
 		return
 	}
@@ -287,7 +369,9 @@ func (s *Server) saveProject(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	index := slices.IndexFunc(saved.Groups, func(g projectGroup) bool { return g.Workspace == input.Workspace })
+	input.Pinned = false
 	if index >= 0 {
+		input.Pinned = saved.Groups[index].Pinned
 		saved.Groups[index] = input
 	} else {
 		saved.Groups = append(saved.Groups, input)

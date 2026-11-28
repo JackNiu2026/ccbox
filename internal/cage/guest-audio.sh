@@ -1,5 +1,5 @@
-# A virtual output shared by Cage applications. No hardware or microphone
-# modules are loaded, and the PulseAudio protocol is Unix-socket only.
+# Virtual output and an on-demand PCM source. Guest audio never opens the
+# host's hardware directly, and the PulseAudio protocol is Unix-socket only.
 if ! command -v pulseaudio >/dev/null || ! command -v parec >/dev/null; then
   sudo env DEBIAN_FRONTEND=noninteractive APT_CONFIG="${CAGE_APT_CONFIG:-/dev/null}" apt-get -o DPkg::Lock::Timeout=60 update </dev/null
   sudo env DEBIAN_FRONTEND=noninteractive APT_CONFIG="${CAGE_APT_CONFIG:-/dev/null}" apt-get -o DPkg::Lock::Timeout=60 install -y --no-install-recommends pulseaudio pulseaudio-utils </dev/null
@@ -18,6 +18,12 @@ load-module module-native-protocol-unix socket=/run/cage-audio/native auth-anony
 set-default-sink cage_output
 set-default-source cage_output.monitor
 PULSE
+if ! cage_is_ubuntu; then
+  sudo tee -a /etc/claude-cage/audio.pa >/dev/null <<'PULSE_INPUT'
+load-module module-pipe-source source_name=cage_input file=/run/cage-audio/input.fifo format=s16le rate=48000 channels=1 source_properties=device.description=Cage
+set-default-source cage_input
+PULSE_INPUT
+fi
 if cage_is_ubuntu; then
   # snapd gives Chromium a private mount namespace. Publish the same sink
   # through a group-authenticated socket inside chromium's common data.
@@ -35,7 +41,9 @@ Environment=PULSE_RUNTIME_PATH=/run/cage-audio/runtime
 Environment=PULSE_STATE_PATH=/run/cage-audio/state
 RuntimeDirectory=cage-audio
 RuntimeDirectoryMode=0750
+ExecStartPre=-/usr/bin/rm -f /run/cage-audio/input.fifo
 ExecStart=/usr/local/bin/cage-log-run /usr/bin/pulseaudio -n --daemonize=no --exit-idle-time=-1 --disallow-exit --disallow-module-loading --disable-shm=true --realtime=no --high-priority=no --use-pid-file=no --file=/etc/claude-cage/audio.pa
+ExecStartPost=/bin/sh -c 'if ! grep -q module-pipe-source /etc/claude-cage/audio.pa; then exit 0; fi; for i in $(seq 1 50); do [ -p /run/cage-audio/input.fifo ] && chmod 0600 /run/cage-audio/input.fifo && exit 0; sleep .1; done; exit 0'
 LogNamespace=cage
 Restart=on-failure
 RestartSec=1

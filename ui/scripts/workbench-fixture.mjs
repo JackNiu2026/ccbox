@@ -228,11 +228,21 @@ export async function createWorkbench({
       const previous = groups.find(group => group.workspace === workspace);
       if (previous?.folders.some(path => !body.folders.includes(path)) && (state.terminals.some(t => previous.folders.includes(t.workspace) && !t.closed) || state.tabs.some(t => t.kind === "editor" && previous.folders.includes(t.workspace)))) return route.fulfill({status:409, body:"请先关闭此项目的终端和编辑器"});
       const folders = [...new Set(body.folders)];
-      state.status.project_groups = [...groups.filter(group => group.workspace !== workspace && !folders.includes(group.workspace)), {workspace, name:body.name.trim(), folders}];
+      state.status.project_groups = [...groups.filter(group => group.workspace !== workspace && !folders.includes(group.workspace)), {workspace, name:body.name.trim(), folders, pinned: previous?.pinned}]
+        .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)));
       const removed = (previous?.folders || []).filter(path => !folders.includes(path));
       state.status.projects = [...new Set([...state.status.projects.filter(path => !removed.includes(path)), ...folders])];
       if (removed.includes(state.settings.workspace)) state.settings.workspace = workspace;
       result = {workspace, name:body.name.trim(), folders};
+    }
+    else if (path === "/projects/metadata") {
+      const groups = state.status.project_groups || state.status.projects.map(path => ({ workspace: path, name: path.split("/").at(-1), folders: [path] }));
+      const group = groups.find(item => item.workspace === body.workspace);
+      if (!group) return route.fulfill({ status: 400, body: "请选择已保存的项目" });
+      if (body.name !== undefined) group.name = body.name;
+      if (body.pinned !== undefined) group.pinned = body.pinned;
+      state.status.project_groups = groups.sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)));
+      result = group;
     }
     else if (path === "/projects/open") {
       if (state.failJob) return route.fulfill({ status: 400, contentType: "text/plain; charset=utf-8", body: "项目文件夹连接失败，原项目保持不变" });

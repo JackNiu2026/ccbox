@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Volume2, VolumeX } from "lucide-react";
+import { Mic, MicOff, Volume2, VolumeX } from "lucide-react";
 import { AudioOutput } from "./audio-output";
+import { AudioInput } from "./audio-input";
+import { translate as tr } from "./message-catalog.mjs";
 
 function savedAudio() {
   try {
@@ -76,5 +78,39 @@ export function AudioControls({ audio }) {
         if (next !== undefined) { event.preventDefault(); audio.volumeChange(Math.max(0, Math.min(100, next)) / 100); }
       }} />
     </div>}
+  </div>;
+}
+
+export function MicrophoneControl({ available, connection }) {
+  const [armedConnection, setArmedConnection] = useState("");
+  const [capture, setCapture] = useState({ state: "idle", demand: false });
+  const [error, setError] = useState("");
+  const recorder = useRef();
+  const armed = available && Boolean(connection) && armedConnection === connection;
+  useEffect(() => {
+    if (!armed) return;
+    const input = new AudioInput(setCapture, setError);
+    recorder.current = input;
+    input.setActive(true);
+    return () => { input.close(); recorder.current = null; };
+  }, [armed, connection]);
+  useEffect(() => {
+    if (!available || (armedConnection && armedConnection !== connection)) setArmedConnection("");
+  }, [available, connection, armedConnection]);
+  if (!available) return null;
+  const action = armed ? "关闭宿主麦克风" : "开启宿主麦克风";
+  const status = !armed ? action : capture.state === "capturing" ? "麦克风正在使用" : "麦克风已开启，等待客机录音";
+  return <div className="audio-controls microphone-controls">
+    <button type="button" aria-label={tr(action)} aria-pressed={armed}
+      title={tr(error || status)} onClick={() => {
+        if (armed) recorder.current?.setActive(false);
+        setArmedConnection(armed ? "" : connection);
+      }}>
+      {armed ? <Mic size={15} /> : <MicOff size={15} />}
+      {armed && <span role="status">{tr(capture.state === "capturing" ? "录音中" : "麦克风待命")}</span>}
+    </button>
+    {armed && error && (capture.demand
+      ? <button type="button" title={tr(error)} onClick={() => recorder.current?.retry()}>{tr("重试麦克风")}</button>
+      : <span role="status" title={tr(error)}>{tr("麦克风不可用")}</span>)}
   </div>;
 }

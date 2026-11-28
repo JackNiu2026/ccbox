@@ -337,9 +337,6 @@ type claudeSelection struct{ ID, GuestID, Subject string }
 
 func (s *Server) selectClaudeAccount(requestedID string, login bool, workspace string) (claudeSelection, error) {
 	var empty claudeSelection
-	if !login && requestedID != "" && requestedID != "auto" {
-		return empty, errors.New("Claude 终端会自动分配账号")
-	}
 	m := &s.claudeAccounts
 	m.mu.Lock()
 	list, err := s.loadClaudeAccounts()
@@ -377,6 +374,17 @@ func (s *Server) selectClaudeAccount(requestedID string, login bool, workspace s
 			guestID = a.guestID()
 		}
 		return claudeSelection{ID: requestedID, GuestID: guestID}, nil
+	}
+	if requestedID != "" && requestedID != "auto" {
+		a := list.find(requestedID)
+		if a == nil || a.Status != "ready" || !validClaudeGuestID(a.guestID()) {
+			return empty, errors.New("所选 Claude 账号尚未就绪，请刷新账号列表")
+		}
+		subject := claudeIdentityHash(a.Email, a.Organization)
+		if subject == "" {
+			return empty, errors.New("所选 Claude 账号尚未确认登录身份")
+		}
+		return claudeSelection{ID: a.ID, GuestID: a.guestID(), Subject: subject}, nil
 	}
 	if len(list.Accounts) == 0 {
 		return empty, nil

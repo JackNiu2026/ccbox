@@ -36,7 +36,7 @@ func parseGuestConnection(data []byte) (guestCredentials, *cage.GuestManifest, e
 	if manifest.Updating {
 		return credentials, manifest, errGuestMaintenanceInterrupted
 	}
-	if !manifest.Current() {
+	if !manifest.CanAttach() {
 		return credentials, manifest, errGuestUpdateRequired
 	}
 	return credentials, manifest, nil
@@ -105,11 +105,14 @@ CAGE_VERSIONS`)
 			components.Status = "current"
 			if components.UpdateRequired {
 				components.Status = "update_required"
+				if snapshot.Manifest != nil && snapshot.Manifest.CanAttach() {
+					components.Status = "update_available"
+				}
 			}
 			if snapshot.Manifest != nil && snapshot.Manifest.Updating {
 				detail = errGuestMaintenanceInterrupted.Error()
 			}
-			if components.UpdateRequired {
+			if components.Status == "update_required" {
 				message := errGuestUpdateRequired.Error()
 				if detail != "" {
 					message = detail

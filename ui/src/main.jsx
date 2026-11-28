@@ -42,7 +42,7 @@ import { BrowserHeader, BrowserTabRail, TerminalHeader, ExpandSidebar, ExpandPan
 import { useDownloadNotifications, useDesktopFiles } from "./browser-downloads";
 import { BrowserUploads } from "./browser-uploads";
 import { BrowserSettingsPage } from "./browser-settings";
-import { AudioControls, useAudioOutput } from "./audio";
+import { AudioControls, MicrophoneControl, useAudioOutput } from "./audio";
 import { EnvironmentClock } from "./environment-clock";
 import { ProjectDialog } from "./project-dialog";
 import {
@@ -80,6 +80,7 @@ function App() {
   const [managementPage, setManagementPage] = useState("");
   const [tailnetLogin, setTailnetLogin] = useState(null);
   const [desktopOpen, setDesktopOpen] = useState(false);
+  const [desktopInstance, setDesktopInstance] = useState("");
   const [terminalChoice, setTerminalChoice] = useState(null);
   const [openingSession, setOpeningSession] = useState("");
   const [sessionOpenError, setSessionOpenError] = useState(null);
@@ -315,8 +316,10 @@ function App() {
     }
   };
   const clipboardConnection = getClientContext().connection_id;
+  const localDesktopInstances = getClientContext().mode === "local" && (!status?.guest_system || status.guest_system === "debian-13");
+  const viewingDesktopInstance = localDesktopInstances && desktopOpen && Boolean(desktopInstance);
   useEffect(() => {
-    if (!status?.ready || !clipboardAvailable || !nativeAvailable()) return;
+    if (!status?.ready || !clipboardAvailable || !nativeAvailable() || viewingDesktopInstance) return;
     const clipboard = shareClipboard({
       connect: () => new WebSocket(runtimeSocketURL("/clipboard")), native,
       onStatus: setToast,
@@ -324,8 +327,8 @@ function App() {
     });
     window.cageSyncClipboard = () => clipboard.sync();
     return () => { clipboard.dispose(); delete window.cageSyncClipboard; };
-  }, [status?.ready, clipboardAvailable, clipboardConnection]);
-  const desktopFiles = useDesktopFiles(Boolean(status?.ready && desktopAvailable), notify, desktopOpen && !settingsOpen && !managementPage && !storageRecovery && windowVisible, windowVisible);
+  }, [status?.ready, clipboardAvailable, clipboardConnection, viewingDesktopInstance]);
+  const desktopFiles = useDesktopFiles(Boolean(status?.ready && desktopAvailable), notify, desktopOpen && !viewingDesktopInstance && !settingsOpen && !managementPage && !storageRecovery && windowVisible, windowVisible);
   const downloads = [...(browser.downloads || []), ...desktopFiles.downloads];
   useDownloadNotifications(downloads, notify, Boolean(browser.uploads?.length || desktopFiles.uploads.length));
   const refreshSettings = async () => {
@@ -504,11 +507,12 @@ function App() {
       previous?.anchor === anchor ? null : { path, anchor },
     );
   };
-  const createTerminal = async (path, kind, loginAccountId) => {
+  const createTerminal = async (path, kind, accountId, autoHandoff) => {
     setTerminalChoice(null);
     const result = await api("/terminals", {
       workspace: path, kind,
-      ...(loginAccountId && { claude_account_id: loginAccountId }),
+      ...(accountId && { claude_account_id: accountId }),
+      ...(typeof autoHandoff === "boolean" && { auto_handoff: autoHandoff }),
     });
     showTerminal(result);
     sessionsChanged();
@@ -582,8 +586,10 @@ function App() {
       ? event.currentTarget : terminalTrigger.current);
   const terminalMenuAt = (location) => terminalChoice?.anchor?.dataset.terminalLocation === location && (
     <TerminalMenu choice={terminalChoice} busy={busy}
+      profiles={!isRemoteClient() && system !== "windows-remote" &&
+        (settings?.claude_terminal_command?.trim() || "claude") === "claude" ? claudeProfiles : null}
       onClose={() => setTerminalChoice(null)}
-      onSelect={(kind) => createTerminal(terminalChoice.path, kind).catch((e) => notify(e.message))} />
+      onSelect={(kind, accountId, autoHandoff) => createTerminal(terminalChoice.path, kind, accountId, autoHandoff).catch((e) => notify(e.message))} />
   );
   const openEditor = async (path = workspace) => {
     if (!browserAvailable || !editorAvailable) {
@@ -1297,6 +1303,10 @@ function App() {
     setProjectDialog(null);
     setHome(true);
   };
+  const updateProjectMetadata = async (workspace, changes) => {
+    await api("/projects/metadata", { workspace, ...changes });
+    await refreshStatus.current?.();
+  };
   useEffect(() => {
     if (status?.workspace) setSelectedProject(status.workspace);
   }, [status?.workspace]);
@@ -1347,6 +1357,7 @@ function App() {
   const paneTabs = tab => !dualBrowser ? browserTabs : browserTabs.filter(item =>
     item.id === tab.id || (tab.id === leftId && item.id !== rightId));
   const browserHeader = tab => <BrowserHeader tab={tab} tabs={paneTabs(tab)} metadata={metadata}
+    localHistory={browser.localHistory === true && getClientContext().mode === "local" && (!status.guest_system || status.guest_system === "debian-13")}
     vertical={browserTabLayout === "vertical"}
     ready={status.ready} busy={busy} focused={active === tab.id} compact={split} splitDrag={splitDrag}
     sidebarButton={sidebarButton(paneSide(tab.id))} exitButton={expandButton(tab)}
@@ -1504,6 +1515,9 @@ function App() {
             editorAvailable={editorAvailable}
             projectsAvailable={projectsAvailable}
             onOpenProject={(path = "") => setProjectDialog({ path })}
+            onEditProject={path => setProjectDialog({ path, editOnly: true })}
+            onProjectRename={(path, title) => setRename({ projectWorkspace: path, title })}
+            onProjectPin={(path, pinned) => updateProjectMetadata(path, { pinned }).catch(error => notify(error.message))}
             onSelect={select}
             onClose={closeTab}
             onRename={renameTab}
@@ -1584,6 +1598,8 @@ function App() {
               onStatus={notify} onFallback={(text, message) => setTransfer({ text, message })} visible={!settingsOpen && !managementPage} onConfirm={confirm}
               sidebarCollapsed={sidebarCollapsed} onExpand={() => persist("cage-sidebar-collapsed", false, setSidebarCollapsed)} />}
             {!storageRecovery && desktopOpen && !macGuest && <ClaudeDesktop
+              instance={desktopInstance} onInstanceChange={setDesktopInstance}
+              localInstances={localDesktopInstances}
               uploads={desktopFiles.uploads}
               onProjectOpened={() => refreshStatus.current?.()}
               status={status} visible={!settingsOpen && !managementPage} remoteRef={remote}
@@ -1921,6 +1937,8 @@ function App() {
             />
             <span className="status-spacer" />
             <AudioControls audio={audio} />
+            <MicrophoneControl connection={clipboardConnection}
+              available={Boolean(audio.enabled && localDesktopInstances && windowVisible && nativeAvailable() && !managementPage)} />
             <EnvironmentClock timezone={settings.timezone} clock12Hour={settings.clock_12_hour} />
             <span className="status-feedback" role="status">
               <SafetyMessage message={toast ||
@@ -1967,9 +1985,15 @@ function App() {
           current={settings}
           status={status}
           initialPath={projectDialog.path}
+          editOnly={projectDialog.editOnly}
           onClose={() => setProjectDialog(null)}
           onSettings={() => { setProjectDialog(null); openSettings("project"); }}
           onOpened={openedProject}
+          onEdited={async () => {
+            await refreshSettings();
+            await refreshStatus.current?.();
+            setProjectDialog(null);
+          }}
           onRemoved={async (removed, workspace) => {
             await refreshSettings();
             await refreshStatus.current?.();
@@ -1979,17 +2003,17 @@ function App() {
       )}
       {rename && (
         <Modal
-          title={tr("重命名标签")}
-          onClose={() => setRename(null)}
+          title={tr(rename.projectWorkspace ? "重命名项目" : "重命名标签")}
+          onClose={rename.pending ? undefined : () => setRename(null)}
           footer={
             <>
               <span className="save-note">{tr("仅修改工作台中显示的名称")}</span>
-              <button onClick={() => setRename(null)}>{tr("取消")}</button>
+              <button disabled={rename.pending} onClick={() => setRename(null)}>{tr("取消")}</button>
               <button
                 className="primary"
                 form="rename-tab"
                 type="submit"
-                disabled={!rename.title.trim()}
+                disabled={!rename.title.trim() || rename.pending}
               >{tr("保存名称")}</button>
             </>
           }
@@ -1999,7 +2023,17 @@ function App() {
             id="rename-tab"
             onSubmit={async (event) => {
               event.preventDefault();
-              if (!rename.title.trim()) return;
+              if (!rename.title.trim() || rename.pending) return;
+              if (rename.projectWorkspace) {
+                setRename({ ...rename, pending: true });
+                try {
+                  await updateProjectMetadata(rename.projectWorkspace, { name: rename.title.trim() });
+                  setRename(null);
+                } catch (error) {
+                  setRename({ ...rename, error: error.message });
+                }
+                return;
+              }
               if (rename.session) {
                 try {
                   await api("/cli/sessions/" + rename.id + "/metadata", {title:rename.title.trim()});
@@ -2025,16 +2059,18 @@ function App() {
               setRename(null);
             }}
           >
-            <label htmlFor="tab-title">{tr("标签名称")}</label>
+            <label htmlFor="tab-title">{tr(rename.projectWorkspace ? "项目名称" : "标签名称")}</label>
             <input
               id="tab-title"
               autoFocus
               maxLength={100}
+              disabled={rename.pending}
               value={rename.title}
               onChange={(event) =>
                 setRename({ ...rename, title: event.target.value })
               }
             />
+            {rename.error && <p role="alert">{rename.error}</p>}
           </form>
         </Modal>
       )}

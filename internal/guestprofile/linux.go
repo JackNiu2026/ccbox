@@ -37,6 +37,8 @@ func (p *Profile) Linux(script string) string {
 		script = strings.ReplaceAll(script, "pwd.getpwnam("+v+")", "pwd.getpwnam("+roles+".get("+v+", "+v+"))")
 	}
 	script = strings.ReplaceAll(script, "cage_output", p.AudioName)
+	script = strings.ReplaceAll(script, "cage_input", p.audioInputName())
+	script = strings.ReplaceAll(script, "source_properties=device.description=Cage", `source_properties="device.description='`+p.AudioDescription+`'"`)
 	script = strings.ReplaceAll(script, "sink_properties=device.description=Cage", `sink_properties="device.description='`+p.AudioDescription+`'"`)
 	script = strings.ReplaceAll(script, "2880x1800", fmt.Sprintf("%dx%d", p.DisplayWidth, p.DisplayHeight))
 	script = strings.ReplaceAll(script, "--window-size=1440,900", fmt.Sprintf("--window-size=%d,%d", p.BrowserWidth, p.BrowserHeight))
@@ -92,6 +94,17 @@ sudo -u ` + p.BrowserUsername + ` test -w /dev/dri/renderD128
 }
 
 var linuxHomePaths = regexp.MustCompile(`/home/(cage-browser|cage)([/\s"']|$)`)
+
+func (p *Profile) audioInputName() string {
+	if p.AudioName == "" {
+		return "cage_input"
+	}
+	if name, ok := strings.CutPrefix(p.AudioName, "alsa_output."); ok {
+		return "alsa_input." + name
+	}
+	const suffix = "_input"
+	return p.AudioName[:min(len(p.AudioName), 120-len(suffix))] + suffix
+}
 
 type accountRule struct {
 	pattern *regexp.Regexp

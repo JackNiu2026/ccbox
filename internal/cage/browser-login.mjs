@@ -1,8 +1,9 @@
 // The browser owns these ephemeral cookies. Only the origin of a login page
 // may enter the workbench tab list, including for popups and redirects.
 export class LoginBrowser {
-  constructor(cdp) {
+  constructor(cdp, { navigateWait = 3000 } = {}) {
     this.cdp = cdp;
+    this.navigateWait = navigateWait;
     this.contexts = new Map();
   }
 
@@ -23,17 +24,25 @@ export class LoginBrowser {
         !["claude.ai", "claude.com", "console.anthropic.com", "platform.claude.com", "platform.anthropic.com"].includes(url.hostname))
       throw new Error("仅可打开官方登录地址");
     await this.finish(login);
-    const { browserContextId } = await this.cdp("Target.createBrowserContext", { disposeOnDetach: true });
+    const { browserContextId } = await this.cdp("Target.createBrowserContext", { disposeOnDetach: true }, undefined, 12000);
     const expiry = setTimeout(() => this.close(browserContextId).catch(() => {}), 15 * 60_000);
     expiry.unref();
     this.contexts.set(browserContextId, { login, expiry });
     try {
-      const { targetId } = await this.cdp("Target.createTarget", { browserContextId, url: "about:blank", newWindow: true });
+      const { targetId } = await this.cdp("Target.createTarget", { browserContextId, url: "about:blank", newWindow: true }, undefined, 12000);
       const sessionId = await activate({ targetId, browserContextId, type: "page", url: url.href });
-      await this.cdp("Page.navigate", { url: url.href }, sessionId);
+      const navigation = this.cdp("Page.navigate", { url: url.href }, sessionId, 30000);
+      let timer;
+      try {
+        // Once the private tab is visible, a slow proxy must not hold up
+        // the workbench or dispose of the user's authorization session.
+        await Promise.race([navigation, new Promise(resolve => { timer = setTimeout(resolve, this.navigateWait); })]);
+      } finally {
+        clearTimeout(timer);
+      }
       return { id: targetId };
     } catch {
-      await this.close(browserContextId);
+      await this.close(browserContextId).catch(() => {});
       throw new Error("临时登录页面未能打开");
     }
   }

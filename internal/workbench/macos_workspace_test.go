@@ -472,7 +472,7 @@ func TestMacOSDefaultWorkspaceNewAndLegacyConversations(t *testing.T) {
 		t.Fatal(err)
 	}
 	s.preferences.Workspace = host
-	script, fresh, err := s.prepareTerminalConversation(host, claudeSelection{}, "")
+	script, fresh, err := s.prepareTerminalConversation(host, claudeSelection{}, "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -493,7 +493,7 @@ func TestMacOSDefaultWorkspaceNewAndLegacyConversations(t *testing.T) {
 		if err = writePrivate(mobileRecordPath(s.profile, id), record); err != nil {
 			t.Fatal(err)
 		}
-		script, resumed, err := s.prepareTerminalConversation(host, claudeSelection{}, id)
+		script, resumed, err := s.prepareTerminalConversation(host, claudeSelection{}, id, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -504,7 +504,7 @@ func TestMacOSDefaultWorkspaceNewAndLegacyConversations(t *testing.T) {
 		if s.terminalSummaries()[0]["workspace_notice"] != macOSLegacyWorkspaceNotice {
 			t.Fatal("desktop terminal omitted the legacy workspace notice")
 		}
-		if _, _, err = s.prepareTerminalConversation(host+"/other", claudeSelection{}, id); err == nil {
+		if _, _, err = s.prepareTerminalConversation(host+"/other", claudeSelection{}, id, nil); err == nil {
 			t.Fatal("another project reused a legacy workspace binding")
 		}
 	}

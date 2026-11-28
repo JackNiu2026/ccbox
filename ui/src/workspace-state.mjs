@@ -22,6 +22,8 @@ export function orderedTabs(tabs, saved) {
 const clientMount = /^\/run\/cage-client-projects\/[0-9a-f]{32}$/;
 const folderName = (path) => path?.split(/[\\/]/).filter(Boolean).at(-1);
 
+export const isClientProject = path => clientMount.test(path);
+
 export function rememberClientProjectName(share) {
   if (!clientMount.test(share.guest_path)) return;
   try { sessionStorage.setItem(share.guest_path, folderName(share.path)); }

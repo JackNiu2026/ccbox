@@ -6,6 +6,7 @@ import { isRemoteClient } from "./client-context.mjs";
 import { MacOSAccountGate, useAccount } from "./account";
 import { GuestSystemPicker, HostCloneSummary, validGuestChoice } from "./guest-system-picker";
 import { InitializationStorage } from "./initialization-storage";
+import { InitializationDNS } from "./initialization-dns";
 import { GuestProfileOptions, guestOptionsForSystem } from "./guest-profile";
 import { ProxySettings } from "./proxy-settings";
 import { SetupProgress } from "./setup-progress";
@@ -211,6 +212,16 @@ function Initialization({ initial, onComplete, onLicenseRequired }) {
     }
     throw new Error("初始化页面已关闭，操作未继续。");
   }
+  async function saveInitializationDNS(dns) {
+    if (actionPending.current) return false;
+    if (status?.vm_running && !await confirm({ title: "保存设置并重启环境？", body: "请先保存正在编辑的内容。项目文件和浏览器资料会保留。", confirm: "保存设置" })) return false;
+    let saved = false;
+    await run(async () => {
+      await waitForJob(await api("/settings", dns), "settings");
+      saved = true;
+    }, "正在保存加密 DNS…");
+    return saved;
+  }
   async function bindExit() {
     await run(async () => {
       const accepted = await bindDetectedMacOSExit(exitCandidate, confirm);
@@ -279,7 +290,11 @@ function Initialization({ initial, onComplete, onLicenseRequired }) {
             <InitializationStorage value={storage} onChange={setStorage} disabled={busy} />
             <GuestProfileOptions value={guestProfile} onChange={setGuestProfile} disabled={busy} system={choice?.guest_system} />
           </>}
-          {step === "proxy" && <><ProxySettings initializing status={status} onConfirm={confirm} onDirty={setProxyDirty} onApplied={async () => { setProxy(await api("/proxy")); pollNow.current?.(); }} />{choice?.clone && !needsProxySetup(null, status, proxy) && <HostCloneSummary pending={choice.pending} onChange={setChoice} />}</>}
+          {step === "proxy" && <>
+            <ProxySettings initializing status={status} onConfirm={confirm} onDirty={setProxyDirty} onApplied={async () => { setProxy(await api("/proxy")); pollNow.current?.(); }} />
+            <InitializationDNS applied={Boolean(proxy?.active && proxy?.running && !proxy?.route_error)} busy={busy} onSave={saveInitializationDNS} />
+            {choice?.clone && !needsProxySetup(null, status, proxy) && <HostCloneSummary pending={choice.pending} onChange={setChoice} />}
+          </>}
           {step === "install" && (ready ? <div className="initialization-ready"><ShieldCheck size={36} /><h2>{tr("环境已就绪")}</h2><p>{tr("独立客机已安装，工具、文件和登录状态会持续保存。以后打开 CCBox 可直接进入工作台。")}</p></div> : <>
             {exitCandidate && <section className="initialization-notice" aria-label="确认固定出口"><p>客机终端、浏览器和代理已测得一致出口。请确认是否将它绑定为固定出口。</p><button disabled={busy || Boolean(connectionError)} onClick={bindExit}>绑定检测到的固定出口 {exitCandidate}</button></section>}
             {needsExitRestart && <section className="initialization-notice" aria-label="固定出口已保存"><p>固定出口已保存。重启客机并重新检测后才能进入工作台。</p><button className="primary" disabled={busy || Boolean(connectionError)} onClick={restart}>{status.vm_running ? "重启客机并重新检测" : "启动客机并重新检测"}</button></section>}

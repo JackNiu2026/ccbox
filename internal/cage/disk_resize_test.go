@@ -106,12 +106,15 @@ func TestDiskBoundsAndAllocationLimits(t *testing.T) {
 	if got, err := (ResourceAllocation{Automatic: true}).DiskLimit(dir, 40<<30, 10<<30); err != nil || got != 40 {
 		t.Fatalf("automatic existing disk = %d, %v; want 40", got, err)
 	}
-	// Manual below min fails.
-	if _, err := (ResourceAllocation{Automatic: false, DiskGiB: minGiB - 1}).DiskLimit(dir, 40<<30, 15<<30); err == nil {
+	// A new disk still needs a safe minimum allocation.
+	if _, err := (ResourceAllocation{DiskGiB: MinDiskGiB - 1}).DiskLimit(dir, 0, 0); err == nil {
 		t.Fatal("expected below-minimum disk error")
 	}
-	// Manual within [min, max] succeeds.
-	if got, err := (ResourceAllocation{Automatic: false, DiskGiB: 32}).DiskLimit(dir, 40<<30, 15<<30); err != nil || got != 32 {
-		t.Fatalf("manual disk = %d, %v; want 32", got, err)
+	// A saved allocation from an older release cannot shrink a larger disk.
+	if got, err := (ResourceAllocation{Automatic: false, DiskGiB: 32}).DiskLimit(dir, 40<<30, 15<<30); err != nil || got != 40 {
+		t.Fatalf("manual disk = %d, %v; want existing 40", got, err)
+	}
+	if got, err := (ResourceAllocation{DiskGiB: 40}).DiskLimit(dir, 40<<30, 39<<30); err != nil || got != 40 {
+		t.Fatalf("nearly full disk blocked CPU or memory settings: %d, %v", got, err)
 	}
 }

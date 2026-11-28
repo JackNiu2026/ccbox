@@ -28,6 +28,7 @@ type terminalRequest struct {
 	Workspace       string `json:"workspace"`
 	Kind            string `json:"kind"`
 	ClaudeAccountID string `json:"claude_account_id"`
+	AutoHandoff     *bool  `json:"auto_handoff,omitempty"`
 	sharedID        string
 	requestContext  context.Context
 }
@@ -257,6 +258,17 @@ func (s *Server) createTerminal(input terminalRequest) (*terminalSession, error)
 
 // Caller holds the environment operation lock through PTY publication.
 func (s *Server) createTerminalLocked(input terminalRequest) (*terminalSession, error) {
+	if input.AutoHandoff != nil {
+		if input.Kind != "claude" || input.sharedID != "" {
+			return nil, errors.New("只有新建的 Claude 终端可选择自动接续")
+		}
+		s.mu.Lock()
+		command := claudeTerminalCommand(s.preferences)
+		s.mu.Unlock()
+		if command != "claude" {
+			return nil, errors.New("自动接续需要使用官方 claude 启动命令")
+		}
+	}
 	if s.windowsGuest != nil {
 		return s.createWindowsTerminal(input)
 	}
@@ -402,7 +414,7 @@ func (s *Server) createTerminalLocked(input terminalRequest) (*terminalSession, 
 	}
 	var conversation *mobileRecord
 	if input.Kind == "claude" && sharedCLILauncher(command) {
-		script, conversation, err = s.prepareTerminalConversation(workspace, selection, input.sharedID)
+		script, conversation, err = s.prepareTerminalConversation(workspace, selection, input.sharedID, input.AutoHandoff)
 		if err != nil {
 			return nil, err
 		}
@@ -452,6 +464,9 @@ func (s *Server) selectTerminalClaudeAccount(command, requested string, login bo
 			return claudeSelection{}, errors.New("CCS 使用自己的配置，不能指定 CCBox 账号")
 		}
 		return claudeSelection{}, nil
+	}
+	if !login && requested != "" && requested != "auto" && command != "claude" {
+		return claudeSelection{}, errors.New("自定义启动命令不能指定 CCBox 账号")
 	}
 	return s.selectClaudeAccount(requested, login, workspace)
 }

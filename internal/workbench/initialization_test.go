@@ -31,6 +31,28 @@ func initializationRequest(s *Server, action string, trusted bool) *httptest.Res
 	return w
 }
 
+func TestUntrackedInitializationRecognizesExistingLimaDisk(t *testing.T) {
+	s := testServer(t)
+	view, err := s.initializationState()
+	if err != nil || !view.Required || view.Prepared || view.Tracked {
+		t.Fatalf("fresh profile: %+v, %v", view, err)
+	}
+
+	instance := filepath.Join(s.profile, "state", "lima", cage.InstanceName(s.profile, s.environmentDir()))
+	if err := os.MkdirAll(instance, 0700); err != nil {
+		t.Fatal(err)
+	}
+	for name, contents := range map[string]string{"lima.yaml": "vmType: qemu\n", "disk": "persistent user disk"} {
+		if err := os.WriteFile(filepath.Join(instance, name), []byte(contents), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	view, err = s.initializationState()
+	if err != nil || view.Required || !view.Prepared || view.Tracked {
+		t.Fatalf("existing Lima v2 profile: %+v, %v", view, err)
+	}
+}
+
 func TestInitializationPersistsBeforeDiskCreationAndDoesNotResetExisting(t *testing.T) {
 	s := testServer(t)
 	read := func() initializationView {

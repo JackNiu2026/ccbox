@@ -441,6 +441,12 @@ func (s *Server) proxyDelay(w http.ResponseWriter, r *http.Request) {
 		requestError(w, errors.New("节点不存在"))
 		return
 	}
+	if cfg, err := loadConfig(s.configPath); err == nil {
+		if err := s.ensureProxyInterfaceBeforeUse(r.Context(), cfg); err != nil {
+			requestError(w, err)
+			return
+		}
+	}
 	var v struct {
 		Delay int `json:"delay"`
 	}

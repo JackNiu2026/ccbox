@@ -115,6 +115,7 @@ type Server struct {
 	conversationMu                                   sync.Mutex
 	mobileConnectMu                                  sync.Mutex
 	audioClients                                     int
+	audioInputClients                                int
 	projectShares                                    map[string]*projectShare
 	projectErrors                                    []projectShareError
 	clientMounts                                     map[string]*guestClientMount
@@ -128,6 +129,9 @@ type Server struct {
 	networkPaused                                    bool
 	proxyNetworkLost                                 bool
 	proxyRebindAfter                                 time.Time
+	proxyInterfaceOutage                             proxyInterfaceOutage
+	proxyBindingMu                                   sync.Mutex
+	proxyBindingChecks                               map[string]*proxyBindingCheck
 	checkCancel                                      context.CancelFunc
 	lifeContext                                      context.Context
 	lifeCancel                                       context.CancelFunc
@@ -391,6 +395,7 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("GET /api/notifications/events", s.notificationEvents)
 	mux.HandleFunc("POST /api/projects/open", s.openProject)
 	mux.HandleFunc("POST /api/projects/save", s.saveProject)
+	mux.HandleFunc("POST /api/projects/metadata", s.projectMetadata)
 	mux.HandleFunc("POST /api/projects/remove", s.removeProject)
 	mux.HandleFunc("POST /api/projects/refresh", s.refreshProjectFiles)
 	mux.HandleFunc("POST /api/projects/client-share", s.guestClientShare)
@@ -423,6 +428,7 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("POST /api/appearance", s.saveAppearance)
 	mux.HandleFunc("GET /api/appearance/codex", s.codexAppearance)
 	mux.HandleFunc("POST /api/settings/probe", s.probe)
+	mux.HandleFunc("POST /api/settings/dns-check", s.checkDNS)
 	mux.HandleFunc("GET /api/proxy", s.proxyStatus)
 	mux.HandleFunc("GET /api/proxy/local-sources", s.proxyLocalSources)
 	mux.HandleFunc("POST /api/proxy/delay", s.proxyDelay)
@@ -446,6 +452,8 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("POST /api/browser/extensions/upload", s.browserExtensionUpload)
 	mux.HandleFunc("GET /api/client/browser-extensions", s.localBrowserExtensions)
 	mux.HandleFunc("POST /api/client/browser-extensions", s.localBrowserExtensions)
+	mux.HandleFunc("GET /api/browser/history", s.localBrowserHistory)
+	mux.HandleFunc("DELETE /api/browser/history", s.localBrowserHistory)
 	mux.HandleFunc("POST /api/browser/{action}", s.browser)
 	mux.HandleFunc("POST /api/input/image", s.imageInput)
 	mux.HandleFunc("POST /api/input/text", s.textInput)
@@ -478,6 +486,9 @@ func (s *Server) handler() http.Handler {
 	mux.HandleFunc("GET /api/claude-desktop/vnc", s.claudeDesktopVNC)
 	mux.HandleFunc("POST /api/claude-desktop/resize", s.claudeDesktopResize)
 	mux.HandleFunc("POST /api/claude-desktop/{action}", s.claudeDesktopAction)
+	mux.HandleFunc("GET /api/claude-desktop/instances/{slot}", s.desktopInstance)
+	mux.HandleFunc("GET /api/claude-desktop/instances/{slot}/{action}", s.desktopInstance)
+	mux.HandleFunc("POST /api/claude-desktop/instances/{slot}/{action}", s.desktopInstance)
 	if s.macosGuest != nil {
 		mux.HandleFunc("POST /api/macos/first-setup", s.macOSLoginWindow)
 		mux.HandleFunc("POST /api/macos/login", s.macOSLoginWindow)
@@ -489,6 +500,7 @@ func (s *Server) handler() http.Handler {
 	}
 	mux.HandleFunc("GET /api/terminals", s.listTerminals)
 	mux.HandleFunc("GET /api/audio", s.audio)
+	mux.HandleFunc("GET /api/audio/input", s.audioInput)
 	mux.HandleFunc("GET /api/clipboard", s.sharedClipboard)
 	mux.HandleFunc("POST /api/clipboard/copy", s.clipboardCopy)
 	mux.HandleFunc("POST /api/clipboard/files", s.clipboardArchive)
@@ -783,10 +795,17 @@ func (s *Server) probe(w http.ResponseWriter, r *http.Request) {
 		requestError(w, err)
 		return
 	}
-	loc, err := probeLocation(r.Context(), v.Config)
-	if finishErr := s.finishLocationProbe(v.Config, loc, err); finishErr != nil {
-		requestError(w, finishErr)
+	old, err := loadConfig(s.configPath)
+	if err != nil {
+		requestError(w, err)
 		return
+	}
+	loc, active, err := s.probeCandidateLocation(r.Context(), old, v)
+	if active {
+		if finishErr := s.finishLocationProbe(v.Config, loc, err); finishErr != nil {
+			requestError(w, finishErr)
+			return
+		}
 	}
 	if err != nil {
 		requestError(w, err)

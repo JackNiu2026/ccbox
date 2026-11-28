@@ -8,6 +8,22 @@ if [ "${1:-}" = --login-id ]; then
   [ "${#login}" = 24 ] || exit 2
   shift 2
 fi
+# Absolute calls to the shared opener can bypass the instance's private PATH.
+# Only its own runtime and application directory may receive its login URLs.
+if [ -z "$login" ]; then
+  case "${HOME:-}" in
+    */.local/share/ccbox-desktop-instances/[234]/home)
+      case "${1:-}" in
+        http://*|https://*|claude://*|about:blank)
+          profile=${HOME%/home}
+          [ "${XDG_RUNTIME_DIR:-}" -ef "/run/ccbox-claude-desktop-${profile##*/}" ] || exit 1
+          [ "${CCBOX_DESKTOP_DATA:-}" = "$profile/app" ] || exit 1
+          exec /usr/local/bin/ccbox-instance-open "$1"
+          ;;
+      esac
+      ;;
+  esac
+fi
 case "${1:-}" in
   --finish-login)
     [ -n "$login" ] || exit 2

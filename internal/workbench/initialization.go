@@ -46,16 +46,16 @@ func (s *Server) initializationState() (initializationView, error) {
 	if !errors.Is(err, os.ErrNotExist) {
 		return initializationView{}, err
 	}
-	// Existing installations predate this screen. A directory or partial disk
-	// alone is not proof of a completed Linux installation.
+	// Retain existing VM profiles even when they predate the initialization record.
 	pending, err := guestos.LoadInstallation(s.profile)
 	if err != nil {
 		return initializationView{}, err
 	}
 	if s.macosGuest != nil || s.windowsGuest != nil {
-		return initializationView{Required: s.macSetupPending()}, nil
+		return initializationView{Required: s.macSetupPending(), Prepared: s.environmentPrepared()}, nil
 	}
-	return initializationView{Required: pending != nil || !s.environmentPrepared(), Started: pending != nil}, nil
+	prepared := s.environmentPrepared()
+	return initializationView{Required: pending != nil || !prepared, Started: pending != nil, Prepared: prepared}, nil
 }
 
 func (s *Server) finishInitialization() error {

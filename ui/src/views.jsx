@@ -23,6 +23,7 @@ import { useWindowVisibility } from "./window-visibility";
 import { displayGeometry, displaySizeSync, watchPixelRatio } from "./remote-display.mjs";
 import { installLocalCursorFallback } from "./remote-cursor.mjs";
 import { guestKeys } from "./guest-keys.mjs";
+import { translate as tr } from "./message-catalog.mjs";
 import { RefreshCw, Clipboard, ArrowUpRight } from "lucide-react";
 import { SessionAccount } from "./session-account";
 import "@xterm/xterm/css/xterm.css";
@@ -30,7 +31,7 @@ import "@xterm/xterm/css/xterm.css";
 const terminalAccountRequest = (path, options) => api("/cli" + path, options.body);
 
 export const RemoteView = forwardRef(function RemoteView(
-  { visible, focused = true, keyboard, guestPlatform = "linux", systemClipboard = true, tabId, copyScope = tabId, onStatus, onFallback, desktop = false, zoom = 1 },
+  { visible, focused = true, keyboard, guestPlatform = "linux", systemClipboard = true, tabId, copyScope = tabId, onStatus, onFallback, desktop = false, desktopInstance = "", zoom = 1 },
   ref,
 ) {
   const windowVisible = useWindowVisibility();
@@ -82,7 +83,8 @@ export const RemoteView = forwardRef(function RemoteView(
         Math.min(1000 * 2 ** failures.current++, 5000),
       );
     };
-    const desktopPrefix = desktop ? "/claude-desktop" : "";
+    const desktopPrefix = desktopInstance ? "/claude-desktop/instances/" + desktopInstance : desktop ? "/claude-desktop" : "";
+    const inputPath = desktopInstance ? desktopPrefix + "/input" : "/input";
     api(`${desktopPrefix}/vnc-credentials`)
       .then(({ password, display_scale, dynamic_scale, pixel_wheel }) => {
         if (disposed) return;
@@ -120,7 +122,7 @@ export const RemoteView = forwardRef(function RemoteView(
           setConnection("connected");
           sizeSync = displaySizeSync(
             async (size) => {
-              const reply = await api(desktop ? "/claude-desktop/resize" : "/browser/resize", size);
+              const reply = await api(desktop ? desktopPrefix + "/resize" : "/browser/resize", size);
               // The guest kept its own density: size the display for that one.
               if (size.scale !== undefined && reply?.scale !== size.scale && followScreen) {
                 followScreen = false;
@@ -142,6 +144,7 @@ export const RemoteView = forwardRef(function RemoteView(
           unwatchDensity = watchPixelRatio(resize);
           resize();
           const preparePaste = () => {
+            if (desktopInstance) return;
             const id = current.current.tabId;
             return prepareClipboardPaste(desktop ? "desktop" : "browser", id, {
               valid: () => !disposed && current.current.visible && current.current.tabId === id,
@@ -186,6 +189,7 @@ export const RemoteView = forwardRef(function RemoteView(
               return client.cagePasteContent(content,
                 (payload) => {
                   if (!valid()) throw new Error("输入目标已切换，请重新粘贴图片");
+                  if (desktopInstance) throw new Error(tr("独立实例支持粘贴文字，请在默认实例使用文件和图片传输。"));
                   return payload.files || payload.fileSelection
                     ? sendFiles(payload, desktop ? "desktop" : "browser", id, { valid })
                     : sendImage(payload, desktop ? "desktop" : "browser", id, { prepared });
@@ -196,12 +200,12 @@ export const RemoteView = forwardRef(function RemoteView(
                 if (!window.cageSharedClipboardActive) return client.cagePasteText(text);
                 return client.cageRunInput(async () => {
                   const valid = () => !disposed && current.current.visible;
-                  const state = await api("/input", { target: "desktop", id: "desktop", mode: "status" });
+                  const state = await api(inputPath, { target: "desktop", id: "desktop", mode: "status" });
                   if (!state.available || !valid()) throw new Error("输入位置已失去焦点，请重新点击输入框");
                   const session = crypto.randomUUID().replaceAll("-", "");
-                  const begun = await api("/input", { target: "desktop", id: "desktop", mode: "begin", context: state.context, session, sequence: 0 });
+                  const begun = await api(inputPath, { target: "desktop", id: "desktop", mode: "begin", context: state.context, session, sequence: 0 });
                   if (!begun.available || !valid()) throw new Error("输入位置已失去焦点，请重新点击输入框");
-                  const result = await api("/input", { target: "desktop", id: "desktop", mode: "commit", session, sequence: 1, text });
+                  const result = await api(inputPath, { target: "desktop", id: "desktop", mode: "commit", session, sequence: 1, text });
                   if (!result.available) throw new Error("文字输入未完成，请重新点击输入框");
                 });
               }
@@ -216,7 +220,7 @@ export const RemoteView = forwardRef(function RemoteView(
               if (value.mode !== "cancel" && (disposed || !current.current.visible ||
                   (desktop ? "desktop" : current.current.tabId) !== id))
                 throw new Error("输入位置已切换，请重新输入");
-              const result = await api("/input", { target: desktop ? "desktop" : "browser", id, ...value });
+              const result = await api(inputPath, { target: desktop ? "desktop" : "browser", id, ...value });
               if (value.mode !== "cancel" && !result.available)
                 throw new Error("输入位置已失去焦点，请重新输入");
               return result;
@@ -224,7 +228,7 @@ export const RemoteView = forwardRef(function RemoteView(
             tabId: () => desktop ? "desktop" : current.current.tabId,
             caretRect: async (session) => {
               const id = desktop ? "desktop" : current.current.tabId;
-              const value = await api("/input", { target: desktop ? "desktop" : "browser", id, mode: "status", session });
+              const value = await api(inputPath, { target: desktop ? "desktop" : "browser", id, mode: "status", session });
               return !disposed && current.current.visible &&
                 (desktop ? "desktop" : current.current.tabId) === id ? value : null;
             },
@@ -266,7 +270,7 @@ export const RemoteView = forwardRef(function RemoteView(
       client?.disconnect();
       rfb.current = null;
     };
-  }, [attempt, screenVisible, desktop]);
+  }, [attempt, screenVisible, desktop, desktopInstance]);
   useEffect(() => {
     if (focused && screenVisible && connection === "connected") {
       const t = setTimeout(() => { if (!document.activeElement?.closest(".chrome")) rfb.current?.focus(); }, 80);

@@ -6,11 +6,40 @@ if [ "${CAGE_DESKTOP_SESSION:-}" != 1 ]; then
   unset NOTIFY_SOCKET
   exec dbus-run-session -- "$0"
 fi
-export DISPLAY=:78 XAUTHORITY=/run/cage-desktop/Xauthority
-export XDG_RUNTIME_DIR=/run/cage-desktop XDG_CURRENT_DESKTOP=Openbox
-export PATH="$HOME/.local/bin:$PATH" BROWSER=/usr/local/bin/cage-open
-dbus-update-activation-environment DISPLAY XAUTHORITY XDG_RUNTIME_DIR XDG_CURRENT_DESKTOP
+runtime=/run/cage-desktop
+display=:78
+slot=${CCBOX_DESKTOP_SLOT:-}
+profile_args=()
 umask 077
+if [ -n "$slot" ]; then
+  case "$slot" in 2|3|4) ;; *) exit 2 ;; esac
+  runtime="/run/ccbox-claude-desktop-$slot"
+  display=":$((77 + slot))"
+  base="$HOME/.local/share/ccbox-desktop-instances/$slot"
+  test ! -L "$base" && test ! -L "$base/home" && test ! -L "$base/app"
+  mkdir -p "$base/home/.local/bin" "$base/app"
+  export HOME="$base/home" CCBOX_DESKTOP_DATA="$base/app"
+  export XDG_CONFIG_HOME="$HOME/.config" XDG_DATA_HOME="$HOME/.local/share" XDG_CACHE_HOME="$HOME/.cache"
+  export CLAUDE_CONFIG_DIR="$HOME/.claude"
+  profile_args=("--user-data-dir=$CCBOX_DESKTOP_DATA")
+  ln -sfn /usr/local/bin/ccbox-instance-open "$HOME/.local/bin/xdg-open"
+  mkdir -p "$XDG_DATA_HOME/applications" "$XDG_CONFIG_HOME"
+  printf '%s\n' '[Desktop Entry]' 'Type=Application' 'Name=CCBox Claude Desktop' 'NoDisplay=true' \
+    'Exec=/usr/local/bin/ccbox-instance-open %u' 'MimeType=x-scheme-handler/claude;x-scheme-handler/https;x-scheme-handler/http;' \
+    > "$XDG_DATA_HOME/applications/ccbox-desktop-instance.desktop"
+  for scheme in claude http https; do
+    xdg-mime default ccbox-desktop-instance.desktop "x-scheme-handler/$scheme"
+  done
+  cd "$HOME"
+fi
+export DISPLAY="$display" XAUTHORITY="$runtime/Xauthority"
+export XDG_RUNTIME_DIR="$runtime" XDG_CURRENT_DESKTOP=Openbox
+export PATH="$HOME/.local/bin:$PATH" BROWSER=/usr/local/bin/cage-open
+if [ -n "$slot" ]; then
+  export BROWSER=/usr/local/bin/ccbox-instance-open
+  dbus-update-activation-environment HOME XDG_CONFIG_HOME XDG_DATA_HOME XDG_CACHE_HOME CCBOX_DESKTOP_DATA BROWSER PATH
+fi
+dbus-update-activation-environment DISPLAY XAUTHORITY XDG_RUNTIME_DIR XDG_CURRENT_DESKTOP
 touch "$XAUTHORITY"
 xauth -f "$XAUTHORITY" add "$DISPLAY" . "$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
 printf '%s' "$DBUS_SESSION_BUS_ADDRESS" > "$XDG_RUNTIME_DIR/bus-address"
@@ -95,7 +124,7 @@ test -S "$XDG_RUNTIME_DIR/files.sock"
 export GTK_USE_PORTAL=1
 # Openbox is not auto-detected as a libsecret desktop by Electron. Select the
 # unlocked keyring explicitly so OAuth tokens survive application restarts.
-/usr/local/bin/cage-input-session /usr/bin/python3 -I /usr/local/bin/client_runtime.py claude-desktop "${scale_args[@]}" --password-store=gnome-libsecret --xdg-portal-required-version=3 &
+/usr/local/bin/cage-input-session /usr/bin/python3 -I /usr/local/bin/client_runtime.py claude-desktop "${profile_args[@]}" "${scale_args[@]}" --password-store=gnome-libsecret --xdg-portal-required-version=3 &
 app_pid=$!
 # The service becomes ready only after the application has opened a window.
 for i in $(seq 1 200); do

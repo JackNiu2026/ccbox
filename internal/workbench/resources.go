@@ -102,6 +102,14 @@ func (s *Server) resourceStatus(w http.ResponseWriter, r *http.Request) {
 	disk, diskErr := s.readResourceDisk()
 	if diskErr == nil && disk.supported {
 		minDisk, maxDisk := cage.DiskBounds(s.instanceDir(), uint64(disk.info.VirtualBytes), guestDiskUsed)
+		currentGiB := disk.currentGiB()
+		if currentGiB > 0 {
+			minDisk = currentGiB
+		}
+		savedDisk := a.DiskGiB
+		if savedDisk > 0 && savedDisk < currentGiB {
+			savedDisk = currentGiB
+		}
 		limit, limitErr := disk.diskLimit(a, s.instanceDir(), guestDiskUsed)
 		if limitErr != nil {
 			limit = a.DiskGiB
@@ -111,7 +119,7 @@ func (s *Server) resourceStatus(w http.ResponseWriter, r *http.Request) {
 		data["disk_recovery_required"] = disk.recovery
 		data["disk_change_pending"] = disk.changePending(a, limit) && limitErr == nil
 		data["disk_gib"] = limit
-		data["saved_disk_gib"] = a.DiskGiB
+		data["saved_disk_gib"] = savedDisk
 		data["min_disk_gib"] = minDisk
 		data["max_disk_gib"] = maxDisk
 		data["configured_disk_bytes"] = disk.info.VirtualBytes
@@ -157,6 +165,10 @@ func (s *Server) applyResources(w http.ResponseWriter, r *http.Request) {
 			disk, err := s.readResourceDisk()
 			if err != nil {
 				requestError(w, err)
+				return
+			}
+			if !input.Allocation.Automatic && input.Allocation.DiskGiB < disk.currentGiB() {
+				requestError(w, errDiskShrinkUnavailable)
 				return
 			}
 			var used uint64

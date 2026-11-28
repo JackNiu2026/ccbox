@@ -23,7 +23,8 @@ func TestAdminControlsDesktopUpdateChannel(t *testing.T) {
 	admin.updates.client.Transport = releaseTransport(func(r *http.Request) (*http.Response, error) {
 		base := catalog.DownloadBase(current)
 		archive := "CCBox-" + current + "-windows-amd64-setup.exe"
-		sums := hash + "  " + archive + "\n"
+		intel := "CCBox-" + current + "-macos-amd64.dmg"
+		sums := hash + "  " + archive + "\n" + hash + "  " + intel + "\n"
 		if corrupt {
 			sums = "invalid\n"
 		}
@@ -32,12 +33,13 @@ func TestAdminControlsDesktopUpdateChannel(t *testing.T) {
 		case catalog.SiteOrigin + "/downloads/catalog.json":
 			data, _ := json.Marshal([]catalog.Release{{Tag: "v" + current, Assets: []catalog.Asset{
 				{Name: archive, URL: base + archive, Size: 12345, State: "uploaded", Manual: true},
+				{Name: intel, URL: base + intel, Size: 12345, State: "uploaded", Manual: true},
 				{Name: "SHA256SUMS", URL: base + "SHA256SUMS", Size: int64(len(sums)), State: "uploaded"},
 			}}})
 			body = string(data)
 		case base + "SHA256SUMS":
 			body = sums
-		case base + archive:
+		case base + archive, base + intel:
 			if r.Method != http.MethodHead {
 				t.Fatalf("unexpected installer method: %s", r.Method)
 			}
@@ -75,6 +77,9 @@ func TestAdminControlsDesktopUpdateChannel(t *testing.T) {
 	published := feed(client.mux)
 	if len(published) != 1 || published[0].Tag != "v0.19.2" || !published[0].Assets[0].Manual || published[0].Assets[0].Digest != "sha256:"+hash {
 		t.Fatalf("invalid publication: %+v", published)
+	}
+	if selected, err := catalog.Select(published, "0.19.1", "darwin", "amd64"); err != nil || selected == nil || selected.Archive.Digest != "sha256:"+hash {
+		t.Fatalf("verified Intel macOS installer missing: %+v %v", selected, err)
 	}
 	current = "0.19.3"
 	corrupt = true

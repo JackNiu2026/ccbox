@@ -63,7 +63,7 @@ func (s *Server) terminalLoginLink(w http.ResponseWriter, r *http.Request) {
 		// Match the official CLI helper's private browser and cleanup key.
 		login = terminal.loginGuestID
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
 	defer cancel()
 	payload, _ := json.Marshal(map[string]string{"login": login, "url": input.URL})
 	data, err := s.guestAPI(ctx, token, "POST", "/login-open", payload)

@@ -13,19 +13,22 @@ export function ProjectDialog({
   status,
   initialPath = "",
   activate = true,
+  editOnly = false,
   onClose,
   onOpened,
+  onEdited,
   onRemoved,
   onSettings,
 }) {
   const groups = projectGroups(status);
   const projects = groups.map(group => group.workspace);
   const initialGroup = groups.find(group => group.folders.includes(initialPath));
-  const [adding, setAdding] = useState(Boolean(initialPath && !initialGroup) || projects.length === 0);
-  const [path, setPath] = useState(initialGroup?.workspace || initialPath || groups.find(group => group.folders.includes(status.workspace))?.workspace || projects[0] || "");
-  const [editing, setEditing] = useState("");
-  const [name, setName] = useState("");
-  const [folders, setFolders] = useState([]);
+  const editGroup = editOnly ? initialGroup : null;
+  const [adding, setAdding] = useState(Boolean(editGroup || (initialPath && !initialGroup)) || projects.length === 0);
+  const [path, setPath] = useState(editGroup ? "" : initialGroup?.workspace || initialPath || groups.find(group => group.folders.includes(status.workspace))?.workspace || projects[0] || "");
+  const [editing, setEditing] = useState(editGroup?.workspace || "");
+  const [name, setName] = useState(editGroup?.name || "");
+  const [folders, setFolders] = useState(editGroup?.folders || []);
   const [error, setError] = useState("");
   const [recovery, setRecovery] = useState("");
   const [pending, setPending] = useState(null);
@@ -133,6 +136,7 @@ export function ProjectDialog({
     else if (nativeAvailable()) void choose();
   };
   const performOpen = async () => {
+    if (editOnly && !editing) throw new Error("此项目已从列表移除");
     let workspace = path.trim();
     if (adding) {
       const saved = await api("/projects/save", {
@@ -140,6 +144,10 @@ export function ProjectDialog({
       });
       if (saved.approval) {
         setPending({ workspace: saved.workspace, grant: saved.approval });
+        return;
+      }
+      if (editOnly) {
+        await onEdited?.();
         return;
       }
       workspace = saved.workspace;
@@ -203,7 +211,7 @@ export function ProjectDialog({
         onSubmit={open}
       >
         <p>{adding ? "为项目命名，并添加需要一起使用的文件夹。" : activate ? "选择要打开的项目，或添加新项目。" : "从 CCBox 项目列表选择工作目录。新项目由 CCBox 授权并共享。"}</p>
-        {canShare && <>
+        {canShare && !editOnly && <>
           <button type="button" className="quiet-button project-picker-add" onClick={() => { setSharing(!sharing); setWriteAccess(false); }} disabled={busy} aria-expanded={sharing}>
             <FolderOpen size={16} />共享本机项目…
           </button>

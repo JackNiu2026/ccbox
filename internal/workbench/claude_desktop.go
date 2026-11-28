@@ -136,10 +136,20 @@ func (s *Server) claudeDesktopAction(w http.ResponseWriter, r *http.Request) {
 				<-done
 			}()
 			s.setMessage("正在下载并安装 Claude Desktop，可在操作详情查看进度…")
-			script := cage.ClaudeDesktopInstallScript()
+			script := `set -e
+for slot in 2 3 4; do
+  case "$(systemctl show --property=ActiveState --value "ccbox-claude-desktop@$slot.service" 2>/dev/null)" in
+    active|activating|deactivating|reloading)
+      echo '请先关闭所有独立 Claude Desktop 实例，再更新应用。' >&2
+      exit 1
+      ;;
+  esac
+done
+`
 			if action == "update" {
-				script = "set -e\nsudo systemctl stop cage-claude-desktop.service\n" + script
+				script += "sudo systemctl stop cage-claude-desktop.service\n"
 			}
+			script += cage.ClaudeDesktopInstallScript()
 			return RunMaintenanceScript(s.operationContext(), s.configPath, script, s.jobs.execution(), s.jobs.execution())
 		case "start":
 			return s.startClaudeDesktop()
@@ -307,7 +317,7 @@ if test -n "$manager"; then
 fi
 printf '%%s %%s %%s\n' %d %d "$scale" > /run/cage-desktop/desktop-size
 # A phone holds the display. Its release applies this size and density.
-if test -f /run/cage-phone-desktop/layout.json; then exit 0; fi
+%s
 if test -n "$manager" && test "$(cat /run/cage-desktop/display-scale 2>/dev/null)" != "$scale"; then
   dpi=$(awk -v scale="$scale" 'BEGIN {printf "%%.0f", scale * 96 * 1024}')
   # A session started by an earlier version has no list of its other settings.
@@ -325,8 +335,10 @@ fi
 xrandr --output VNC-0 --mode "$name"
 for old in $(xrandr --query | awk '/^ +cage-/ {print $1}'); do
   if [ "$old" != "$name" ]; then xrandr --delmode VNC-0 "$old"; xrandr --rmmode "$old"; fi
-done`, scale, wid, hei, wid, hei, float64((wid+32)*(hei+8)*60)/1000000, wid, wid+8, wid+16, wid+32, hei, hei+1, hei+2, hei+8)
+done`, scale, wid, hei, desktopPhoneResizeGuard, wid, hei, float64((wid+32)*(hei+8)*60)/1000000, wid, wid+8, wid+16, wid+32, hei, hei+1, hei+2, hei+8)
 }
+
+const desktopPhoneResizeGuard = "if test -f /run/cage-phone-desktop/layout.json; then exit 0; fi"
 
 func (s *Server) claudeDesktopVNC(w http.ResponseWriter, r *http.Request) {
 	if s.windowsGuest != nil {
@@ -343,11 +355,15 @@ func (s *Server) claudeDesktopVNC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer release()
+	s.streamClaudeDesktopVNC(w, r, "/run/cage-desktop")
+}
+
+func (s *Server) streamClaudeDesktopVNC(w http.ResponseWriter, r *http.Request, runtime string) {
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 	// No extra localhost port or public VNC listener on the host. SSH is bound
 	// to this profile's single guest and carries the authenticated RFB session.
-	cmd := s.sshCommand(ctx, "-T", s.sshTarget(), "--", "exec socat STDIO UNIX-CONNECT:/run/cage-desktop/vnc.sock")
+	cmd := s.sshCommand(ctx, "-T", s.sshTarget(), "--", "exec socat STDIO UNIX-CONNECT:"+runtime+"/vnc.sock")
 	reader, err := cmd.StdoutPipe()
 	if err != nil {
 		http.Error(w, "无法连接应用画面", 502)

@@ -704,6 +704,10 @@ final class CageApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKNaviga
         }
     }
     func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) { let alert = NSAlert(); alert.messageText = message; alert.addButton(withTitle:"确定"); alert.addButton(withTitle:"取消"); alert.beginSheetModal(for:window){completionHandler($0 == .alertFirstButtonReturn)} }
+    func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
+        let workbench = frame.isMainFrame && origin.protocol == "http" && origin.host == "localhost" && expectedPort > 0 && origin.port == expectedPort
+        decisionHandler(workbench && type == .microphone ? .grant : .deny)
+    }
     private var notificationsAvailable: Bool {
         Bundle.main.bundleURL.pathExtension == "app"
     }

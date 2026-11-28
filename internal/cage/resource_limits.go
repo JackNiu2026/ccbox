@@ -123,6 +123,12 @@ func (a ResourceAllocation) DiskLimit(storageDir string, currentDiskBytes, guest
 		}
 		return DefaultDiskGiB, nil
 	}
+	if currentGiB > 0 {
+		if a.DiskGiB <= currentGiB {
+			return currentGiB, nil
+		}
+		minGiB = max(MinDiskGiB, currentGiB)
+	}
 	if a.DiskGiB < minGiB || a.DiskGiB > maxGiB {
 		return 0, fmt.Errorf("硬盘上限须为 %d–%d GiB", minGiB, maxGiB)
 	}

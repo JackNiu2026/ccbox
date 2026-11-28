@@ -456,7 +456,7 @@ func (s *Server) terminalConversationAction(ctx context.Context, id string, inpu
 	return s.terminalConversationView(ctx, id)
 }
 
-func (s *Server) prepareTerminalConversation(workspace string, selection claudeSelection, existing string) (string, *mobileRecord, error) {
+func (s *Server) prepareTerminalConversation(workspace string, selection claudeSelection, existing string, autoHandoff *bool) (string, *mobileRecord, error) {
 	directories, err := s.projectAdditionalDirectories(workspace)
 	if err != nil {
 		return "", nil, err
@@ -498,6 +498,12 @@ func (s *Server) prepareTerminalConversation(workspace string, selection claudeS
 	record.Terminal, record.Account, record.Launcher = true, selection, launcher
 	if record.SwitchPolicy == "" {
 		record.SwitchPolicy = list.Scheduling.SwitchPolicy
+		if existing == "" && autoHandoff != nil {
+			record.SwitchPolicy = "wait"
+			if *autoHandoff {
+				record.SwitchPolicy = "allow"
+			}
+		}
 		if a := list.find(selection.ID); a != nil {
 			record.AccountLabel = a.Label
 		}

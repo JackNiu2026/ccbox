@@ -11,6 +11,43 @@ import (
 	"testing"
 )
 
+func TestAbsoluteGuestOpenerStaysInNumberedDesktop(t *testing.T) {
+	shell, err := exec.LookPath("sh")
+	if err != nil {
+		t.Skip("sh unavailable")
+	}
+	root := filepath.ToSlash(t.TempDir())
+	runtime := root + "/run/ccbox-claude-desktop-2"
+	if err := os.MkdirAll(runtime, 0700); err != nil {
+		t.Fatal(err)
+	}
+	script := strings.NewReplacer(
+		"/run/ccbox-claude-desktop-", "$test_root/run/ccbox-claude-desktop-",
+		"/usr/local/bin/ccbox-instance-open", "printf '%s'",
+	).Replace(guestOpen)
+	script = `test_root=$(cd "$2" && pwd -P) || exit
+export HOME="$test_root/.local/share/ccbox-desktop-instances/2/home"
+export CCBOX_DESKTOP_DATA="${HOME%/home}/app" XDG_RUNTIME_DIR="$test_root/run/ccbox-claude-desktop-2$3"
+unset CAGE_CLAUDE_LOGIN
+sudo() { return 11; }
+set -- "$1"
+` + script
+	for _, tc := range []struct {
+		url, runtimeSuffix string
+		ok                 bool
+	}{
+		{"https://example.invalid/login", "", true},
+		{"claude://callback", "", true},
+		{"claude://callback", "-unrelated", false},
+	} {
+		cmd := exec.Command(shell, "-c", script, "open", tc.url, root, tc.runtimeSuffix)
+		out, err := cmd.CombinedOutput()
+		if tc.ok && (err != nil || string(out) != tc.url) || !tc.ok && err == nil {
+			t.Fatalf("opener routing: %q, %v; wanted success=%v", out, err, tc.ok)
+		}
+	}
+}
+
 func TestDesktopCallbackFocusAfterHandoff(t *testing.T) {
 	node, err := exec.LookPath("node")
 	if err != nil {
@@ -49,21 +86,26 @@ func TestDesktopCallbackFocusAfterHandoff(t *testing.T) {
 				}
 				// Preserve the production shell flow; sudo only substitutes the two
 				// guest identities and the app. Node performs the real HTTP request.
-				sudo := "#!/bin/sh\nshift\nuser=$1\nshift\nif [ \"$user\" = cage ]; then exit \"$CALLBACK_EXIT\"; fi\nif [ \"$TEST_IDENTITY\" = cage-browser ]; then echo 'sudo denied' >&2; exit 1; fi\nshift\nexec \"$TEST_NODE\" \"$@\"\n"
-				if err := os.WriteFile(filepath.Join(dir, "sudo"), []byte(sudo), 0755); err != nil {
-					t.Fatal(err)
-				}
-				if err := os.WriteFile(filepath.Join(dir, "id"), []byte("#!/bin/sh\nprintf '%s\\n' \"$TEST_IDENTITY\"\n"), 0755); err != nil {
-					t.Fatal(err)
-				}
-				script := strings.ReplaceAll(guestOpen, "/etc/claude-cage/browser-control.json", config)
+				fixture := `id() { printf '%s\n' "$TEST_IDENTITY"; }
+sudo() {
+	shift
+	user=$1
+	shift
+	if [ "$user" = cage ]; then return "$CALLBACK_EXIT"; fi
+	if [ "$TEST_IDENTITY" = cage-browser ]; then echo 'sudo denied' >&2; return 1; fi
+	shift
+	"$TEST_NODE" "$@"
+}
+`
+				configJSON, _ := json.Marshal(filepath.ToSlash(config))
+				script := strings.ReplaceAll(guestOpen, `"/etc/claude-cage/browser-control.json"`, string(configJSON))
 				script = strings.ReplaceAll(script, "http://127.0.0.1:18500", server.URL)
 				script = strings.ReplaceAll(script, "/usr/bin/node", "\"$TEST_NODE\"")
 				code := "0"
 				if tc.fail {
 					code = "1"
 				}
-				args := []string{"-c", script, "open"}
+				args := []string{"-c", fixture + script, "open"}
 				login := tc.login
 				if tc.parameter {
 					args = append(args, "--login-id", tc.login)
@@ -71,7 +113,7 @@ func TestDesktopCallbackFocusAfterHandoff(t *testing.T) {
 				}
 				args = append(args, tc.url)
 				cmd := exec.Command("sh", args...)
-				cmd.Env = append(os.Environ(), "PATH="+dir+":"+os.Getenv("PATH"), "TEST_NODE="+node, "TEST_IDENTITY="+identity, "CALLBACK_EXIT="+code, "CAGE_CLAUDE_LOGIN="+login)
+				cmd.Env = append(os.Environ(), "MSYS2_ARG_CONV_EXCL=*", "TEST_NODE="+filepath.ToSlash(node), "TEST_IDENTITY="+identity, "CALLBACK_EXIT="+code, "CAGE_CLAUDE_LOGIN="+login)
 				out, err := cmd.CombinedOutput()
 				if tc.fail {
 					if err == nil {

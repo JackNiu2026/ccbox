@@ -9,12 +9,84 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/sylvinus/agent-vm/internal/cage"
 	"github.com/sylvinus/agent-vm/internal/managedproxy"
 )
+
+func TestStoppedEnvironmentClearsOnlyItsMissingInterfaceStatus(t *testing.T) {
+	s, _ := interfaceMonitorServer(t)
+	if err := os.Remove(filepath.Join(s.instanceDir(), "cage-running.json")); err != nil {
+		t.Fatal(err)
+	}
+	oldInterface, oldRunning, oldStart := physicalProxyInterface, proxyInterfaceCoreRunning, startProxyCore
+	t.Cleanup(func() {
+		physicalProxyInterface, proxyInterfaceCoreRunning, startProxyCore = oldInterface, oldRunning, oldStart
+	})
+	proxyInterfaceCoreRunning = func(context.Context, string, managedproxy.Store) bool { return true }
+	starts := 0
+	startProxyCore = func(context.Context, string, managedproxy.Store) error { starts++; return nil }
+	physicalProxyInterface = func(context.Context) (string, error) { return "", errors.New("missing uplink") }
+	s.monitorProxyInterface()
+	if !s.proxyNetworkLost || s.safety.monitorError != "missing uplink" {
+		t.Fatal("missing uplink was not recorded")
+	}
+	s.proxyRebindAfter = time.Now().Add(-time.Second)
+	s.networkPaused = true
+	physicalProxyInterface = func(context.Context) (string, error) { return "en0", nil }
+	s.monitorProxyInterface()
+	s.jobs.workers.Wait()
+	if s.proxyNetworkLost || s.safety.monitorError != "" || starts != 0 || !s.networkPaused {
+		t.Fatalf("unchanged uplink restarted the idle core or changed network intent: starts=%d", starts)
+	}
+}
+
+func TestConcurrentProxyBindingChecksSurviveFirstRequestCancellation(t *testing.T) {
+	s, _ := interfaceMonitorServer(t)
+	cfg, err := loadConfig(s.configPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldInterface, oldRunning := physicalProxyInterface, proxyInterfaceCoreRunning
+	t.Cleanup(func() { physicalProxyInterface, proxyInterfaceCoreRunning = oldInterface, oldRunning })
+	proxyInterfaceCoreRunning = func(context.Context, string, managedproxy.Store) bool { return true }
+	entered := make(chan struct{}, 2)
+	release := make(chan struct{})
+	var calls atomic.Int32
+	physicalProxyInterface = func(ctx context.Context) (string, error) {
+		calls.Add(1)
+		entered <- struct{}{}
+		select {
+		case <-release:
+			return "en0", nil
+		case <-ctx.Done():
+			return "", ctx.Err()
+		}
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	first, second := make(chan error, 1), make(chan error, 1)
+	go func() { first <- s.ensureProxyInterfaceBeforeUse(ctx, cfg) }()
+	<-entered
+	go func() { second <- s.ensureProxyInterfaceBeforeUse(t.Context(), cfg) }()
+	cancel()
+	if err := <-first; !errors.Is(err, context.Canceled) {
+		t.Errorf("first check = %v", err)
+	}
+	// Allow the second handler to join the in-flight request before its
+	// simulated OS route lookup can finish.
+	select {
+	case <-entered:
+	case <-time.After(100 * time.Millisecond):
+	}
+	close(release)
+	if err := <-second; err != nil || calls.Load() != 1 {
+		t.Fatalf("second check = %v, OS route lookups = %d", err, calls.Load())
+	}
+}
 
 func interfaceMonitorServer(t *testing.T) (*Server, *cage.EgressGate) {
 	t.Helper()
@@ -183,5 +255,31 @@ func TestProxyInterfaceMonitorLeavesStoppedEnvironmentAvailableForStart(t *testi
 	s.jobs.workers.Wait()
 	if job.Running {
 		t.Fatalf("%s occupied the job queue before the stopped environment could start", job.Kind)
+	}
+}
+
+func TestStoppedEnvironmentRebindsRunningCoreAfterUplinkLoss(t *testing.T) {
+	s, _ := interfaceMonitorServer(t)
+	if err := os.Remove(filepath.Join(s.instanceDir(), "cage-running.json")); err != nil {
+		t.Fatal(err)
+	}
+	previousInterface, previousRunning, previousStart := physicalProxyInterface, proxyInterfaceCoreRunning, startProxyCore
+	t.Cleanup(func() {
+		physicalProxyInterface, proxyInterfaceCoreRunning, startProxyCore = previousInterface, previousRunning, previousStart
+	})
+	physicalProxyInterface = func(context.Context) (string, error) { return "replacement-uplink", nil }
+	proxyInterfaceCoreRunning = func(context.Context, string, managedproxy.Store) bool { return true }
+	starts := 0
+	startProxyCore = func(context.Context, string, managedproxy.Store) error {
+		starts++
+		return nil
+	}
+	s.networkPaused = true
+	s.op.Lock()
+	s.monitorProxyInterface()
+	s.op.Unlock()
+	s.jobs.workers.Wait()
+	if starts != 1 || !s.networkPaused || s.vmRunning() {
+		t.Fatalf("starts=%d paused=%v vm=%v", starts, s.networkPaused, s.vmRunning())
 	}
 }

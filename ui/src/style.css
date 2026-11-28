@@ -367,6 +367,7 @@ button.large {
   color: var(--ink);
 }
 .address-bar {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -400,6 +401,44 @@ button.large {
 .address-bar input:focus-visible {
   outline: none;
 }
+.browser-address-suggestions, .browser-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+}
+.browser-address-suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  inset-inline: 0;
+  z-index: 16;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: 0 12px 32px #00000024;
+}
+.browser-address-suggestions > li {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.browser-address-suggestions > li > svg { flex: 0 0 auto; }
+.browser-address-suggestions > li > span, .browser-history-list button {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.browser-address-suggestions > li:hover,
+.browser-address-suggestions > li[aria-selected="true"] { background: var(--hover); }
+.browser-history-search { display: grid; gap: 6px; }
+.browser-history-list {
+  max-height: min(46vh, 360px);
+  overflow: auto;
+  padding-inline: 0;
+}
+.browser-history-list button { width: 100%; text-align: start; }
 .address-go {
   background: transparent;
   color: var(--ink);
@@ -1516,11 +1555,30 @@ svg {
 .project-disclosure > svg:first-child {
   color: var(--muted);
 }
-.project-heading > .icon-button {
+.project-heading > .icon-button,
+.project-actions > summary {
   width: 26px;
   height: 26px;
   min-height: 26px;
   color: var(--muted);
+}
+.project-actions {
+  position: relative;
+}
+.project-actions > summary {
+  display: grid;
+  place-items: center;
+  list-style: none;
+  cursor: pointer;
+}
+.project-actions > summary::-webkit-details-marker {
+  display: none;
+}
+.project-actions .project-actions-list {
+  position: absolute;
+  inset: calc(100% + 4px) 0 auto auto;
+  width: max-content;
+  min-width: 144px;
 }
 .project-children {
   display: grid;
@@ -1748,6 +1806,8 @@ svg {
 .sidebar-project > .terminal-create-menu,
 .chrome > .terminal-create-menu { margin-inline-start: auto; }
 .welcome-shortcuts + .terminal-create-menu { margin-inline: auto; }
+.terminal-account-form { display: grid; gap: 8px; padding: 10px; }
+.terminal-account-form > label { font-size: .9em; }
 .terminal-create-menu button {
   gap: 10px;
   white-space: nowrap;
@@ -2630,6 +2690,9 @@ svg {
 }
 
 .audio-controls { position: relative; display: flex; align-items: center; flex-shrink: 0; }
+.microphone-controls { gap: 7px; }
+.microphone-controls button[aria-pressed="true"] { color: var(--ink); }
+.microphone-controls button > span { margin-inline-start: 4px; }
 .status-bar .audio-controls > button:last-child { border: 0; padding: 0; }
 .audio-volume-panel {
   position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); z-index: 20;

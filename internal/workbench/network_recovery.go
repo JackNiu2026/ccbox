@@ -135,7 +135,7 @@ func (s *Server) recoverNetwork() {
 func (s *Server) runNetworkRecovery(expected networkRecovery, recheck func() error) error {
 	s.mu.Lock()
 	stopped := s.closing || s.networkPaused || s.safety.pauseVersion != expected.PauseVersion
-	if stopped {
+	if stopped && s.recovery == expected {
 		s.recovery = networkRecovery{}
 	}
 	s.mu.Unlock()
@@ -158,7 +158,7 @@ func (s *Server) runNetworkRecovery(expected networkRecovery, recheck func() err
 	}
 	s.mu.Lock()
 	valid := !s.closing && s.recovery == expected && recoveryMatches(expected, state, cfg.Fingerprint(), s.networkPaused, s.safety.pauseVersion)
-	if !valid {
+	if !valid && s.recovery == expected {
 		s.recovery = networkRecovery{}
 	}
 	s.mu.Unlock()

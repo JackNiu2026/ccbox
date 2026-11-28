@@ -9,7 +9,9 @@ import {
   Globe2,
   Home,
   Monitor,
+  MoreHorizontal,
   Network,
+  Pin,
   PanelLeftClose,
   Plus,
   RefreshCw,
@@ -21,7 +23,7 @@ import {
 import { EnvironmentShield } from "./environment-shield";
 import logo from "./logo.svg";
 import claudeLogo from "./claude-logo.svg";
-import { projectName } from "./workspace-state.mjs";
+import { isClientProject, projectName } from "./workspace-state.mjs";
 import { WorkspaceTabs } from "./workspace-tabs";
 import { projectSessionRows, sessionKey } from "./session-order.mjs";
 import { AccountIdentity } from "./account";
@@ -61,6 +63,9 @@ export function WorkspaceSidebar({
   editorAvailable = true,
   projectsAvailable = true,
   onOpenProject,
+  onEditProject,
+  onProjectRename,
+  onProjectPin,
   onProjectSelect,
   onSelect,
   onClose,
@@ -240,15 +245,7 @@ export function WorkspaceSidebar({
                 >
                   {expanded ? <FolderOpen size={16} /> : <Folder size={16} />}
                   <span>{project}</span>
-                </button>
-                <button
-                  className="icon-button"
-                  aria-label={`打开 ${project} 的编辑器`}
-                  title={tr("在 code-server 中打开项目目录")}
-                  disabled={!ready || busy || !editorAvailable}
-                  onClick={() => onEditor(path)}
-                >
-                  <ExternalLink size={15} />
+                  {group?.pinned && <Pin size={12} aria-label={tr("已置顶")} />}
                 </button>
                 <button
                   className="icon-button"
@@ -267,6 +264,37 @@ export function WorkspaceSidebar({
                 >
                   <SquareTerminal size={15} />
                 </button>
+                <details className="project-actions"
+                  onBlur={event => {
+                    if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false;
+                  }}
+                  onKeyDown={event => {
+                    if (event.key !== "Escape" || !event.currentTarget.open) return;
+                    event.stopPropagation();
+                    event.currentTarget.open = false;
+                    event.currentTarget.querySelector("summary")?.focus();
+                  }}>
+                  <summary className="icon-button" aria-label={`${project} · ${tr("项目操作")}`} title={tr("项目操作")}>
+                    <MoreHorizontal size={16} aria-hidden="true" />
+                  </summary>
+                  <div className="menu project-actions-list" onClick={event => {
+                    if (!event.target.closest("button")) return;
+                    const details = event.currentTarget.parentElement;
+                    details.open = false;
+                    details.querySelector("summary")?.focus();
+                  }}>
+                    <button type="button" disabled={!ready || busy || !editorAvailable} onClick={() => onEditor(path)}>
+                      <ExternalLink size={15} />{tr("打开编辑器")}
+                    </button>
+                    {!isClientProject(path) && <>
+                      <button type="button" disabled={busy} onClick={() => onProjectRename(path, project)}>{tr("重命名项目")}</button>
+                      <button type="button" disabled={busy} onClick={() => onProjectPin(path, !group?.pinned)}>
+                        {group?.pinned ? tr("取消置顶项目") : tr("置顶项目")}
+                      </button>
+                      <button type="button" disabled={!ready || busy} onClick={() => onEditProject(path)}>{tr("编辑项目")}</button>
+                    </>}
+                  </div>
+                </details>
               </div>
               {terminalMenuAt(path)}
               {expanded && folders.length > 1 && <div className="sidebar-project-folders" aria-label={`${project} 的文件夹`}>

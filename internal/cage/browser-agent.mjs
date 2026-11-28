@@ -11,6 +11,7 @@ import { LoginBrowser } from "./browser-login.mjs";
 import { PrivateBrowser } from "./browser-private.mjs";
 import { browserCookies } from "./browser-cookies.mjs";
 import { BrowserExtensions, extensionUploadLimit } from "./browser-extensions.mjs";
+import { BrowserHistory, ordinaryHistoryTab } from "./browser-history.mjs";
 import { BrowserClipboard } from "./browser-clipboard.mjs";
 import { BrowserVisibility, rememberOpener, targetAfterClose } from "./browser-visibility.mjs";
 import { BrowserWheel, createActivitySignal, createPointerProbe } from "./browser-wheel.mjs";
@@ -28,6 +29,8 @@ const displayScale = config.display_scale === 1.5 ? 1.5 : 2;
 const displaySettings = createDisplaySettings({ file: "/home/cage-browser/.cache/cage-display/xsettings.conf", initial: displayScale });
 process.on("exit", () => displaySettings.close());
 const selectionFile = "/home/cage-browser/workbench-state.json";
+const history = new BrowserHistory("/home/cage-browser/workbench-history.json");
+let historyContext = null;
 const homepageFile = "/home/cage-browser/homepage.json";
 let homeURL = "https://www.bing.com/";
 try {
@@ -104,6 +107,7 @@ let navigation = { id: "", back: false, forward: false }, navigationSequence = 0
 // Context IDs and unique blank-page URLs are registered before target creation.
 const auditExclusions = new Set();
 const auditCreations = new Set(), deferredTargetInfo = new Map();
+let openingTab = false;
 const loginBrowser = new LoginBrowser(cdp);
 const privateBrowser = new PrivateBrowser(cdp, downloadPath);
 const browserExtensions = new BrowserExtensions({ directory: "/home/cage-browser", cdp, control: splitController, protectedID: extensionId });
@@ -223,13 +227,13 @@ function updateTargetInfo(t) {
   const previous = targets.get(t.targetId);
   targets.set(t.targetId, privateBrowser.tab(loginBrowser.tab(rememberOpener(t, previous), previous)));
   if (isNativeNewTab(t.url)) void restoreHomepage(t.targetId).catch(error => console.error("Could not open homepage:", error.message));
-  if (fresh) void session(t.targetId).catch(() => {});
+  if (fresh && !openingTab) void session(t.targetId).catch(() => {});
   if (t.targetId === activeId) rememberSelection();
   broadcastState();
   if (!activeId) activeId = t.targetId;
-  if (ready && fresh && t.openerId)
+  if (ready && !openingTab && fresh && t.openerId)
     void activate(t.targetId, true).catch(() => {});
-  else if (ready && fresh)
+  else if (ready && !openingTab && fresh)
     void visibility.sync().catch(() => {});
 }
 
@@ -348,6 +352,7 @@ chrome.stdio[4].on("data", (chunk) => {
     if (event.method === "Browser.downloadProgress") downloads.progress(p);
     const uploadTab = uploadSessions.get(event.sessionId);
     if (uploadTab && event.method === "Page.frameNavigated" && !p.frame?.parentId) {
+      if (ready) history.visit(targets.get(uploadTab), p.frame, historyContext);
       documents.set(uploadTab, p.frame.loaderId);
       favicons.delete(uploadTab);
       faviconRequests.delete(uploadTab);
@@ -383,10 +388,10 @@ async function session(id) {
   if (!sessions.has(id))
     sessions.set(
       id,
-      cdp("Target.attachToTarget", { targetId: id, flatten: true }).then(async (r) => {
+      cdp("Target.attachToTarget", { targetId: id, flatten: true }, undefined, 12000).then(async (r) => {
         uploadSessions.set(r.sessionId, id);
-        await cdp("Page.enable", {}, r.sessionId);
-        await cdp("Page.setInterceptFileChooserDialog", { enabled: true }, r.sessionId);
+        await cdp("Page.enable", {}, r.sessionId, 12000);
+        await cdp("Page.setInterceptFileChooserDialog", { enabled: true }, r.sessionId, 12000);
         await browserClipboard.attach(r.sessionId, id).then(result => {
           if (result?.skipped.length) console.warn("Browser copy observer skipped a modified or replaced document; reload the page to enable copy buttons.");
         }).catch(() => console.warn("Browser copy observer unavailable for this page."));
@@ -550,7 +555,7 @@ async function newTab(url = homeURL, incognito = false) {
   const { targetId } = await cdp("Target.createTarget", {
     url: "about:blank",
     background: false,
-  });
+  }, undefined, 12000);
   // The response and discovery event may arrive in either order.
   if (!targets.has(targetId))
     targets.set(targetId, { targetId, type: "page", url: "about:blank", title: "" });
@@ -671,6 +676,7 @@ function displayTitle(tab) {
 }
 function publicState() {
   return {
+    localHistory: historyContext !== null,
     active: activeId,
     split: splitView,
     back: navigation.id === activeId && targets.has(activeId) && navigation.back,
@@ -794,6 +800,18 @@ const server = http.createServer(async (req, res) => {
   try {
     if (!ready) throw new Error("Browser is starting");
     const route = new URL(req.url, "http://localhost");
+    if (route.pathname === "/history" && ["GET", "DELETE"].includes(req.method)) {
+      const tab = targets.get(route.searchParams.get("id"));
+      if (!tab || !isBrowserTab(tab) || isSettingsTab(tab) ||
+          tab.url.startsWith("http://127.0.0.1:18080/") || !ordinaryHistoryTab(tab, historyContext)) {
+        res.writeHead(403);
+        res.end("{}");
+        return;
+      }
+      if (req.method === "DELETE") history.clear();
+      res.end(JSON.stringify({ addresses: history.entries() }));
+      return;
+    }
     if (req.method === "POST" && route.pathname === "/extensions-upload") {
       if (Number(req.headers["content-length"]) > extensionUploadLimit) throw new Error("扩展 ZIP 不能超过 32 MB");
       res.end(JSON.stringify(await mutate(() => browserExtensions.upload(req))));
@@ -897,11 +915,16 @@ const server = http.createServer(async (req, res) => {
     }
     const result = await mutate(async () => {
       if (req.url === "/login-open") {
-        return loginBrowser.open(input.login, input.url, async tab => {
-          if (!targets.has(tab.targetId)) targets.set(tab.targetId, loginBrowser.tab(tab));
-          await activate(tab.targetId, true);
-          return session(tab.targetId);
-        });
+        openingTab = true;
+        try {
+          return await loginBrowser.open(input.login, input.url, async tab => {
+            targets.set(tab.targetId, loginBrowser.tab({ ...targets.get(tab.targetId), ...tab }));
+            await activate(tab.targetId, true);
+            return session(tab.targetId);
+          });
+        } finally {
+          openingTab = false;
+        }
       }
       if (req.url === "/login-finish") {
         await loginBrowser.finish(input.login);
@@ -953,7 +976,14 @@ const server = http.createServer(async (req, res) => {
       }
       if (req.url === "/resize")
         return resizeDisplay(input.width, input.height, input.scale);
-      if (req.url === "/new") return newTab(input.url || undefined, input.incognito === true);
+      if (req.url === "/new") {
+        openingTab = true;
+        try {
+          return await newTab(input.url || undefined, input.incognito === true);
+        } finally {
+          openingTab = false;
+        }
+      }
       if (req.url === "/editor") return editor(input.workspace || config.workspace);
       if (req.url === "/editor-restart") return restartEditor(input.workspace);
       if (req.url === "/ime") {
@@ -1080,6 +1110,14 @@ server.listen(18500, "127.0.0.1");
   for (const tab of targets.values()) if (isNativeNewTab(tab.url)) await restoreHomepage(tab.targetId);
   if (freshProfile && activeId && targets.get(activeId)?.url === "about:blank")
     await cdp("Page.navigate", { url: homeURL }, await session(activeId));
+  // The control server rejects requests until this startup completes. No
+  // login, private or audit contexts have been created at this point.
+  let osRelease = "";
+  try { osRelease = readFileSync("/etc/os-release", "utf8"); } catch {}
+  if (activeId && /^ID="?debian"?$/m.test(osRelease) && /^VERSION_ID="?13"?$/m.test(osRelease)) {
+    const { targetInfo } = await cdp("Target.getTargetInfo", { targetId: activeId }).catch(() => ({}));
+    if (targetInfo?.type === "page") historyContext = targetInfo.browserContextId || "";
+  }
   ready = true;
 })().catch(error => {
   console.error("Browser startup failed:", error.message);

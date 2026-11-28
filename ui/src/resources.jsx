@@ -59,15 +59,14 @@ export function ResourceSettings({ status, onConfirm, onDirtyChange }) {
     finally { setStarting(false); }
   };
   const applyDisk = async (restore = false) => {
-    const shrinking = data.disk_gib * 1073741824 < data.configured_disk_bytes;
     const confirmed = await onConfirm(restore ? {
       title: "恢复调整前的虚拟硬盘？",
       body: "环境会停止并恢复调整前的备份。备份之后在客机内新建或修改的文件不会包含在该备份中。",
       confirm: "恢复备份",
     } : {
-      title: shrinking ? "缩小虚拟硬盘？" : "扩大虚拟硬盘？",
+      title: "扩大虚拟硬盘？",
       body: `硬盘上限将从 ${gib(data.configured_disk_bytes)} 调整为 ${data.disk_gib} GiB。请先保存工作。操作会重启环境，在核验新容量前保留调整前的磁盘备份。`,
-      confirm: shrinking ? "备份并缩小" : "备份并扩大",
+      confirm: "备份并扩大",
     });
     if (!confirmed) return;
     setStarting(true);
@@ -128,7 +127,7 @@ export function ResourceSettings({ status, onConfirm, onDirtyChange }) {
         </label>
         {data.disk_supported && <label><span>硬盘上限</span>
           <span className="resource-input"><input aria-label="硬盘上限（GiB）" aria-describedby="resource-disk-help" type="number" min={data.min_disk_gib} max={data.max_disk_gib} step="1" required value={draft.disk_gib ?? data.disk_gib} disabled={data.disk_recovery_required} onChange={(e) => edit("disk_gib", e.target.value)} /><span aria-hidden="true">GiB</span></span>
-          <small id="resource-disk-help">可调 {data.min_disk_gib}–{data.max_disk_gib} GiB。已有环境的硬盘需要单独确认调整。</small>
+          <small id="resource-disk-help">可调 {data.min_disk_gib}–{data.max_disk_gib} GiB。已有虚拟硬盘扩容需单独确认。</small>
         </label>}
       </fieldset>
       <div className="resource-actions">
